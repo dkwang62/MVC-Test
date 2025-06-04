@@ -1016,6 +1016,9 @@ try:
             st.subheader(f"Season and Holiday Calendar for {year_select}")
             gantt_fig = create_gantt_chart(resort, year_select)
             st.plotly_chart(gantt_fig, use_container_width=True)
+        except Exception as calc_e:
+            st.error(f"Calculation failed: {str(calc_e)}")
+            st.session_state.debug_messages.append(f"Calculation error: {str(calc_e)}\n{traceback.format_exc()}")
 except Exception as e:
     st.error(f"Application failed to initialize: {str(e)}")
     st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
