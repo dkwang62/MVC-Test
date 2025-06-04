@@ -674,7 +674,7 @@ try:
             return f"{discount}% Discount ({level}, Cost)"
 
         display_mode_select = st.selectbox(
-            "Display and Discount Settings",
+            "Last Minute Discount Settings",
             options=range(len(display_options)),
             format_func=format_discount,
             index=0
@@ -692,8 +692,7 @@ try:
     st.title("Marriott Vacation Club Cost Calculator")
 
     with st.expander("\U0001F334 How Cost Is Calculated"):
-        st.markdown(f"""
-        - Change these parameters in the side panel.
+        st.markdown(f"""Change these parameters in the side panel.
         - Maintenance rate: ${rate_per_point:.2f} per point
         - Capital cost per point: ${capital_cost_per_point:.2f}
         - Cost of capital: {cost_of_capital_percent:.1f}%
