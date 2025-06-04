@@ -6,23 +6,6 @@ import plotly.express as px
 import json
 import traceback
 
-# Load data
-try:
-    with open("data.json", "r") as f:
-        data = json.load(f)
-    season_blocks = data["season_blocks"]
-    holiday_weeks = data["holiday_weeks"]
-    room_view_legend = data["room_view_legend"]
-    reference_points = data["reference_points"]
-except Exception as e:
-    st.error(f"Failed to load data.json: {str(e)}")
-    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
-
-# Initialize session state
-if "debug_messages" not in st.session_state:
-    st.session_state.debug_messages = []
-
 # Helper functions
 def get_display_room_type(room_key):
     if room_key in room_view_legend:
@@ -62,7 +45,175 @@ def get_internal_room_key(display_name):
     view = reverse_legend.get(view_display, view_display)
     return f"{base} {view}"
 
-generate_data
+# Generate data function
+def generate_data(resort, date):
+    date_str = date.strftime("%Y-%m-%d")
+    year = date.strftime("%Y")
+    day_of_week = date.strftime("%a")
+    
+    st.session_state.debug_messages.append(f"Processing date: {date_str}, Day: {day_of_week}, type(date): {type(date)}")
+    
+    is_fri_sat = day_of_week in ["Fri", "Sat"]
+    is_sun = day_of_week == "Sun"
+    day_category = "Fri-Sat" if is_fri_sat else "Sun-Thu"
+    ap_day_category = "Fri-Sat" if is_fri_sat else ("Sun" if is_sun else "Mon-Thu")
+    st.session_state.debug_messages.append(f"Default day category: {day_category}")
+    st.session_state.debug_messages.append(f"Default AP day category: {ap_day_category}")
+
+    entry = {}
+    ap_room_types = []
+    if resort == "Ko Olina Beach Club" and "AP Rooms" in reference_points.get(resort, {}):
+        ap_room_types = list(reference_points[resort]["AP Rooms"].get(ap_day_category, {}).keys())
+        st.session_state.debug_messages.append(f"AP Room types found: {ap_room_types}")
+
+    # Season determination
+    season = None
+    holiday_name = None
+    if year in season_blocks.get(resort, {}):
+        for season_name, ranges in season_blocks[resort][year].items():
+            for start_date, end_date in ranges:
+                try:
+                    start = datetime.strptime(start_date, "%Y-%m-%d").date()
+                    end = datetime.strptime(end_date, "%Y-%m-%d").date()
+                    if start <= date <= end:
+                        season = season_name
+                        break
+                except ValueError as e:
+                    st.session_state.debug_messages.append(f"Invalid date format in season_blocks: {e}")
+            if season:
+                break
+
+    # Check for year-end/beginning holiday assumption
+    is_year_end_holiday = False
+    if date.month == 12 and date.day >= 26 or date.month == 1 and date.day <= 1:
+        prev_year = str(int(year) - 1)
+        holiday_start = datetime.strptime(f"{prev_year}-12-26", "%Y-%m-%d").date()
+        holiday_end = datetime.strptime(f"{year}-01-01", "%Y-%m-%d").date()
+        if prev_year in holiday_weeks.get(resort, {}) and any(holiday_start <= datetime.strptime(start, "%Y-%m-%d").date() <= holiday_end for start, _ in holiday_weeks[resort][prev_year].values()):
+            for h_name, [start, end] in holiday_weeks[resort][prev_year].items():
+                start_date = datetime.strptime(start, "%Y-%m-%d").date()
+                end_date = datetime.strptime(end, "%Y-%m-%d").date()
+                if holiday_start <= date <= holiday_end:
+                    holiday_name = h_name
+                    season = "Holiday Week"
+                    break
+        else:
+            # Assume 7-day New Year's Holiday if not defined
+            if holiday_start <= date <= holiday_end:
+                holiday_name = "New Year's Holiday"
+                season = "Holiday Week"
+                is_year_end_holiday = True
+                st.session_state.debug_messages.append(f"Assuming 7-day New Year's Holiday for {date_str}")
+
+    if season is None and not is_year_end_holiday:
+        st.session_state.debug_messages.append(f"No season found for {resort} on {date_str}")
+        st.error(f"No season defined for {resort} on {date_str}.")
+        raise ValueError(f"No season defined for {resort} on {date_str}")
+
+    st.session_state.debug_messages.append(f"Season determined: {season}, Holiday: {holiday_name if holiday_name else 'None'}")
+
+    try:
+        normal_room_category = None
+        normal_room_types = []
+        if season != "Holiday Week":
+            possible_day_categories = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
+            available_day_categories = [cat for cat in possible_day_categories if reference_points.get(resort, {}).get(season, {}).get(cat)]
+            st.session_state.debug_messages.append(f"Available day categories for {resort}, {season}: {available_day_categories}")
+
+            if not available_day_categories:
+                raise KeyError(f"No valid day categories found for {resort}, {season}")
+
+            if is_fri_sat and "Fri-Sat" in available_day_categories:
+                normal_room_category = "Fri-Sat"
+            elif is_sun and "Sun" in available_day_categories:
+                normal_room_category = "Sun"
+            elif not is_fri_sat and "Mon-Thu" in available_day_categories:
+                normal_room_category = "Mon-Thu"
+            elif "Sun-Thu" in available_day_categories:
+                normal_room_category = "Sun-Thu"
+            else:
+                normal_room_category = available_day_categories[0]
+                st.session_state.debug_messages.append(f"Fallback to {normal_room_category} for {date_str}")
+
+            st.session_state.debug_messages.append(f"Selected normal room category: {normal_room_category}")
+            normal_room_types = list(reference_points[resort][season][normal_room_category].keys())
+            st.session_state.debug_messages.append(f"Normal room types for {normal_room_category}: {normal_room_types}")
+        else:
+            if not holiday_name or holiday_name not in reference_points.get(resort, {}).get("Holiday Week", {}):
+                if is_year_end_holiday:
+                    # Default points for assumed New Year's Holiday
+                    normal_room_types = list(reference_points_resort.keys()) if 'reference_points_resort' in globals() else []
+                    st.session_state.debug_messages.append(f"Using default room types for assumed New Year's Holiday: {normal_room_types}")
+                else:
+                    st.session_state.debug_messages.append(f"No points data for holiday {holiday_name or 'None'} in {resort}")
+                    raise KeyError(f"No points data for holiday {holiday_name or 'None'} in {resort}")
+            else:
+                normal_room_types = list(reference_points[resort]["Holiday Week"][holiday_name].keys())
+                st.session_state.debug_messages.append(f"Normal room types for Holiday Week {holiday_name}: {normal_room_types}")
+
+        all_room_types = normal_room_types + ap_room_types
+        all_display_room_types = [get_display_room_type(rt) for rt in all_room_types]
+        display_to_internal = dict(zip(all_display_room_types, all_room_types))
+        st.session_state.debug_messages.append(f"Room type mappings: {display_to_internal}")
+
+        is_holiday = False
+        is_holiday_start = False
+        holiday_name_entry = holiday_name
+        if year in holiday_weeks.get(resort, {}) or is_year_end_holiday:
+            for h_name, [start, end] in (holiday_weeks.get(resort, {}).get(year, {}) if not is_year_end_holiday else holiday_weeks.get(resort, {}).get(prev_year, {}).items()):
+                try:
+                    h_start = datetime.strptime(start, "%Y-%m-%d").date()
+                    h_end = datetime.strptime(end, "%Y-%m-%d").date()
+                    st.session_state.debug_messages.append(f"Checking holiday {h_name}: {start} to {end}")
+                    if h_start <= date <= h_end:
+                        is_holiday = True
+                        holiday_name_entry = h_name
+                        if date == h_start:
+                            is_holiday_start = True
+                        st.session_state.debug_messages.append(f"Holiday match found: {holiday_name_entry} for {date_str}")
+                        break
+                except ValueError as e:
+                    st.session_state.debug_messages.append(f"Invalid holiday date format: {e}")
+
+        for display_room_type, room_type in display_to_internal.items():
+            points = 0
+            is_ap_room = room_type in ap_room_types
+            if is_ap_room:
+                points_ref = reference_points.get(resort, {}).get("AP Rooms", {}).get(ap_day_category, {})
+                points = points_ref.get(room_type, 0)
+                st.session_state.debug_messages.append(f"AP room points for {room_type} ({display_room_type}) on {date_str} ({ap_day_category}): {points}")
+            else:
+                if is_holiday and is_holiday_start:
+                    if is_year_end_holiday and not holiday_name:
+                        # Use reference points from the previous season or default to zero if unavailable
+                        points = reference_points_resort.get(room_type, 0) if 'reference_points_resort' in globals() else 0
+                        st.session_state.debug_messages.append(f"Assuming points for {display_room_type} on {date_str} (New Year's Holiday start): {points}")
+                    else:
+                        points_ref = reference_points.get(resort, {}).get("Holiday Week", {}).get(holiday_name_entry, {})
+                        points = points_ref.get(room_type, 0)
+                        st.session_state.debug_messages.append(f"Holiday Week points for {holiday_name_entry} on {date_str} for {display_room_type}: {points}")
+                elif is_holiday and not is_holiday_start:
+                    points = 0
+                    st.session_state.debug_messages.append(f"Zero points for {date_str} (part of holiday week {holiday_name_entry}) for {display_room_type}")
+                else:
+                    if normal_room_category:
+                        points_ref = reference_points.get(resort, {}).get(season, {}).get(normal_room_category, {})
+                        points = points_ref.get(room_type, 0)
+                        st.session_state.debug_messages.append(f"{season} {normal_room_category} points for {date_str} for {display_room_type}: {points}")
+
+            entry[display_room_type] = points
+
+        if is_holiday:
+            entry["HolidayWeek"] = True
+            entry["holiday_name"] = holiday_name_entry
+            if is_holiday_start:
+                entry["HolidayWeekStart"] = True
+
+        return entry, display_to_internal
+    except Exception as e:
+        st.session_state.debug_messages.append(f"Error in generate_data: {str(e)}\n{traceback.format_exc()}")
+        st.error(f"Failed to generate data for {resort} on {date_str}: {str(e)}")
+        raise
 
 # Adjust date range function
 def adjust_date_range(resort, checkin_date, num_nights):
@@ -213,6 +364,209 @@ resort_aliases = {
 reverse_aliases = {v: k for k, v in resort_aliases.items()}
 display_resorts = list(resort_aliases.values())
 
+# Calculate stay function
+def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital):
+    breakdown = []
+    total_points = 0
+    total_rent = 0
+    total_capital_cost = 0
+    for i in range(num_nights):
+        date = checkin_date + timedelta(days=i)
+        date_str = date.strftime("%Y-%m-%d")
+        try:
+            entry, _ = generate_data(resort, date)
+            points = entry.get(room_type, reference_points_resort.get(room_type, 0))
+            st.session_state.debug_messages.append(f"Calculating for {date_str}: Points for {room_type} = {points}")
+            discounted_points = math.floor(points * discount_multiplier)
+            row = {
+                "Date": date_str,
+                "Day": date.strftime("%a"),
+                "Points": discounted_points,
+                "Holiday": entry.get("holiday_name", "No")
+            }
+            if display_mode == "both":
+                maintenance_cost = math.ceil(discounted_points * rate_per_point)
+                capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
+                total_day_cost = maintenance_cost + capital_cost
+                row["Cost"] = f"${total_day_cost}"
+                row["Maintenance Cost"] = f"${maintenance_cost}"
+                row["Capital Cost"] = f"${capital_cost}"
+                total_rent += total_day_cost
+                total_capital_cost += capital_cost
+            if "HolidayWeek" in entry and entry.get("HolidayWeekStart", False):
+                row["HolidayMarker"] = "\U0001F386"
+            breakdown.append(row)
+            total_points += discounted_points
+        except Exception as e:
+            st.session_state.debug_messages.append(f"Error calculating for {date_str}: {str(e)}")
+            st.error(f"Failed to calculate for {date_str}: {str(e)}")
+            continue
+    return pd.DataFrame(breakdown), total_points, total_rent, total_capital_cost
+
+# Compare room types function
+def compare_room_types(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital):
+    compare_data = []
+    chart_data = []
+    all_dates = [checkin_date + timedelta(days=i) for i in range(num_nights)]
+    stay_start = checkin_date
+    stay_end = checkin_date + timedelta(days=num_nights - 1)
+    
+    holiday_ranges = []
+    holiday_names = {}
+    for h_name, [start, end] in holiday_weeks.get(resort, {}).get(str(checkin_date.year), {}).items():
+        try:
+            h_start = datetime.strptime(start, "%Y-%m-%d").date()
+            h_end = datetime.strptime(end, "%Y-%m-%d").date()
+            if (h_start <= stay_end) and (h_end >= stay_start):
+                holiday_ranges.append((h_start, h_end))
+                for d in [h_start + timedelta(days=x) for x in range((h_end - h_start).days + 1)]:
+                    if d in all_dates:
+                        holiday_names[d] = h_name
+                        st.session_state.debug_messages.append(f"Date {d} overlaps with holiday {h_name} ({h_start} to {h_end})")
+        except ValueError as e:
+            st.session_state.debug_messages.append(f"Invalid holiday date for {h_name}: {e}")
+    
+    total_points_by_room = {room: 0 for room in room_types}
+    total_rent_by_room = {room: 0 for room in room_types}
+    holiday_totals = {room: {} for room in room_types}
+    
+    for room in room_types:
+        internal_room = display_to_internal.get(room, room)
+        st.session_state.debug_messages.append(f"Mapping for room {room}: Internal key = {internal_room}")
+        is_ap_room = room in ap_display_room_types
+        current_holiday = None
+        
+        for date in all_dates:
+            date_str = date.strftime("%Y-%m-%d")
+            day_of_week = date.strftime("%a")
+            try:
+                entry, _ = generate_data(resort, date)
+                points = entry.get(room, reference_points_resort.get(room, 0))
+                st.session_state.debug_messages.append(f"Points for {room} on {date_str} ({day_of_week}): {points}")
+                discounted_points = math.floor(points * discount_multiplier)
+                is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
+                holiday_name = holiday_names.get(date, None)
+                if is_holiday_date and entry.get("HolidayWeekStart", False):
+                    current_holiday = holiday_name
+                    if current_holiday not in holiday_totals[room]:
+                        h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == current_holiday)
+                        h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == current_holiday)
+                        holiday_totals[room][current_holiday] = {"points": 0, "start": h_start, "end": h_end}
+                    if is_ap_room:
+                        full_week_points = reference_points.get(resort, {}).get("AP Rooms", {}).get("Full Week", {}).get(internal_room, points)
+                        full_week_discounted = math.floor(full_week_points * discount_multiplier)
+                        holiday_totals[room][current_holiday]["points"] = full_week_discounted
+                        st.session_state.debug_messages.append(f"AP Room {room} on {date_str}: Using full week points {full_week_points}")
+                    else:
+                        holiday_totals[room][current_holiday]["points"] = discounted_points
+                        st.session_state.debug_messages.append(f"Normal Room {room} on {date_str}: Using first-day points {points}")
+                elif is_holiday_date and current_holiday and not is_ap_room:
+                    continue
+                else:
+                    current_holiday = None
+                
+                if not current_holiday or is_ap_room:
+                    row = {
+                        "Date": date_str,
+                        "Room Type": room,
+                        "Points": discounted_points
+                    }
+                    if display_mode == "both":
+                        maintenance_cost = math.ceil(discounted_points * rate_per_point)
+                        capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
+                        total_day_cost = maintenance_cost + capital_cost
+                        row["Rent"] = f"${total_day_cost}"
+                        row["Maintenance Cost"] = f"${maintenance_cost}"
+                        row["Capital Cost"] = f"${capital_cost}"
+                        total_rent_by_room[room] += total_day_cost
+                    compare_data.append(row)
+                
+                chart_row = {
+                    "Date": date,
+                    "DateStr": date_str,
+                    "Day": day_of_week,
+                    "Room Type": room,
+                    "Points": discounted_points,
+                    "Holiday": entry.get("holiday_name", "No")
+                }
+                if display_mode == "both":
+                    maintenance_cost = math.ceil(discounted_points * rate_per_point)
+                    capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
+                    total_day_cost = maintenance_cost + capital_cost
+                    chart_row["Rent"] = f"${total_day_cost}"
+                    chart_row["RentValue"] = total_day_cost
+                    chart_row["Maintenance Cost"] = f"${maintenance_cost}"
+                    chart_row["Capital Cost"] = f"${capital_cost}"
+                chart_data.append(chart_row)
+                
+                if not current_holiday or is_ap_room:
+                    total_points_by_room[room] += discounted_points
+            
+            except Exception as e:
+                st.session_state.debug_messages.append(f"Error in compare for {date_str}: {str(e)}")
+                continue
+        
+        for holiday_name, totals in holiday_totals[room].items():
+            if totals["points"] > 0:
+                start_str = totals["start"].strftime("%b %d")
+                end_str = totals["end"].strftime("%b %d, %Y")
+                row = {
+                    "Date": f"{holiday_name} ({start_str} - {end_str})",
+                    "Room Type": room,
+                    "Points": totals["points"]
+                }
+                if display_mode == "both":
+                    maintenance_cost = math.ceil(totals["points"] * rate_per_point)
+                    capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital)
+                    total_holiday_cost = maintenance_cost + capital_cost
+                    row["Rent"] = f"${total_holiday_cost}"
+                    row["Maintenance Cost"] = f"${maintenance_cost}"
+                    row["Capital Cost"] = f"${capital_cost}"
+                compare_data.append(row)
+    
+    total_row = {"Date": "Total Points (Non-Holiday)"}
+    for room in room_types:
+        total_row[room] = total_points_by_room[room]
+    compare_data.append(total_row)
+    
+    if display_mode == "both":
+        total_rent_row = {"Date": "Total Cost (Non-Holiday)"}
+        for room in room_types:
+            total_rent_row[room] = f"${total_rent_by_room[room]}"
+        compare_data.append(total_rent_row)
+    
+    compare_df = pd.DataFrame(compare_data)
+    compare_df_pivot = compare_df.pivot_table(
+        index="Date",
+        columns="Room Type",
+        values=["Points"] if display_mode == "points" else ["Points", "Rent", "Maintenance Cost", "Capital Cost"],
+        aggfunc="first"
+    ).reset_index()
+    compare_df_pivot.columns = ['Date'] + [f"{col[1]} {col[0]}" for col in compare_df_pivot.columns[1:]]
+    chart_df = pd.DataFrame(chart_data)
+    
+    st.session_state.debug_messages.append(f"Compare DataFrame columns: {chart_df.columns.tolist()}")
+    st.session_state.debug_messages.append(f"Compare Chart DataFrame head: {chart_df.head().to_dict()}")
+    
+    return chart_df, compare_df_pivot, holiday_totals
+
+# Load data and initialize
+try:
+    with open("data.json", "r") as f:
+        data = json.load(f)
+    season_blocks = data["season_blocks"]
+    holiday_weeks = data["holiday_weeks"]
+    room_view_legend = data["room_view_legend"]
+    reference_points = data["reference_points"]
+except Exception as e:
+    st.error(f"Failed to load data.json: {str(e)}")
+    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
+    st.stop()
+
+# Initialize session state
+if "debug_messages" not in st.session_state:
+    st.session_state.debug_messages = []
+
 # Main UI
 try:
     with st.sidebar:
@@ -297,190 +651,6 @@ try:
 
     reference_entry, _ = generate_data(resort, sample_date)
     reference_points_resort = {k: v for k, v in reference_entry.items() if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name"]}
-
-    def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital):
-        breakdown = []
-        total_points = 0
-        total_rent = 0
-        total_capital_cost = 0
-        for i in range(num_nights):
-            date = checkin_date + timedelta(days=i)
-            date_str = date.strftime("%Y-%m-%d")
-            try:
-                entry, _ = generate_data(resort, date)
-                points = entry.get(room_type, reference_points_resort.get(room_type, 0))
-                st.session_state.debug_messages.append(f"Calculating for {date_str}: Points for {room_type} = {points}")
-                discounted_points = math.floor(points * discount_multiplier)
-                row = {
-                    "Date": date_str,
-                    "Day": date.strftime("%a"),
-                    "Points": discounted_points,
-                    "Holiday": entry.get("holiday_name", "No")
-                }
-                if display_mode == "both":
-                    maintenance_cost = math.ceil(discounted_points * rate_per_point)
-                    capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
-                    total_day_cost = maintenance_cost + capital_cost
-                    row["Cost"] = f"${total_day_cost}"
-                    row["Maintenance Cost"] = f"${maintenance_cost}"
-                    row["Capital Cost"] = f"${capital_cost}"
-                    total_rent += total_day_cost
-                    total_capital_cost += capital_cost
-                if "HolidayWeek" in entry and entry.get("HolidayWeekStart", False):
-                    row["HolidayMarker"] = "\U0001F386"
-                breakdown.append(row)
-                total_points += discounted_points
-            except Exception as e:
-                st.session_state.debug_messages.append(f"Error calculating for {date_str}: {str(e)}")
-                st.error(f"Failed to calculate for {date_str}: {str(e)}")
-                continue
-        return pd.DataFrame(breakdown), total_points, total_rent, total_capital_cost
-
-    def compare_room_types(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital):
-        compare_data = []
-        chart_data = []
-        all_dates = [checkin_date + timedelta(days=i) for i in range(num_nights)]
-        stay_start = checkin_date
-        stay_end = checkin_date + timedelta(days=num_nights - 1)
-        
-        holiday_ranges = []
-        holiday_names = {}
-        for h_name, [start, end] in holiday_weeks.get(resort, {}).get(str(checkin_date.year), {}).items():
-            try:
-                h_start = datetime.strptime(start, "%Y-%m-%d").date()
-                h_end = datetime.strptime(end, "%Y-%m-%d").date()
-                if (h_start <= stay_end) and (h_end >= stay_start):
-                    holiday_ranges.append((h_start, h_end))
-                    for d in [h_start + timedelta(days=x) for x in range((h_end - h_start).days + 1)]:
-                        if d in all_dates:
-                            holiday_names[d] = h_name
-                            st.session_state.debug_messages.append(f"Date {d} overlaps with holiday {h_name} ({h_start} to {h_end})")
-            except ValueError as e:
-                st.session_state.debug_messages.append(f"Invalid holiday date for {h_name}: {e}")
-        
-        total_points_by_room = {room: 0 for room in room_types}
-        total_rent_by_room = {room: 0 for room in room_types}
-        holiday_totals = {room: {} for room in room_types}
-        
-        for room in room_types:
-            internal_room = display_to_internal.get(room, room)
-            st.session_state.debug_messages.append(f"Mapping for room {room}: Internal key = {internal_room}")
-            is_ap_room = room in ap_display_room_types
-            current_holiday = None
-            
-            for date in all_dates:
-                date_str = date.strftime("%Y-%m-%d")
-                day_of_week = date.strftime("%a")
-                try:
-                    entry, _ = generate_data(resort, date)
-                    points = entry.get(room, reference_points_resort.get(room, 0))
-                    st.session_state.debug_messages.append(f"Points for {room} on {date_str} ({day_of_week}): {points}")
-                    discounted_points = math.floor(points * discount_multiplier)
-                    is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
-                    holiday_name = holiday_names.get(date, None)
-                    if is_holiday_date and entry.get("HolidayWeekStart", False):
-                        current_holiday = holiday_name
-                        if current_holiday not in holiday_totals[room]:
-                            h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == current_holiday)
-                            h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == current_holiday)
-                            holiday_totals[room][current_holiday] = {"points": 0, "start": h_start, "end": h_end}
-                        if is_ap_room:
-                            full_week_points = reference_points.get(resort, {}).get("AP Rooms", {}).get("Full Week", {}).get(internal_room, points)
-                            full_week_discounted = math.floor(full_week_points * discount_multiplier)
-                            holiday_totals[room][current_holiday]["points"] = full_week_discounted
-                            st.session_state.debug_messages.append(f"AP Room {room} on {date_str}: Using full week points {full_week_points}")
-                        else:
-                            holiday_totals[room][current_holiday]["points"] = discounted_points
-                            st.session_state.debug_messages.append(f"Normal Room {room} on {date_str}: Using first-day points {points}")
-                    elif is_holiday_date and current_holiday and not is_ap_room:
-                        continue
-                    else:
-                        current_holiday = None
-                    
-                    if not current_holiday or is_ap_room:
-                        row = {
-                            "Date": date_str,
-                            "Room Type": room,
-                            "Points": discounted_points
-                        }
-                        if display_mode == "both":
-                            maintenance_cost = math.ceil(discounted_points * rate_per_point)
-                            capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
-                            total_day_cost = maintenance_cost + capital_cost
-                            row["Rent"] = f"${total_day_cost}"
-                            row["Maintenance Cost"] = f"${maintenance_cost}"
-                            row["Capital Cost"] = f"${capital_cost}"
-                            total_rent_by_room[room] += total_day_cost
-                        compare_data.append(row)
-                    
-                    chart_row = {
-                        "Date": date,
-                        "DateStr": date_str,
-                        "Day": day_of_week,
-                        "Room Type": room,
-                        "Points": discounted_points,
-                        "Holiday": entry.get("holiday_name", "No")
-                    }
-                    if display_mode == "both":
-                        maintenance_cost = math.ceil(discounted_points * rate_per_point)
-                        capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
-                        total_day_cost = maintenance_cost + capital_cost
-                        chart_row["Rent"] = f"${total_day_cost}"
-                        chart_row["RentValue"] = total_day_cost
-                        chart_row["Maintenance Cost"] = f"${maintenance_cost}"
-                        chart_row["Capital Cost"] = f"${capital_cost}"
-                    chart_data.append(chart_row)
-                    
-                    if not current_holiday or is_ap_room:
-                        total_points_by_room[room] += discounted_points
-                
-                except Exception as e:
-                    st.session_state.debug_messages.append(f"Error in compare for {date_str}: {str(e)}")
-                    continue
-            
-            for holiday_name, totals in holiday_totals[room].items():
-                if totals["points"] > 0:
-                    start_str = totals["start"].strftime("%b %d")
-                    end_str = totals["end"].strftime("%b %d, %Y")
-                    row = {
-                        "Date": f"{holiday_name} ({start_str} - {end_str})",
-                        "Room Type": room,
-                        "Points": totals["points"]
-                    }
-                    if display_mode == "both":
-                        maintenance_cost = math.ceil(totals["points"] * rate_per_point)
-                        capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital)
-                        total_holiday_cost = maintenance_cost + capital_cost
-                        row["Rent"] = f"${total_holiday_cost}"
-                        row["Maintenance Cost"] = f"${maintenance_cost}"
-                        row["Capital Cost"] = f"${capital_cost}"
-                    compare_data.append(row)
-        
-        total_row = {"Date": "Total Points (Non-Holiday)"}
-        for room in room_types:
-            total_row[room] = total_points_by_room[room]
-        compare_data.append(total_row)
-        
-        if display_mode == "both":
-            total_rent_row = {"Date": "Total Cost (Non-Holiday)"}
-            for room in room_types:
-                total_rent_row[room] = f"${total_rent_by_room[room]}"
-            compare_data.append(total_rent_row)
-        
-        compare_df = pd.DataFrame(compare_data)
-        compare_df_pivot = compare_df.pivot_table(
-            index="Date",
-            columns="Room Type",
-            values=["Points"] if display_mode == "points" else ["Points", "Rent", "Maintenance Cost", "Capital Cost"],
-            aggfunc="first"
-        ).reset_index()
-        compare_df_pivot.columns = ['Date'] + [f"{col[1]} {col[0]}" for col in compare_df_pivot.columns[1:]]
-        chart_df = pd.DataFrame(chart_data)
-        
-        st.session_state.debug_messages.append(f"Compare DataFrame columns: {chart_df.columns.tolist()}")
-        st.session_state.debug_messages.append(f"Compare Chart DataFrame head: {chart_df.head().to_dict()}")
-        
-        return chart_df, compare_df_pivot, holiday_totals
 
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
