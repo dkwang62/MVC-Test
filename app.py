@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import json
 import traceback
+from collections import defaultdict
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -67,9 +68,14 @@ def get_internal_room_key(display_name):
     view = reverse_legend.get(view_display, view_display)
     return f"{base} {view}"
 
-# Generate data function
-def generate_data(resort, date):
+# Generate data function with caching
+def generate_data(resort, date, cache=None):
+    if cache is None:
+        cache = {}
     date_str = date.strftime("%Y-%m-%d")
+    if date_str in cache:
+        return cache[date_str]
+
     year = date.strftime("%Y")
     day_of_week = date.strftime("%a")
     
@@ -137,8 +143,8 @@ def generate_data(resort, date):
             is_year_end_holiday = True
             st.session_state.debug_messages.append(f"Assuming 7-day New Year's Holiday for {date_str}")
 
-    # Suppress warning for year-end holiday dates
-    if season is None and not is_year_end_holiday:
+    # Suppress warning if holiday is detected
+    if season is None and not (holiday_name or is_year_end_holiday):
         st.session_state.debug_messages.append(f"No season or holiday found for {resort} on {date_str}")
         st.warning(f"No season or holiday defined for {resort} on {date_str}. Using default behavior.")
         season = "Default Season"
@@ -244,8 +250,7 @@ def generate_data(resort, date):
                         points = points_ref.get(room_type, 0)
                         st.session_state.debug_messages.append(f"Holiday Week points for {holiday_name_entry} on {date_str} for {display_room_type}: {points}")
             elif is_holiday and not is_holiday_start:
-                points = 0
-                st.session_state.debug_messages.append(f"Zero points for {date_str} (part of holiday week {holiday_name_entry}) for {display_room_type}")
+                points = 0  # Points are zero for days within holiday week after the start
             else:
                 if is_ap_room:
                     points_ref = reference_points.get(resort, {}).get("AP Rooms", {}).get(ap_day_category, {})
@@ -270,6 +275,7 @@ def generate_data(resort, date):
             if is_holiday_start:
                 entry["HolidayWeekStart"] = True
 
+        cache[date_str] = (entry, display_to_internal)
         return entry, display_to_internal
     except Exception as e:
         st.session_state.debug_messages.append(f"Error in generate_data: {str(e)}\n{traceback.format_exc()}")
@@ -444,12 +450,13 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
     total_capital_cost = 0
     current_holiday = None
     holiday_points = 0
+    data_cache = {}
 
     for i in range(num_nights):
         date = checkin_date + timedelta(days=i)
         date_str = date.strftime("%Y-%m-%d")
         try:
-            entry, _ = generate_data(resort, date)
+            entry, _ = generate_data(resort, date, data_cache)
             points = entry.get(room_type, reference_points_resort.get(get_internal_room_key(room_type), 0))
             st.session_state.debug_messages.append(f"Calculating for {date_str}: Points for {room_type} = {points}")
             discounted_points = math.floor(points * discount_multiplier)
@@ -463,8 +470,7 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                     row = {
                         "Date": f"{current_holiday} ({holiday_start.strftime('%b %d, %Y')} - {holiday_end.strftime('%b %d, %Y')})",
                         "Day": "",
-                        "Points": holiday_points,
-                        "Holiday": current_holiday
+                        "Points": holiday_points
                     }
                     if display_mode == "both":
                         maintenance_cost = math.ceil(holiday_points * rate_per_point)
@@ -477,13 +483,12 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                         total_capital_cost += capital_cost
                     breakdown.append(row)
                 elif current_holiday:
-                    continue
+                    continue  # Skip additional days within the holiday week
             else:
                 row = {
                     "Date": date_str,
                     "Day": date.strftime("%a"),
-                    "Points": discounted_points,
-                    "Holiday": "No"
+                    "Points": discounted_points
                 }
                 if display_mode == "both":
                     maintenance_cost = math.ceil(discounted_points * rate_per_point)
@@ -531,7 +536,8 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     
     total_points_by_room = {room: 0 for room in room_types}
     total_rent_by_room = {room: 0 for room in room_types}
-    holiday_totals = {room: {} for room in room_types}
+    holiday_totals = {room: defaultdict(dict) for room in room_types}
+    data_cache = {}
     
     for room in room_types:
         internal_room = display_to_internal.get(room, room)
@@ -543,7 +549,7 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
             date_str = date.strftime("%Y-%m-%d")
             day_of_week = date.strftime("%a")
             try:
-                entry, _ = generate_data(resort, date)
+                entry, _ = generate_data(resort, date, data_cache)
                 points = entry.get(room, reference_points_resort.get(get_internal_room_key(room), 0))
                 st.session_state.debug_messages.append(f"Points for {room} on {date_str} ({day_of_week}): {points}")
                 discounted_points = math.floor(points * discount_multiplier)
@@ -716,7 +722,7 @@ try:
     resort_display = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"), key="resort_select")
     resort = reverse_aliases.get(resort_display, resort_display)
 
-    checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 8).date())
+    checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 7).date())
     num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
 
     year_select = str(checkin_date.year)
