@@ -15,7 +15,6 @@ def get_display_room_type(room_key):
         return room_key
     base = parts[0]
     if room_key.startswith("AP_"):
-        # Handle AP room types specifically
         if room_key == "AP_Studio MA":
             return "AP Studio Mountain View"
         elif room_key == "AP_1BR_MA":
@@ -38,7 +37,6 @@ def get_internal_room_key(display_name):
     reverse_legend = {v: k for k, v in room_view_legend.items()}
     if display_name in reverse_legend:
         return reverse_legend[display_name]
-    # Handle AP room display names
     if display_name.startswith("AP "):
         if display_name == "AP Studio Mountain View":
             return "AP_Studio MA"
@@ -133,13 +131,13 @@ def generate_data(resort, date):
                     st.session_state.debug_messages.append(f"Invalid holiday data format for {h_name}: {e}")
         except ValueError as e:
             st.session_state.debug_messages.append(f"Error processing holiday data for {resort}: {e}")
-        else:
-            if holiday_start <= date <= holiday_end:
-                holiday_name = "New Year's Holiday"
-                season = "Holiday Week"
-                is_year_end_holiday = True
-                st.session_state.debug_messages.append(f"Assuming 7-day New Year's Holiday for {date_str}")
+        if holiday_start <= date <= holiday_end:
+            holiday_name = "New Year's Holiday"
+            season = "Holiday Week"
+            is_year_end_holiday = True
+            st.session_state.debug_messages.append(f"Assuming 7-day New Year's Holiday for {date_str}")
 
+    # Suppress warning for year-end holiday dates
     if season is None and not is_year_end_holiday:
         st.session_state.debug_messages.append(f"No season or holiday found for {resort} on {date_str}")
         st.warning(f"No season or holiday defined for {resort} on {date_str}. Using default behavior.")
@@ -195,6 +193,8 @@ def generate_data(resort, date):
         is_holiday = False
         is_holiday_start = False
         holiday_name_entry = holiday_name
+        holiday_start_date = None
+        holiday_end_date = None
         if year in holiday_weeks.get(resort, {}) or is_year_end_holiday:
             holiday_data_dict = holiday_weeks.get(resort, {}).get(year, {}) if not is_year_end_holiday else holiday_weeks.get(resort, {}).get(prev_year, {})
             for h_name, holiday_data in holiday_data_dict.items():
@@ -206,6 +206,8 @@ def generate_data(resort, date):
                         if start <= date <= end:
                             is_holiday = True
                             holiday_name_entry = h_name
+                            holiday_start_date = start
+                            holiday_end_date = end
                             if date == start:
                                 is_holiday_start = True
                             st.session_state.debug_messages.append(f"Holiday match found: {holiday_name_entry} for {date_str}")
@@ -216,6 +218,14 @@ def generate_data(resort, date):
                         st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name}: {holiday_data}")
                 except (IndexError, ValueError) as e:
                     st.session_state.debug_messages.append(f"Invalid holiday data format for {h_name}: {e}")
+
+        if is_year_end_holiday and not is_holiday:
+            is_holiday = True
+            holiday_name_entry = "New Year's Holiday"
+            holiday_start_date = holiday_start
+            holiday_end_date = holiday_end
+            if date == holiday_start:
+                is_holiday_start = True
 
         for display_room_type, room_type in display_to_internal.items():
             points = 0
@@ -255,6 +265,8 @@ def generate_data(resort, date):
         if is_holiday:
             entry["HolidayWeek"] = True
             entry["holiday_name"] = holiday_name_entry
+            entry["holiday_start"] = holiday_start_date
+            entry["holiday_end"] = holiday_end_date
             if is_holiday_start:
                 entry["HolidayWeekStart"] = True
 
@@ -445,9 +457,11 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
             if entry.get("HolidayWeek", False):
                 if entry.get("HolidayWeekStart", False):
                     current_holiday = entry.get("holiday_name")
+                    holiday_start = entry.get("holiday_start")
+                    holiday_end = entry.get("holiday_end")
                     holiday_points = discounted_points
                     row = {
-                        "Date": f"{current_holiday} ({date.strftime('%b %d, %Y')} - {(date + timedelta(days=6)).strftime('%b %d, %Y')})",
+                        "Date": f"{current_holiday} ({holiday_start.strftime('%b %d, %Y')} - {holiday_end.strftime('%b %d, %Y')})",
                         "Day": "",
                         "Points": holiday_points,
                         "Holiday": current_holiday
@@ -461,10 +475,9 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                         row["Capital Cost"] = f"${capital_cost}"
                         total_rent += total_day_cost
                         total_capital_cost += capital_cost
-                    row["HolidayMarker"] = "\U0001F386"
                     breakdown.append(row)
                 elif current_holiday:
-                    continue  # Skip daily entries during holiday week
+                    continue
             else:
                 row = {
                     "Date": date_str,
@@ -710,7 +723,7 @@ try:
 
     sample_date = checkin_date
     sample_entry, display_to_internal = generate_data(resort, sample_date)
-    room_types = sorted([k for k in sample_entry if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name"]])
+    room_types = sorted([k for k in sample_entry if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]])
     if not room_types:
         st.error(f"No room types found for {resort}.")
         st.session_state.debug_messages.append(f"No room types for {resort}")
@@ -734,7 +747,7 @@ try:
     st.session_state.last_checkin_date = checkin_date
 
     reference_entry, _ = generate_data(resort, sample_date)
-    reference_points_resort = {k: v for k, v in reference_entry.items() if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name"]}
+    reference_points_resort = {k: v for k, v in reference_entry.items() if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]}
 
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
