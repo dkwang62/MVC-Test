@@ -136,23 +136,24 @@ def generate_data(resort, date):
             st.session_state.debug_messages.append(f"Available day categories for {resort}, {season}: {available_day_categories}")
 
             if not available_day_categories:
-                raise KeyError(f"No valid day categories found for {resort}, {season}")
-
-            if is_fri_sat and "Fri-Sat" in available_day_categories:
-                normal_room_category = "Fri-Sat"
-            elif is_sun and "Sun" in available_day_categories:
-                normal_room_category = "Sun"
-            elif not is_fri_sat and "Mon-Thu" in available_day_categories:
-                normal_room_category = "Mon-Thu"
-            elif "Sun-Thu" in available_day_categories:
-                normal_room_category = "Sun-Thu"
+                st.session_state.debug_messages.append(f"No valid day categories found for {resort}, {season}. Falling back to default points.")
+                normal_room_types = list(reference_points_resort.keys()) if 'reference_points_resort' in globals() else []
             else:
-                normal_room_category = available_day_categories[0]
-                st.session_state.debug_messages.append(f"Fallback to {normal_room_category} for {date_str}")
+                if is_fri_sat and "Fri-Sat" in available_day_categories:
+                    normal_room_category = "Fri-Sat"
+                elif is_sun and "Sun" in available_day_categories:
+                    normal_room_category = "Sun"
+                elif not is_fri_sat and "Mon-Thu" in available_day_categories:
+                    normal_room_category = "Mon-Thu"
+                elif "Sun-Thu" in available_day_categories:
+                    normal_room_category = "Sun-Thu"
+                else:
+                    normal_room_category = available_day_categories[0]
+                    st.session_state.debug_messages.append(f"Fallback to {normal_room_category} for {date_str}")
 
-            st.session_state.debug_messages.append(f"Selected normal room category: {normal_room_category}")
-            normal_room_types = list(reference_points[resort][season][normal_room_category].keys())
-            st.session_state.debug_messages.append(f"Normal room types for {normal_room_category}: {normal_room_types}")
+                st.session_state.debug_messages.append(f"Selected normal room category: {normal_room_category}")
+                normal_room_types = list(reference_points[resort][season][normal_room_category].keys())
+                st.session_state.debug_messages.append(f"Normal room types for {normal_room_category}: {normal_room_types}")
         else:
             if not holiday_name or holiday_name not in reference_points.get(resort, {}).get("Holiday Week", {}):
                 if is_year_end_holiday:
@@ -222,6 +223,10 @@ def generate_data(resort, date):
                         points_ref = reference_points.get(resort, {}).get(season, {}).get(normal_room_category, {})
                         points = points_ref.get(room_type, 0)
                         st.session_state.debug_messages.append(f"{season} {normal_room_category} points for {date_str} for {display_room_type}: {points}")
+                    else:
+                        # Fallback to reference points if no category is available
+                        points = reference_points_resort.get(room_type, 0) if 'reference_points_resort' in globals() else 0
+                        st.session_state.debug_messages.append(f"Fallback points for {display_room_type} on {date_str} (no category): {points}")
 
             entry[display_room_type] = points
 
@@ -658,7 +663,7 @@ try:
     resort_display = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"), key="resort_select")
     resort = reverse_aliases.get(resort_display, resort_display)
 
-    checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 10).date())
+    checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 8).date())
     num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
 
     year_select = str(checkin_date.year)
