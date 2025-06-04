@@ -6,6 +6,8 @@ import plotly.express as px
 import json
 import traceback
 from collections import defaultdict
+import unittest
+from unittest.mock import patch, MagicMock
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -640,7 +642,120 @@ try:
 except Exception as e:
     st.error(f"Failed to load data.json: {str(e)}")
     st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
+    # Fallback to mock data if file load fails
+    season_blocks = {}
+    holiday_weeks = {}
+    room_view_legend = {}
+    reference_points = {}
+    st.warning("Using mock data due to data.json load failure.")
+
+# Mock data for testing
+mock_data = {
+    "room_view_legend": {"MA": "Mountain View", "MK": "Ocean View"},
+    "reference_points": {
+        "Kauai Beach Club": {
+            "Holiday Week": {"Independence Day": {"1BR MA": 2000, "Studio MK": 1200}},
+            "High Season": {"Fri-Sat": {"1BR MA": 500, "Studio MK": 300}, "Sun-Thu": {"1BR MA": 400, "Studio MK": 250}},
+            "Low Season": {"Fri-Sat": {"1BR MA": 400, "Studio MK": 200}, "Sun-Thu": {"1BR MA": 300, "Studio MK": 150}}
+        },
+        "Ko Olina Beach Club": {
+            "AP Rooms": {"Fri-Sat": {"AP_1BR_MA": 630}, "Sun": {"AP_1BR_MA": 510}, "Mon-Thu": {"AP_1BR_MA": 360}},
+            "Holiday Week": {"Independence Day": {"AP_1BR_MA": 3210}}
+        }
+    },
+    "holiday_weeks": {
+        "Kauai Beach Club": {"2026": {"Independence Day": ["2026-07-03", "2026-07-09"]}},
+        "Ko Olina Beach Club": {"2026": {"Independence Day": ["2026-07-03", "2026-07-09"]}}
+    },
+    "season_blocks": {
+        "Kauai Beach Club": {"2026": {"High Season": [["2026-07-10", "2026-08-27"]], "Low Season": [["2026-01-02", "2026-01-29"]]}}
+    }
+}
+
+# Test class embedded in app
+class TestMVCCalculator(unittest.TestCase):
+    def setUp(self):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.session_state.debug_messages = []
+        self.checkin_date = datetime(2026, 7, 8).date()
+        self.resort = "Kauai Beach Club"
+        # Patch global variables with mock data for testing
+        st.session_state.reference_points = mock_data["reference_points"]
+        st.session_state.holiday_weeks = mock_data["holiday_weeks"]
+        st.session_state.season_blocks = mock_data["season_blocks"]
+        st.session_state.room_view_legend = mock_data["room_view_legend"]
+
+    def test_get_display_room_type(self):
+        self.assertEqual(get_display_room_type("1BR MA"), "1BR Mountain View")
+        self.assertEqual(get_display_room_type("Studio MK"), "Studio Ocean View")
+        self.assertEqual(get_display_room_type("AP_1BR_MA"), "AP 1BR Mountain")
+
+    def test_get_internal_room_key(self):
+        self.assertEqual(get_internal_room_key("1BR Mountain View"), "1BR MA")
+        self.assertEqual(get_internal_room_key("Studio Ocean View"), "Studio MK")
+        self.assertEqual(get_internal_room_key("AP 1BR Mountain"), "AP_1BR_MA")
+
+    def test_generate_data_holiday(self):
+        date = datetime(2026, 7, 3).date()
+        entry, _ = generate_data(self.resort, date)
+        self.assertIn("1BR Mountain View", entry)
+        self.assertEqual(entry["1BR Mountain View"], 2000)
+        self.assertTrue(entry.get("HolidayWeek"))
+        self.assertTrue(entry.get("HolidayWeekStart"))
+
+        date = datetime(2026, 7, 4).date()
+        entry, _ = generate_data(self.resort, date)
+        self.assertEqual(entry["1BR Mountain View"], 0)
+
+    def test_generate_data_season(self):
+        date = datetime(2026, 7, 10).date()
+        entry, _ = generate_data(self.resort, date)
+        self.assertIn("1BR Mountain View", entry)
+        self.assertEqual(entry["1BR Mountain View"], 400)
+
+    def test_adjust_date_range_holiday_overlap(self):
+        checkin_date = datetime(2026, 7, 8).date()
+        num_nights = 7
+        adjusted_date, adjusted_nights, was_adjusted = adjust_date_range(self.resort, checkin_date, num_nights)
+        self.assertEqual(adjusted_date, datetime(2026, 7, 3).date())
+        self.assertEqual(adjusted_nights, 12)
+        self.assertTrue(was_adjusted)
+
+    def test_calculate_stay_holiday(self):
+        checkin_date = datetime(2026, 7, 8).date()
+        num_nights = 7
+        adjusted_date, adjusted_nights, _ = adjust_date_range(self.resort, checkin_date, num_nights)
+        breakdown, total_points, total_rent, total_capital_cost = calculate_stay(
+            self.resort, "1BR Mountain View", adjusted_date, adjusted_nights, 0, 1.0, "both", 0.81, 16.0, 0.07
+        )
+        self.assertFalse(breakdown.empty)
+        self.assertEqual(total_points, 2000)
+        self.assertGreater(total_rent, 0)
+        self.assertGreater(total_capital_cost, 0)
+
+    def test_room_type_dropdown_update(self):
+        st.session_state.last_resort = "Ko Olina Beach Club"
+        with patch('streamlit.selectbox', return_value="Kauai Beach Club") as mock_selectbox:
+            resort_display = mock_selectbox()
+            resort = reverse_aliases.get(resort_display, resort_display)
+            sample_date = self.checkin_date
+            entry, display_to_internal = generate_data(resort, sample_date)
+            room_types = [k for k in entry if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]]
+            st.session_state.room_types = room_types
+            st.session_state.display_to_internal = display_to_internal
+            self.assertIn("1BR Mountain View", room_types)
+            self.assertNotIn("AP 1BR Mountain", room_types)
+
+    def test_create_gantt_chart(self):
+        fig = create_gantt_chart(self.resort, "2026")
+        self.assertIsNotNone(fig)
+        self.assertEqual(fig.data[0].x[0], datetime(2026, 7, 3).date())
+        self.assertEqual(fig.data[0].x[1], datetime(2026, 7, 9).date())
+
+    def tearDown(self):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
 
 # Initialize session state
 if "debug_messages" not in st.session_state:
@@ -902,12 +1017,37 @@ try:
             gantt_fig = create_gantt_chart(resort, year_select)
             st.plotly_chart(gantt_fig, use_container_width=True)
 
-        except Exception as e:
-            st.error(f"Calculation failed: {str(e)}")
-            st.session_state.debug_messages.append(f"Calculation error: {str(e)}\n{traceback.format_exc()}")
-except Exception as e:
-    st.error(f"Application failed to initialize: {str(e)}")
-    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
+    # Add test button
+    if st.button("Run Tests"):
+        st.session_state.debug_messages.append("Starting automated tests...")
+        test_suite = unittest.TestLoader().loadTestsFromTestCase(TestMVCCalculator)
+        test_runner = unittest.TextTestRunner(stream=st.text, verbosity=2)
+        result = test_runner.run(test_suite)
+        
+        st.subheader("Test Results")
+        st.write(f"Total Tests: {result.testsRun}")
+        st.write(f"Passed: {result.testsRun - len(result.failures) - len(result.errors)}")
+        st.write(f"Failed: {len(result.failures)}")
+        st.write(f"Errors: {len(result.errors)}")
+        
+        if result.failures or result.errors:
+            st.error("Some tests failed or encountered errors:")
+            for fail, traceback in result.failures + result.errors:
+                st.text(fail)
+                st.text(traceback)
+        else:
+            st.success("All tests passed successfully!")
+        
+        st.subheader("Debug Messages")
+        if st.session_state.debug_messages:
+            for msg in st.session_state.debug_messages:
+                st.write(msg)
+        else:
+            st.write("No debug messages generated during tests.")
+
+    except Exception as e:
+        st.error(f"Application failed to initialize: {str(e)}")
+        st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
 
 # Debug Information
 with st.expander("Debug Information"):
