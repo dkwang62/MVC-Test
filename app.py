@@ -466,7 +466,7 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                         total_rent += total_day_cost
                         total_capital_cost += capital_cost
                     breakdown.append(row)
-                elif current_holiday:
+                elif current_holiday and date <= holiday_end:
                     continue  # Skip additional days within the holiday week
             else:
                 row = {
@@ -491,7 +491,7 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
             st.error(f"Failed to calculate for {date_str}: {str(e)}")
             continue
     return pd.DataFrame(breakdown), total_points, total_rent, total_capital_cost
-
+    
 # Compare room types function
 def compare_room_types(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital):
     compare_data = []
