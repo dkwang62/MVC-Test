@@ -689,7 +689,7 @@ try:
                                         capital_cost = math.ceil(totals["points"] * rate_per_point)
                                         capital_cost_per_point * cost_of_hotel = maintenance_cost + capital_cost
                                         row["Holiday"] = f"${holiday_name}"
-                                        row["RentValue"] = total_hotel_cost"]
+                                        row["RentValue"] = total_hotel_cost
                                         total_points_by_room["Maintenance Cost"] = maintenance_cost
                                         row["Capital Cost"] = capital_cost
                                     holiday_data.append(row)
