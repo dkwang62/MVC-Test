@@ -1017,34 +1017,50 @@ try:
             gantt_fig = create_gantt_chart(resort, year_select)
             st.plotly_chart(gantt_fig, use_container_width=True)
 
-    # Add test button
-    if st.button("Run Tests"):
-        st.session_state.debug_messages.append("Starting automated tests...")
-        test_suite = unittest.TestLoader().loadTestsFromTestCase(TestMVCCalculator)
-        test_runner = unittest.TextTestRunner(stream=st.text, verbosity=2)
-        result = test_runner.run(test_suite)
+    # Main UI
+try:
+    with st.sidebar:
+        st.header("Cost Parameters")
+        display_options = [
+            (0, "both"), (25, "both"), (30, "both"),
+            (0, "points"), (25, "points"), (30, "points")
+        ]
+        # ... (rest of the sidebar and main UI code up to the "Calculate" button)
         
-        st.subheader("Test Results")
-        st.write(f"Total Tests: {result.testsRun}")
-        st.write(f"Passed: {result.testsRun - len(result.failures) - len(result.errors)}")
-        st.write(f"Failed: {len(result.failures)}")
-        st.write(f"Errors: {len(result.errors)}")
-        
-        if result.failures or result.errors:
-            st.error("Some tests failed or encountered errors:")
-            for fail, traceback in result.failures + result.errors:
-                st.text(fail)
-                st.text(traceback)
-        else:
-            st.success("All tests passed successfully!")
-        
-        st.subheader("Debug Messages")
-        if st.session_state.debug_messages:
-            for msg in st.session_state.debug_messages:
-                st.write(msg)
-        else:
-            st.write("No debug messages generated during tests.")
+        if st.button("Calculate"):
+            # ... (Calculate button logic)
+            st.plotly_chart(gantt_fig, use_container_width=True)
+except Exception as e:
+    st.error(f"Application failed to initialize: {str(e)}")
+    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
 
+# Add test button outside the main try block
+if st.button("Run Tests"):
+    st.session_state.debug_messages.append("Starting automated tests...")
+    test_suite = unittest.TestLoader().loadTestsFromTestCase(TestMVCCalculator)
+    test_runner = unittest.TextTestRunner(stream=st.text, verbosity=2)
+    result = test_runner.run(test_suite)
+    
+    st.subheader("Test Results")
+    st.write(f"Total Tests: {result.testsRun}")
+    st.write(f"Passed: {result.testsRun - len(result.failures) - len(result.errors)}")
+    st.write(f"Failed: {len(result.failures)}")
+    st.write(f"Errors: {len(result.errors)}")
+    
+    if result.failures or result.errors:
+        st.error("Some tests failed or encountered errors:")
+        for fail, traceback in result.failures + result.errors:
+            st.text(fail)
+            st.text(traceback)
+    else:
+        st.success("All tests passed successfully!")
+    
+    st.subheader("Debug Messages")
+    if st.session_state.debug_messages:
+        for msg in st.session_state.debug_messages:
+            st.write(msg)
+    else:
+        st.write("No debug messages generated during tests.")
     except Exception as e:
         st.error(f"Application failed to initialize: {str(e)}")
         st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
