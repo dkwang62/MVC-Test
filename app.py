@@ -7,6 +7,26 @@ import json
 import traceback
 from collections import defaultdict
 
+# Season name mapping for Playa Andaluza and Marbella Beach Resort
+season_display_mapping = {
+    "Playa Andaluza": {
+        "Season 1": "Winter Serenity",
+        "Season 2": "Spring Blossom",
+        "Season 3": "Summer Vibrance",
+        "Season 4": "Autumn Glow",
+        "Season 5": "Peak Summer",
+        "Holiday Week": "Holiday Festive"
+    },
+    "Marbella Beach": {
+        "Season 1": "Winter Serenity",
+        "Season 2": "Spring Blossom",
+        "Season 3": "Summer Vibrance",
+        "Season 4": "Autumn Glow",
+        "Season 5": "Peak Summer",
+        "Holiday Week": "Holiday Festive"
+    }
+}
+
 # Helper functions
 def get_display_room_type(room_key):
     if room_key in room_view_legend:
