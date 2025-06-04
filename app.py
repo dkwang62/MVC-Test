@@ -693,7 +693,7 @@ try:
 
     with st.expander("\U0001F334 How Cost Is Calculated"):
         st.markdown(f"""
-        - Ordinary Membership: No last minute discounts
+        You Change these parameters in the side panel.
         - Maintenance rate: ${rate_per_point:.2f} per point
         - Capital cost per point: ${capital_cost_per_point:.2f}
         - Cost of capital: {cost_of_capital_percent:.1f}%
