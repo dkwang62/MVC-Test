@@ -674,7 +674,7 @@ try:
             return f"{discount}% Discount ({level}, Cost)"
 
         display_mode_select = st.selectbox(
-            "Last Minute Discount Settings",
+            "Display and Discount Settings",
             options=range(len(display_options)),
             format_func=format_discount,
             index=0
@@ -693,11 +693,11 @@ try:
 
     with st.expander("\U0001F334 How Cost Is Calculated"):
         st.markdown(f"""
-        Change these parameters in the side panel.
+        - Ordinary Membership: No last minute discounts
         - Maintenance rate: ${rate_per_point:.2f} per point
         - Capital cost per point: ${capital_cost_per_point:.2f}
         - Cost of capital: {cost_of_capital_percent:.1f}%
-        - Selected last minute discount: {discount_percent}%
+        - Selected discount: {discount_percent}%
         - Cost of capital calculated as (points * capital cost per point * cost of capital percentage)
         - Total cost is maintenance cost plus capital cost
         """)
