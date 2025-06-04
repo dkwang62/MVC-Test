@@ -1016,20 +1016,6 @@ try:
             st.subheader(f"Season and Holiday Calendar for {year_select}")
             gantt_fig = create_gantt_chart(resort, year_select)
             st.plotly_chart(gantt_fig, use_container_width=True)
-
-    # Main UI
-try:
-    with st.sidebar:
-        st.header("Cost Parameters")
-        display_options = [
-            (0, "both"), (25, "both"), (30, "both"),
-            (0, "points"), (25, "points"), (30, "points")
-        ]
-        # ... (rest of the sidebar and main UI code up to the "Calculate" button)
-        
-        if st.button("Calculate"):
-            # ... (Calculate button logic)
-            st.plotly_chart(gantt_fig, use_container_width=True)
 except Exception as e:
     st.error(f"Application failed to initialize: {str(e)}")
     st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
@@ -1061,9 +1047,6 @@ if st.button("Run Tests"):
             st.write(msg)
     else:
         st.write("No debug messages generated during tests.")
-    except Exception as e:
-        st.error(f"Application failed to initialize: {str(e)}")
-        st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
 
 # Debug Information
 with st.expander("Debug Information"):
