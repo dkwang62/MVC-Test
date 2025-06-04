@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import math
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ import traceback
 from collections import defaultdict
 import unittest
 from unittest.mock import patch, MagicMock
+import io  # Added for StringIO
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -126,7 +128,7 @@ def generate_data(resort, date, cache=None):
                 if len(holiday_data) >= 2:
                     start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
                     end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-                    st.session_state.debug_messages.append(f"Checking holiday {h_name} for {resort}: {start} to {end}")
+                    st.session_state.debug_messages.append(f"Checking holiday {h_name} for {resort}: {h_name}: {start} to {end}")
                     if start <= date <= end:
                         is_holiday = True
                         holiday_name = h_name
@@ -135,37 +137,40 @@ def generate_data(resort, date, cache=None):
                         holiday_end_date = end
                         if date == start:
                             is_holiday_start = True
-                        st.session_state.debug_messages.append(f"Holiday match for {resort}: {holiday_name} on {date_str}")
-                        if len(holiday_data) > 2:
-                            st.session_state.debug_messages.append(f"Warning: Extra values in holiday {h_name} data: {holiday_data[2:]}")
+                        st.session_state.debug.append(f"Holiday match found: {h_name} on {date_str} at {resort}")
+                        if len(holiday_data) > 1:
+                            st.session_state.debug.append(f"Warning: {h_name} data: {holiday_data[2:]}")
                         break
                 else:
-                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} in {resort}: {holiday_data}")
-            except (IndexError, ValueError) as e:
-                st.session_state.debug_messages.append(f"Invalid holiday data format for {h_name} in {resort}: {e}")
+                    st.session_state.debug.append(f"Holiday data length for {h_name} at {resort}: {holiday_data}")
+            except (ValueError) as e:
+                st.session_state.debug.append(f"Error in holiday data for {h_name} at {resort}: {e}")
 
-    # Season determination only if no holiday
-    if not is_holiday:
+    # Season determination if no holiday
+    if not holiday:
         if year in season_blocks.get(resort, {}):
             for season_name, ranges in season_blocks[resort][year].items():
-                for start_date, end_date in ranges:
-                    try:
-                        start = datetime.strptime(start_date, "%Y-%m-%d").date()
-                        end = datetime.strptime(end_date, "%Y-%m-%d").date()
-                        if start <= date <= end:
-                            season = season_name
+                    for start_date, end_date in ranges:
+                        try:
+                            start = datetime.strptime(start_date, "%Y-%m-%d").date()
+                            end = datetime.strptime(end_date, "%Y-%m-%d").date()
+                            if start <= date <= end:
+                                season = season_name
+                            else:
+                                break
+                        except ValueError as e:
+                            st.session_state.debug.append(f"Invalid date format: {resort}: {e}")
+                    else:
+                        if season:
                             break
-                    except ValueError as e:
-                        st.session_state.debug_messages.append(f"Invalid date format in season_blocks for {resort}: {e}")
-                if season:
-                    break
+                            break
 
         if season is None:
-            st.session_state.debug_messages.append(f"No season or holiday found for {resort} on {date_str}")
-            st.warning(f"No season or holiday defined for {resort} on {date_str}. Using default behavior.")
+            st.session_state.debug.append(f"No season or holiday found: {resort} on {date_str}")
+            st.warning.append(f"No season or holiday defined: {resort} on {date_str}")
             season = "Default Season"
 
-    st.session_state.debug_messages.append(f"Season for {resort}: {season}, Holiday: {holiday_name if holiday_name else 'None'}")
+        st.session_state.debug.append(f"Season: {season}, Holiday: {holiday_name or 'None'} at {resort}")
 
     try:
         normal_room_category = None
@@ -173,43 +178,44 @@ def generate_data(resort, date, cache=None):
         if season != "Holiday Week":
             possible_day_categories = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
             available_day_categories = [cat for cat in possible_day_categories if reference_points.get(resort, {}).get(season, {}).get(cat)]
-            st.session_state.debug_messages.append(f"Available day categories for {resort}, {season}: {available_day_categories}")
+            st.session_state.debug.append(f"Available day categories: {available_day_categories} for {resort}, {season}")
 
             if not available_day_categories:
-                st.session_state.debug_messages.append(f"No valid day categories found for {resort}, {season}. Falling back to default points.")
+                st.session_state.debug.append(f"No valid day categories: {resort}, {season}. Falling back to default points.")
                 normal_room_types = list(reference_points_resort.keys()) if 'reference_points_resort' in globals() else []
             else:
                 if is_fri_sat and "Fri-Sat" in available_day_categories:
                     normal_room_category = "Fri-Sat"
                 elif is_sun and "Sun" in available_day_categories:
                     normal_room_category = "Sun"
-                elif not is_fri_sat and "Mon-Thu" in available_day_categories:
+                elif not is_fri_sat and "Mon-Thu" in available_day_categories":
                     normal_room_category = "Mon-Thu"
-                elif "Sun-Thu" in available_day_categories:
+                elif "Sun-Thu" in available_day_categories":
                     normal_room_category = "Sun-Thu"
                 else:
                     normal_room_category = available_day_categories[0]
-                    st.session_state.debug_messages.append(f"Fallback to {normal_room_category} for {date_str} at {resort}")
+                    st.session_state.debug.append(f"Fallback to {normal_room_category} for {date_str} at {resort}")
 
-                st.session_state.debug_messages.append(f"Selected normal room category for {resort}: {normal_room_category}")
+                st.session_state.debug.append(f"Selected normal room category: {normal_room_category} at {resort}")
                 normal_room_types = list(reference_points[resort][season][normal_room_category].keys())
-                st.session_state.debug_messages.append(f"Normal room types for {resort}, {normal_room_category}: {normal_room_types}")
+                st.session_state.debug.append(f"Normal room types: {normal_room_types} for {resort}, {normal_room_category}")
+
         else:
             if not holiday_name or holiday_name not in reference_points.get(resort, {}).get("Holiday Week", {}):
                 if is_year_end_holiday:
                     normal_room_types = list(reference_points_resort.keys()) if 'reference_points_resort' in globals() else []
-                    st.session_state.debug_messages.append(f"Using default room types for assumed New Year's Holiday at {resort}: {normal_room_types}")
+                    st.session_state.debug.append(f"Using default room types for New Year's Holiday: {normal_room_types} at {resort}")
                 else:
-                    st.session_state.debug_messages.append(f"No points data for holiday {holiday_name or 'None'} in {resort}")
-                    raise KeyError(f"No points data for holiday {holiday_name or 'None'} in {resort}")
+                    st.session_state.debug.append(f"No points data for holiday {holiday_name or 'None'} in {resort}")
+                    raise KeyError(f"No points data: {holiday_name or 'None'} in {resort}")
             else:
                 normal_room_types = list(reference_points[resort]["Holiday Week"][holiday_name].keys())
-                st.session_state.debug_messages.append(f"Normal room types for Holiday Week {holiday_name} at {resort}: {normal_room_types}")
+                st.session_state.debug.append(f"Normal room types for Holiday Week: {holiday_name} at {resort}: {normal_room_types}")
 
         all_room_types = normal_room_types + ap_room_types
         all_display_room_types = [get_display_room_type(rt) for rt in all_room_types]
         display_to_internal = dict(zip(all_display_room_types, all_room_types))
-        st.session_state.debug_messages.append(f"Room type mappings for {resort}: {display_to_internal}")
+        st.session_state.debug.append(f"Room type mappings: {display_to_internal} at {resort}")
 
         for display_room_type, room_type in display_to_internal.items():
             points = 0
@@ -218,31 +224,31 @@ def generate_data(resort, date, cache=None):
                 if is_ap_room:
                     points_ref = reference_points.get(resort, {}).get("AP Rooms", {}).get("Full Week", {})
                     points = points_ref.get(room_type, 0)
-                    st.session_state.debug_messages.append(f"AP full-week points for {room_type} ({display_room_type}) on {date_str} (Holiday Week {holiday_name}) at {resort}: {points}")
+                    st.session_state.debug.append(f"AP full-week points for {room_type} ({display_room_type}) on {date_str} (Holiday Week {holiday_name}) at {resort}: {points}")
                 else:
                     if is_year_end_holiday and not holiday_name:
                         points = reference_points_resort.get(room_type, 0) if 'reference_points_resort' in globals() else 0
-                        st.session_state.debug_messages.append(f"Assuming points for {display_room_type} on {date_str} (New Year's Holiday start) at {resort}: {points}")
+                        st.session_state.debug.append(f"Assuming points for {display_room_type} on {date_str} (New Year's Holiday start) at {resort}: {points}")
                     else:
                         points_ref = reference_points.get(resort, {}).get("Holiday Week", {}).get(holiday_name, {})
                         points = points_ref.get(room_type, 0)
-                        st.session_state.debug_messages.append(f"Holiday Week points for {holiday_name} on {date_str} for {display_room_type} ({room_type}) at {resort}: {points}")
+                        st.session_state.debug.append(f"Holiday Week points for {holiday_name} on {date_str} for {display_room_type} ({room_type}) at {resort}: {points}")
             elif is_holiday and not is_holiday_start and holiday_start_date <= date <= holiday_end_date:
                 points = 0  # Points are zero for days within holiday week after the start
-                st.session_state.debug_messages.append(f"Zero points for {date_str} (part of holiday week {holiday_name}) for {display_room_type} at {resort}")
+                st.session_state.debug.append(f"Zero points for {date_str} (part of holiday week {holiday_name}) for {display_room_type} at {resort}")
             else:
                 if is_ap_room:
                     points_ref = reference_points.get(resort, {}).get("AP Rooms", {}).get(ap_day_category, {})
                     points = points_ref.get(room_type, 0)
-                    st.session_state.debug_messages.append(f"AP room points for {room_type} ({display_room_type}) on {date_str} ({ap_day_category}) at {resort}: {points}")
+                    st.session_state.debug.append(f"AP room points for {room_type} ({display_room_type}) on {date_str} ({ap_day_category}) at {resort}: {points}")
                 else:
                     if normal_room_category:
                         points_ref = reference_points.get(resort, {}).get(season, {}).get(normal_room_category, {})
                         points = points_ref.get(room_type, 0)
-                        st.session_state.debug_messages.append(f"{season} {normal_room_category} points for {date_str} for {display_room_type} ({room_type}) at {resort}: {points}")
+                        st.session_state.debug.append(f"{season} {normal_room_category} points for {date_str} for {display_room_type} ({room_type}) at {resort}: {points}")
                     else:
                         points = reference_points_resort.get(room_type, 0) if 'reference_points_resort' in globals() else 0
-                        st.session_state.debug_messages.append(f"Fallback points for {display_room_type} ({room_type}) on {date_str} at {resort}: {points}")
+                        st.session_state.debug.append(f"Fallback points for {display_room_type} ({room_type}) on {date_str} at {resort}: {points}")
 
             entry[display_room_type] = points
 
@@ -255,7 +261,7 @@ def generate_data(resort, date, cache=None):
                 entry["HolidayWeekStart"] = True
 
         cache[date_str] = (entry, display_to_internal)
-        st.session_state.data_cache = cache  # Update session state cache
+        st.session_state.data_cache = cache
         return entry, display_to_internal
     except Exception as e:
         st.session_state.debug_messages.append(f"Error in generate_data for {resort}: {str(e)}\n{traceback.format_exc()}")
@@ -1027,7 +1033,8 @@ except Exception as e:
 if st.button("Run Tests"):
     st.session_state.debug_messages.append("Starting automated tests...")
     test_suite = unittest.TestLoader().loadTestsFromTestCase(TestMVCCalculator)
-    test_runner = unittest.TextTestRunner(stream=st.text, verbosity=2)
+    output = io.StringIO()  # Create a StringIO object to capture test output
+    test_runner = unittest.TextTestRunner(stream=output, verbosity=2)
     result = test_runner.run(test_suite)
     
     st.subheader("Test Results")
@@ -1035,6 +1042,10 @@ if st.button("Run Tests"):
     st.write(f"Passed: {result.testsRun - len(result.failures) - len(result.errors)}")
     st.write(f"Failed: {len(result.failures)}")
     st.write(f"Errors: {len(result.errors)}")
+    
+    # Display the captured test output
+    st.text(output.getvalue())
+    output.close()  # Clean up the StringIO object
     
     if result.failures or result.errors:
         st.error("Some tests failed or encountered errors:")
@@ -1046,8 +1057,8 @@ if st.button("Run Tests"):
     
     st.subheader("Debug Messages")
     if st.session_state.debug_messages:
-        for msg in st.session_state.debug_messages:
-            st.write(msg)
+        for message in st.session_state.debug_messages:
+            st.write(message)
     else:
         st.write("No debug messages generated during tests.")
 
@@ -1058,10 +1069,11 @@ with st.expander("Debug Information"):
             st.session_state.debug_messages = []
             st.session_state.debug_messages.append("Debug messages cleared.")
         if st.session_state.debug_messages:
-            for msg in st.session_state.debug_messages:
-                st.write(msg)
+            for message in st.session_state.debug_messages:
+                st.write(message)
         else:
             st.write("No debug messages available.")
     except Exception as e:
         st.error(f"Error in debug section: {str(e)}")
         st.session_state.debug_messages.append(f"Debug section error: {str(e)}\n{traceback.format_exc()}")
+```
