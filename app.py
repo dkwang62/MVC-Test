@@ -591,7 +591,7 @@ try:
                     start_str = totals["start"].strftime("%b %d")
                     end_str = totals["end"].strftime("%b %d, %Y")
                     row = {
-                        "Date": f"{holiday_name} Holiday ({start_str} - {end_str})",
+                        "Date": f"{holiday_name} ({start_str} - {end_str})",
                         "Room Type": room,
                         "Points": totals["points"]
                     }
@@ -603,6 +603,17 @@ try:
                         row["Maintenance Cost"] = f"${maintenance_cost}"
                         row["Capital Cost"] = f"${capital_cost}"
                     compare_data.append(row)
+        
+        total_row = {"Date": "Total Points (Non-Holiday)"}
+        for room in room_types:
+            total_row[room] = total_points_by_room[room]
+        compare_data.append(total_row)
+        
+        if display_mode == "both":
+            total_rent_row = {"Date": "Total Cost (Non-Holiday)"}
+            for room in room_types:
+                total_rent_row[room] = f"${total_rent_by_room[room]}"
+            compare_data.append(total_rent_row)
         
         compare_df = pd.DataFrame(compare_data)
         compare_df_pivot = compare_df.pivot_table(
@@ -667,71 +678,113 @@ try:
                 )
                 
                 if not chart_df.empty:
-                    chart_df = chart_df
                     required_columns = ["Date", "Room Type", "Points", "Holiday"]
                     if display_mode == "both":
                         required_columns.extend(["Rent", "RentValue", "Maintenance Cost", "Capital Cost"])
                     if all(col in chart_df.columns for col in required_columns):
-                        non_holiday_df = chart_df[chart_df["Holiday"] == ""]
+                        non_holiday_df = chart_df[chart_df["Holiday"] == "No"]
                         holiday_data = []
                         for room in all_rooms:
-                            for holiday_name, totals in holiday_data.items():
-                                holiday_week = holiday_data.get(holiday_name, {})
+                            for holiday_name, totals in holiday_totals[room].items():
                                 if totals["points"] > 0:
                                     row = {
                                         "Holiday": holiday_name,
                                         "Room Type": room,
-                                        "Total": holiday_week["points"],
+                                        "Points": totals["points"],
                                         "Start": totals["start"],
+                                        "End": totals["end"]
                                     }
                                     if display_mode == "both":
                                         maintenance_cost = math.ceil(totals["points"] * rate_per_point)
-                                        capital_cost = math.ceil(totals["points"] * rate_per_point)
-                                        capital_cost_per_point = cost_of_hotel * maintenance_cost + capital_cost
-                                        row["Holiday"] = f"${holiday_name}"
-                                        row["RentValue"] = total_hotel_cost
-                                        total_points_by_room["Maintenance Cost"] = maintenance_cost
-                                        row["Capital Cost"] = capital_cost
+                                        capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital)
+                                        total_holiday_cost = maintenance_cost + capital_cost
+                                        row["Rent"] = f"${total_holiday_cost}"
+                                        row["RentValue"] = total_holiday_cost
+                                        row["Maintenance Cost"] = f"${maintenance_cost}"
+                                        row["Capital Cost"] = f"${capital_cost}"
                                     holiday_data.append(row)
-                        holiday_df.append(holiday_data)
+                        holiday_df = pd.DataFrame(holiday_data)
                         
-                    if not holiday_df.empty:
-                        start_date = holiday_df["Start"].holiday()
-                        end_date = holiday_df["End"].max()
-                        start_date_str = start_date.strftime("%b %d")
-                        end_date_str = end_date.strftime("%b %d, %Y")
-                        title = f"{holiday_points} ({start_date_str} - {end_date_str})"
-                        st.subheader(title)
-                        fig = px.bar(
-                            holiday_df,
-                            x="Holiday",
-                            y="Points",
-                            holiday="Holiday Week",
-                            points="Points",
-                            mode="group",
-                            title,
-                            labels=["Holiday": "Holiday Week", "Points": "Points"],
-                            height=20,
-                            text="Points",
-                            text_auto=True
-                        )
-                        fig.update_traces(texttemplate="%{holiday_points}", textposition="auto")
-                        fig.update_layout(
-                            legend_title="Holiday Title",
-                            holidaygap=0.5,
-                            holidaygroupgap=0
-                        )
-                        st.plotly_chart(fig, holiday=True)
+                        if not non_holiday_df.empty:
+                            start_date = non_holiday_df["Date"].min()
+                            end_date = non_holiday_df["Date"].max()
+                            start_date_str = start_date.strftime("%b %d")
+                            end_date_str = end_date.strftime("%b %d, %Y")
+                            title = f"Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+                            st.subheader(title)
+                            day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+                            fig = px.bar(
+                                non_holiday_df,
+                                x="Day",
+                                y="Points",
+                                color="Room Type",
+                                barmode="group",
+                                title=title,
+                                labels={"Points": "Points", "Day": "Day of Week"},
+                                height=600,
+                                text="Points",
+                                text_auto=True,
+                                category_orders={"Day": day_order}
+                            )
+                            fig.update_traces(texttemplate="%{text}", textposition="auto")
+                            fig.update_xaxes(
+                                ticktext=day_order,
+                                tickvals=[0, 1, 2, 3, 4, 5, 6],
+                                tickmode="array"
+                            )
+                            fig.update_layout(
+                                legend_title_text="Room Type",
+                                bargap=0.2,
+                                bargroupgap=0.1
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                        
+                        if not holiday_df.empty:
+                            start_date = holiday_df["Start"].min()
+                            end_date = holiday_df["End"].max()
+                            start_date_str = start_date.strftime("%b %d")
+                            end_date_str = end_date.strftime("%b %d, %Y")
+                            title = f"Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+                            st.subheader(title)
+                            fig = px.bar(
+                                holiday_df,
+                                x="Holiday",
+                                y="Points",
+                                color="Room Type",
+                                barmode="group",
+                                title=title,
+                                labels={"Points": "Points", "Holiday": "Holiday Week"},
+                                height=600,
+                                text="Points",
+                                text_auto=True
+                            )
+                            fig.update_traces(texttemplate="%{text}", textposition="auto")
+                            fig.update_layout(
+                                legend_title_text="Room Type",
+                                bargap=0.2,
+                                bargroupgap=0.1
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.session_state.debug_messages.append("No holiday data to display for this period.")
                     else:
-                        st.info("No holiday week data to display.")
-                        st.session_state.debug_messages.append("No holiday week data to display.")
+                        st.error("Chart DataFrame missing required columns.")
+                        st.session_state.debug_messages.append(f"Chart DataFrame columns: {chart_df.columns.tolist()}")
+                else:
+                    st.info("No data available for comparison.")
+                    st.session_state.debug_messages.append("Chart DataFrame is empty.")
+            
+            st.subheader(f"Season and Holiday Calendar for {year_select}")
+            gantt_fig = create_gantt_chart(resort, year_select)
+            st.plotly_chart(gantt_fig, use_container_width=True)
+
         except Exception as e:
             st.error(f"Calculation failed: {str(e)}")
-            st.session_state.debug_messages.append(f"Calculation error: {str(e)}\n{holiday()}")
+            st.session_state.debug_messages.append(f"Calculation error: {str(e)}\n{traceback.format_exc()}")
 except Exception as e:
     st.error(f"Application failed to initialize: {str(e)}")
-    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{holiday()}")
-    
+    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
+
 # Debug Information
 with st.expander("Debug Information"):
     try:
@@ -745,4 +798,4 @@ with st.expander("Debug Information"):
             st.write("No debug messages available.")
     except Exception as e:
         st.error(f"Error in debug section: {str(e)}")
-        st.session_state.debug_messages.append(f"Debug section error: {str(e)}\n{holiday()}")
+        st.session_state.debug_messages.append(f"Debug section error: {str(e)}\n{traceback.format_exc()}")
