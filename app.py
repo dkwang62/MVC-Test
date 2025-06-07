@@ -418,8 +418,8 @@ resort_aliases = {
     "The Westin Ka'anapali Ocean Resort Villas": "The Westin Ka'anapali Ocean Resort Villas",
     "Playa Andaluza": "Playa Andaluza",
     "Marbella Beach": "Marbella Beach",
-    "Marriott's Beachplace Towers",
-    "Sheraton Kauai Resort",
+    "Marriott's Beachplace Towers": "Marriott's Beachplace Towers",
+    "Sheraton Kauai Resort": "Sheraton Kauai Resort",
     "Village Paris": "Village Paris"
 }
 reverse_aliases = {v: k for k, v in resort_aliases.items()}
