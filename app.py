@@ -6,8 +6,12 @@ import plotly.express as px
 import json
 import traceback
 from collections import defaultdict
+import pytesseract
+from PIL import Image
+import re
+import io
 
-# Helper functions
+# Helper functions for Cost Calculator
 def get_display_room_type(room_key):
     if room_key in room_view_legend:
         return room_view_legend[room_key]
@@ -64,7 +68,6 @@ def get_internal_room_key(display_name):
     view = reverse_legend.get(view_display, view_display)
     return f"{base} {view}"
 
-# Generate data function with caching
 def generate_data(resort, date, cache=None):
     if "data_cache" not in st.session_state:
         st.session_state.data_cache = {}
@@ -260,7 +263,6 @@ def generate_data(resort, date, cache=None):
         st.error(f"Failed to generate data for {resort} on {date_str}: {str(e)}")
         raise
 
-# Adjust date range function
 def adjust_date_range(resort, checkin_date, num_nights):
     year_str = str(checkin_date.year)
     stay_end = checkin_date + timedelta(days=num_nights - 1)
@@ -297,7 +299,6 @@ def adjust_date_range(resort, checkin_date, num_nights):
     st.session_state.debug_messages.append(f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}")
     return checkin_date, num_nights, False
 
-# Create Gantt chart function
 def create_gantt_chart(resort, year):
     gantt_data = []
     year_str = str(year)
@@ -402,30 +403,6 @@ def create_gantt_chart(resort, year):
         fig.update_yaxes(autorange="reversed")
         return fig
 
-# Resort display name mapping
-resort_aliases = {
-    "Kauai Beach Club": "Kauai Beach Club",
-    "Ko Olina Beach Club": "Ko Olina Beach Club",
-    "Grande Vista": "Grande Vista",
-    "Newport Coast Villas": "Newport Coast Villas",
-    "Crystal Shores": "Crystal Shores",
-    "Maui Ocean Club": "Maui Ocean Club",
-    "Shadow Ridge": "Shadow Ridge",
-    "Desert Springs Villas II": "Desert Springs Villas II",
-    "Marriott's Bali Nusa Dua Terrace": "Marriott's Bali Nusa Dua Terrace",
-    "Marriott's Bali Nusa Dua Gardens": "Marriott's Bali Nusa Dua Gardens",
-    "Marriott's Phuket Beach Club": "Marriott's Phuket Beach Club",
-    "The Westin Ka'anapali Ocean Resort Villas": "The Westin Ka'anapali Ocean Resort Villas",
-    "Playa Andaluza": "Playa Andaluza",
-    "Marbella Beach": "Marbella Beach",
-    "Marriott's Beachplace Towers": "Marriott's Beachplace Towers",
-    "Sheraton Kauai Resort": "Sheraton Kauai Resort",
-    "Village Paris": "Village Paris"
-}
-reverse_aliases = {v: k for k, v in resort_aliases.items()}
-display_resorts = list(resort_aliases.values())
-
-# Calculate stay function
 def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
     breakdown = []
     total_points = 0
@@ -500,7 +477,6 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
             continue
     return pd.DataFrame(breakdown), total_points, total_rent, total_capital_cost, total_depreciation_cost
 
-# Compare room types function
 def compare_room_types(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
     compare_data = []
     chart_data = []
@@ -658,7 +634,108 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     
     return chart_df, compare_df_pivot, holiday_totals
 
-# Load data and initialize
+# JSON Builder Functionality
+def run_json_builder():
+    st.title("🏖️ Marriott Resort Chart to JSON Converter")
+    st.markdown("Upload a resort point chart and auto-generate JSON like `data.json`.\n\n*Currently in prototype — focuses on structure and logic, not full OCR precision yet.*")
+
+    # Upload image
+    uploaded_file = st.file_uploader("Upload Resort Chart Image", type=["png", "jpg", "jpeg"])
+
+    # OCR and processing
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Resort Chart", use_column_width=True)
+        
+        # Extract text
+        extracted_text = pytesseract.image_to_string(image)
+        st.text_area("Extracted Text (OCR Preview)", extracted_text, height=300)
+
+        # Attempt to parse season blocks
+        season_blocks = {}
+        date_range_pattern = r"([A-Za-z]{3,9})\s(\d{1,2})–(\d{1,2})"
+        months = {
+            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        }
+
+        found_ranges = re.findall(date_range_pattern, extracted_text)
+        for match in found_ranges:
+            month, start_day, end_day = match
+            if month[:3] in months:
+                start = f"2025-{months[month[:3]]}-{int(start_day):02}"
+                end = f"2025-{months[month[:3]]}-{int(end_day):02}"
+                season_blocks.setdefault("Low Season", []).append([start, end])
+
+        # Manual override for legend
+        manual_legend = st.text_input("Legend (format: GV=Gardenview, OV=Oceanview, ...)", "GV=Gardenview, OV=Oceanview")
+        legend_pairs = [item.strip().split("=") for item in manual_legend.split(",") if "=" in item]
+        legend_dict = {k.strip(): v.strip() for k, v in legend_pairs}
+
+        if st.button("Generate JSON"):
+            output = {
+                "season_blocks": {
+                    "New Resort": {
+                        "2025": season_blocks
+                    }
+                },
+                "holiday_weeks": {
+                    "New Resort": {
+                        "2025": {
+                            "Christmas": ["2025-12-19", "2025-12-25"]
+                        }
+                    }
+                },
+                "reference_points": {
+                    "New Resort": {
+                        "Low Season": {
+                            "Fri-Sat": {
+                                "1-BDRM GV": 350
+                            },
+                            "Sun-Thu": {
+                                "1-BDRM GV": 250
+                            },
+                            "Full Week": {
+                                "1-BDRM GV": 1750
+                            }
+                        }
+                    }
+                },
+                "room_view_legend": legend_dict
+            }
+
+            st.download_button("📥 Download JSON", data=json.dumps(output, indent=2), file_name="new_resort.json", mime="application/json")
+
+# Resort display name mapping
+resort_aliases = {
+    "Kauai Beach Club": "Kauai Beach Club",
+    "Ko Olina Beach Club": "Ko Olina Beach Club",
+    "Grande Vista": "Grande Vista",
+    "Newport Coast Villas": "Newport Coast Villas",
+    "Crystal Shores": "Crystal Shores",
+    "Maui Ocean Club": "Maui Ocean Club",
+    "Shadow Ridge": "Shadow Ridge",
+    "Desert Springs Villas II": "Desert Springs Villas II",
+    "Marriott's Bali Nusa Dua Terrace": "Marriott's Bali Nusa Dua Terrace",
+    "Marriott's Bali Nusa Dua Gardens": "Marriott's Bali Nusa Dua Gardens",
+    "Marriott's Phuket Beach Club": "Marriott's Phuket Beach Club",
+    "The Westin Ka'anapali Ocean Resort Villas": "The Westin Ka'anapali Ocean Resort Villas",
+    "Playa Andaluza": "Playa Andaluza",
+    "Marbella Beach": "Marbella Beach",
+    "Marriott's Beachplace Towers": "Marriott's Beachplace Towers",
+    "Sheraton Kauai Resort": "Sheraton Kauai Resort",
+    "Village Paris": "Village Paris"
+}
+reverse_aliases = {v: k for k, v in resort_aliases.items()}
+display_resorts = list(resort_aliases.values())
+
+# Initialize session state
+if "debug_messages" not in st.session_state:
+    st.session_state.debug_messages = []
+if "data_cache" not in st.session_state:
+    st.session_state.data_cache = {}
+
+# Load data for Cost Calculator
 try:
     with open("data.json", "r") as f:
         data = json.load(f)
@@ -671,13 +748,12 @@ except Exception as e:
     st.session_state.debug_messages = [f"Data load error: {str(e)}"]
     st.stop()
 
-# Initialize session state
-if "debug_messages" not in st.session_state:
-    st.session_state.debug_messages = []
-
 # Main UI
-try:
-    with st.sidebar:
+with st.sidebar:
+    st.header("Mode Selection")
+    app_mode = st.selectbox("Select Application Mode", ["Cost Calculator", "JSON Builder"], index=0)
+    
+    if app_mode == "Cost Calculator":
         st.header("Cost Parameters")
         display_options = [
             (0, "both"), (25, "both"), (30, "both"),
@@ -711,6 +787,10 @@ try:
         cost_of_capital = cost_of_capital_percent / 100
         st.caption(f"Cost calculation based on {discount_percent}% discount.")
 
+# Run the selected mode
+if app_mode == "JSON Builder":
+    run_json_builder()
+else:
     discount_multiplier = 1 - (discount_percent / 100)
 
     st.title("Marriott Vacation Club Cost Calculator")
@@ -732,17 +812,15 @@ try:
     resort_display = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"), key="resort_select")
     resort = reverse_aliases.get(resort_display, resort_display)
 
-    # Track resort changes in session state
     if "last_resort" not in st.session_state:
         st.session_state.last_resort = resort
     if st.session_state.last_resort != resort:
-        # Clear previous room type data when resort changes
         if "room_types" in st.session_state:
             del st.session_state.room_types
         if "display_to_internal" in st.session_state:
             del st.session_state.display_to_internal
         if "data_cache" in st.session_state:
-            st.session_state.data_cache.clear()  # Clear cache to avoid stale data
+            st.session_state.data_cache.clear()
         st.session_state.last_resort = resort
         st.session_state.debug_messages.append(f"Resort changed to {resort}. Cleared room type data and cache.")
 
@@ -751,7 +829,6 @@ try:
 
     year_select = str(checkin_date.year)
 
-    # Compute room types only if not already in session state
     if "room_types" not in st.session_state:
         sample_date = checkin_date
         st.session_state.debug_messages.append(f"Generating room types for {resort} on {sample_date}")
@@ -944,9 +1021,6 @@ try:
         except Exception as e:
             st.error(f"Calculation failed: {str(e)}")
             st.session_state.debug_messages.append(f"Calculation error: {str(e)}\n{traceback.format_exc()}")
-except Exception as e:
-    st.error(f"Application failed to initialize: {str(e)}")
-    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
 
 # Debug Information
 with st.expander("Debug Information"):
