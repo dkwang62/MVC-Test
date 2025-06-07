@@ -635,76 +635,101 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     return chart_df, compare_df_pivot, holiday_totals
 
 # JSON Builder Functionality
+
 def run_json_builder():
     st.title("🏖️ Marriott Resort Chart to JSON Converter")
     st.markdown("Upload a resort point chart and auto-generate JSON like `data.json`.\n\n*Currently in prototype — focuses on structure and logic, not full OCR precision yet.*")
 
+    # Set Tesseract path
+    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+    st.session_state.debug_messages.append(f"Tesseract path set to: {pytesseract.pytesseract.tesseract_cmd}")
+
+    # Debug Tesseract version
+    try:
+        tesseract_version = subprocess.run(['tesseract', '--version'], capture_output=True, text=True)
+        st.session_state.debug_messages.append(f"Tesseract version: {tesseract_version.stdout}")
+    except FileNotFoundError:
+        st.session_state.debug_messages.append("Tesseract not found in PATH")
+
     # Upload image
     uploaded_file = st.file_uploader("Upload Resort Chart Image", type=["png", "jpg", "jpeg"])
-
-    # OCR and processing
+    extracted_text = ""
+    
     if uploaded_file:
         image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Resort Chart", use_column_width=True)
+        # Preprocess image
+        image = image.convert('L')  # Grayscale
+        image = image.point(lambda x: 0 if x < 128 else 255, '1')  # Binarize
+        st.image(image, caption="Processed Resort Chart", use_column_width=True)
         
         # Extract text
-        extracted_text = pytesseract.image_to_string(image)
-        st.text_area("Extracted Text (OCR Preview)", extracted_text, height=300)
+        try:
+            extracted_text = pytesseract.image_to_string(image)
+            st.text_area("Extracted Text (OCR Preview)", extracted_text, height=300)
+        except Exception as e:
+            st.error(f"OCR failed: {str(e)}")
+            st.session_state.debug_messages.append(f"OCR error: {str(e)}")
+            return
 
-        # Attempt to parse season blocks
-        season_blocks = {}
-        date_range_pattern = r"([A-Za-z]{3,9})\s(\d{1,2})–(\d{1,2})"
-        months = {
-            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+    # Manual text input fallback
+    manual_text = st.text_area("Manually Enter Chart Text (if OCR fails)", "", height=200)
+    if manual_text:
+        extracted_text = manual_text
+
+    # Parse season blocks
+    season_blocks = {}
+    date_range_pattern = r"([A-Za-z]{3,9})\s(\d{1,2})–(\d{1,2})"
+    months = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+    }
+
+    found_ranges = re.findall(date_range_pattern, extracted_text)
+    for match in found_ranges:
+        month, start_day, end_day = match
+        if month[:3] in months:
+            start = f"2025-{months[month[:3]]}-{int(start_day):02}"
+            end = f"2025-{months[month[:3]]}-{int(end_day):02}"
+            season_blocks.setdefault("Low Season", []).append([start, end])
+
+    # Manual override for legend
+    manual_legend = st.text_input("Legend (format: GV=Gardenview, OV=Oceanview, ...)", "GV=Gardenview, OV=Oceanview")
+    legend_pairs = [item.strip().split("=") for item in manual_legend.split(",") if "=" in item]
+    legend_dict = {k.strip(): v.strip() for k, v in legend_pairs}
+
+    if st.button("Generate JSON"):
+        output = {
+            "season_blocks": {
+                "New Resort": {
+                    "2025": season_blocks
+                }
+            },
+            "holiday_weeks": {
+                "New Resort": {
+                    "2025": {
+                        "Christmas": ["2025-12-19", "2025-12-25"]
+                    }
+                }
+            },
+            "reference_points": {
+                "New Resort": {
+                    "Low Season": {
+                        "Fri-Sat": {
+                            "1-BDRM GV": 350
+                        },
+                        "Sun-Thu": {
+                            "1-BDRM GV": 250
+                        },
+                        "Full Week": {
+                            "1-BDRM GV": 1750
+                        }
+                    }
+                }
+            },
+            "room_view_legend": legend_dict
         }
 
-        found_ranges = re.findall(date_range_pattern, extracted_text)
-        for match in found_ranges:
-            month, start_day, end_day = match
-            if month[:3] in months:
-                start = f"2025-{months[month[:3]]}-{int(start_day):02}"
-                end = f"2025-{months[month[:3]]}-{int(end_day):02}"
-                season_blocks.setdefault("Low Season", []).append([start, end])
-
-        # Manual override for legend
-        manual_legend = st.text_input("Legend (format: GV=Gardenview, OV=Oceanview, ...)", "GV=Gardenview, OV=Oceanview")
-        legend_pairs = [item.strip().split("=") for item in manual_legend.split(",") if "=" in item]
-        legend_dict = {k.strip(): v.strip() for k, v in legend_pairs}
-
-        if st.button("Generate JSON"):
-            output = {
-                "season_blocks": {
-                    "New Resort": {
-                        "2025": season_blocks
-                    }
-                },
-                "holiday_weeks": {
-                    "New Resort": {
-                        "2025": {
-                            "Christmas": ["2025-12-19", "2025-12-25"]
-                        }
-                    }
-                },
-                "reference_points": {
-                    "New Resort": {
-                        "Low Season": {
-                            "Fri-Sat": {
-                                "1-BDRM GV": 350
-                            },
-                            "Sun-Thu": {
-                                "1-BDRM GV": 250
-                            },
-                            "Full Week": {
-                                "1-BDRM GV": 1750
-                            }
-                        }
-                    }
-                },
-                "room_view_legend": legend_dict
-            }
-
-            st.download_button("📥 Download JSON", data=json.dumps(output, indent=2), file_name="new_resort.json", mime="application/json")
+        st.download_button("📥 Download JSON", data=json.dumps(output, indent=2), file_name="new_resort.json", mime="application/json")
 
 # Resort display name mapping
 resort_aliases = {
