@@ -10,6 +10,7 @@ import pytesseract
 from PIL import Image
 import re
 import io
+import subprocess  # Added for Tesseract version check
 
 # Helper functions for Cost Calculator
 def get_display_room_type(room_key):
@@ -633,8 +634,6 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     st.session_state.debug_messages.append(f"Compare Chart DataFrame head: {chart_df.head().to_dict()} at {resort}")
     
     return chart_df, compare_df_pivot, holiday_totals
-
-# JSON Builder Functionality
 
 def run_json_builder():
     st.title("🏖️ Marriott Resort Chart to JSON Converter")
