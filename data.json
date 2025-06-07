@@ -680,7 +680,7 @@
         ]
       }
     },
-    "The Westin Ka'anapali Ocean Resort Villas": {
+    "Westin Ka'anapali": {
       "2025": {
         "Low Season": [
           [
@@ -766,7 +766,7 @@
         ]
       }
     },
-    "Marriott's Phuket Beach Club": {
+    "Phuket Beach Club": {
       "2025": {
         "High Season": [
           [
@@ -828,7 +828,7 @@
         ]
       }
     },
-    "Marriott's Bali Nusa Dua Gardens": {
+    "Bali Nusa Dua Gardens": {
       "2025": {
         "Shoulder": [
           [
@@ -926,7 +926,7 @@
         ]
       }
     },
-    "Marriott's Bali Nusa Dua Terrace": {
+    "Bali Nusa Dua Terrace": {
       "2025": {
         "Shoulder": [
           [
@@ -1330,7 +1330,7 @@
         ]
       }
     },
-    "Sheraton Kauai Resort": {
+    "Sheraton Kauai": {
       "2025": {
         "Low Season": [
           [
@@ -1416,7 +1416,7 @@
         ]
       }
     },
-    "Marriott's Beachplace Towers": {
+    "Beachplace Towers": {
       "2025": {
         "Low Season": [
           [
@@ -1526,7 +1526,7 @@
         ]
       }
     },
-    "Marriott Vacation Club at Surfers Paradise": {
+    "Surfers Paradise": {
       "2025": {
         "High Season": [
           [
@@ -1632,7 +1632,7 @@
         ]
       }
     },
-    "Marriott's Waikoloa Ocean Club": {
+    "Waikoloa Ocean Club": {
       "2025": {
         "Low Season": [
           [
@@ -2390,7 +2390,7 @@
         ]
       }
     },
-    "The Westin Ka'anapali Ocean Resort Villas": {
+    "Westin Ka'anapali": {
       "2025": {
         "Presidents Day": [
           "2025-02-14",
@@ -2452,7 +2452,7 @@
         ]
       }
     },
-    "Marriott's Phuket Beach Club": {
+    "Phuket Beach Club": {
       "2025": {
         "Chinese New Year": [
           "2025-01-24",
@@ -2482,7 +2482,7 @@
         ]
       }
     },
-    "Marriott's Bali Nusa Dua Gardens": {
+    "Bali Nusa Dua Gardens": {
       "2025": {
         "Chinese New Year": [
           "2025-01-24",
@@ -2520,7 +2520,7 @@
         ]
       }
     },
-    "Marriott's Bali Nusa Dua Terrace": {
+    "Bali Nusa Dua Terrace": {
       "2025": {
         "Chinese New Year": [
           "2025-01-24",
@@ -2688,7 +2688,7 @@
         ]
       }
     },
-    "Sheraton Kauai Resort": {
+    "Sheraton Kauai": {
       "2025": {
         "Presidents Day": [
           "2025-02-14",
@@ -2750,7 +2750,7 @@
         ]
       }
     },
-    "Marriott's Beachplace Towers": {
+    "Beachplace Towers": {
       "2025": {
         "Presidents Day": [
           "2025-02-14",
@@ -2788,7 +2788,7 @@
         ]
       }
     },
-    "Marriott Vacation Club at Surfers Paradise": {
+    "Surfers Paradise": {
       "2025": {
         "Easter": [
           "2025-04-18",
@@ -2818,7 +2818,7 @@
         ]
       }
     },
-    "Marriott's Waikoloa Ocean Club": {
+    "Waikoloa Ocean Club": {
       "2025": {
         "Presidents Day": [
           "2025-02-14",
@@ -4359,7 +4359,7 @@
         }
       }
     },
-    "Marriott's Phuket Beach Club": {
+    "Phuket Beach Club": {
       "Low Season": {
         "Mon-Thu": {
           "2 Bedroom": 230
@@ -4394,7 +4394,7 @@
         }
       }
     },
-    "Marriott's Bali Nusa Dua Gardens": {
+    "Bali Nusa Dua Gardens": {
       "Low Season": {
         "Sun-Thu": {
           "Guestroom": 110,
@@ -4454,7 +4454,7 @@
         }
       }
     },
-    "Marriott's Bali Nusa Dua Terrace": {
+    "Bali Nusa Dua Terrace": {
       "Shoulder": {
         "Sun-Thu": {
           "1 Bedroom": 270,
@@ -4959,7 +4959,7 @@
         }
       }
     },
-    "Marriott's Beachplace Towers": {
+    "Beachplace Towers": {
       "Low Season": {
         "Fri-Sat": {
           "Studio": 200,
@@ -5051,7 +5051,7 @@
         }
       }
     },
-    "Marriott Vacation Club at Surfers Paradise": {
+    "Surfers Paradise": {
       "Low Season": {
         "Fri-Sat": {
           "Studio CV": 270,
@@ -5157,7 +5157,7 @@
         }
       }
     },
-    "Marriott's Waikoloa Ocean Club": {
+    "Waikoloa Ocean Club": {
       "Low Season": {
         "Fri-Sat": {
           "1-BDRM IV": 525,
