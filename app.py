@@ -464,17 +464,6 @@ st.session_state.debug_messages.append(
 )
 return checkin_date, num_nights, False
 
-    if holiday_ranges:
-        earliest_holiday_start = min(h_start for h_start, _ in holiday_ranges)
-        latest_holiday_end = max(h_end for _, h_end in holiday_ranges)
-        adjusted_start = min(checkin_date, earliest_holiday_start)
-        adjusted_end = max(stay_end, latest_holiday_end)
-        adjusted_nights = (adjusted_end - adjusted_start).days + 1
-        st.session_state.debug_messages.append(f"Adjusted date range to include holiday week: {adjusted_start} to {adjusted_end} ({adjusted_nights} nights) at {resort}")
-        return adjusted_start, adjusted_nights, True
-    st.session_state.debug_messages.append(f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}")
-    return checkin_date, num_nights, False
-
 # Create Gantt chart function
 def create_gantt_chart(resort, year):
     gantt_data = []
