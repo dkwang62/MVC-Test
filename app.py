@@ -143,7 +143,11 @@ def generate_data(resort, date, cache=None):
     if year in holiday_weeks.get(resort, {}) and not is_year_end_holiday:
         holiday_data_dict = holiday_weeks[resort][year]
         for h_name, holiday_data in holiday_data_dict.items():
-            try:
+            # Resolve global reference if needed
+            if isinstance(holiday_data, str) and holiday_data.startswith(\"global:\"):
+                global_key = holiday_data.split(\":\", 1)[1]
+                holiday_data = data[\"global_dates\"][year][global_key]
+try:
                 if len(holiday_data) >= 2:
                     start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
                     end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
