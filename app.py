@@ -470,6 +470,7 @@ def create_gantt_chart(resort, year):
     year_str = str(year)
 
     try:
+        # Handle holidays
         for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
             try:
                 if len(holiday_data) >= 2:
@@ -481,12 +482,23 @@ def create_gantt_chart(resort, year):
                         "Finish": end_date,
                         "Type": "Holiday"
                     })
-                    st.session_state.debug_messages.append(f"Added holiday: {h_name}, Start: {start_date}, Finish: {end_date} for {resort}")
-                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
-                except (IndexError, ValueError) as e:
-                    st.session_state.debug_messages.append(f"Invalid holiday data for {h_name} at {resort}: {e}")
+                    st.session_state.debug_messages.append(
+                        f"Added holiday: {h_name}, Start: {start_date}, Finish: {end_date} for {resort}"
+                    )
+                else:
+                    st.session_state.debug_messages.append(
+                        f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}"
+                    )
+            except (IndexError, ValueError) as e:
+                st.session_state.debug_messages.append(
+                    f"Invalid holiday data for {h_name} at {resort}: {e}"
+                )
+
+        # Handle seasons
         season_types = list(season_blocks.get(resort, {}).get(year_str, {}).keys())
-        st.session_state.debug_messages.append(f"Available season types for Gantt chart in {resort}, {year}: {season_types}")
+        st.session_state.debug_messages.append(
+            f"Available season types for Gantt chart in {resort}, {year}: {season_types}"
+        )
 
         for season_type in season_types:
             for i, [start, end] in enumerate(season_blocks[resort][year_str][season_type], 1):
@@ -498,8 +510,11 @@ def create_gantt_chart(resort, year):
                     "Finish": end_date,
                     "Type": season_type
                 })
-                st.session_state.debug_messages.append(f"Added season: {season_type} {i}, Start: {start_date}, Finish: {end_date} for {resort}")
+                st.session_state.debug_messages.append(
+                    f"Added season: {season_type} {i}, Start: {start_date}, Finish: {end_date} for {resort}"
+                )
 
+        # Create DataFrame
         df = pd.DataFrame(gantt_data)
         if df.empty:
             st.session_state.debug_messages.append(f"Gantt DataFrame is empty for {resort}")
@@ -511,6 +526,7 @@ def create_gantt_chart(resort, year):
                 "Type": ["No Data"]
             })
 
+        # Assign colors
         color_palette = {
             "Holiday": "rgb(255, 99, 71)",
             "Low Season": "rgb(135, 206, 250)",
@@ -528,6 +544,7 @@ def create_gantt_chart(resort, year):
         types_present = df["Type"].unique()
         colors = {t: color_palette.get(t, "rgb(169, 169, 169)") for t in types_present}
 
+        # Build Gantt chart
         fig = px.timeline(
             df,
             x_start="Start",
@@ -545,6 +562,8 @@ def create_gantt_chart(resort, year):
             showlegend=True
         )
         return fig
+
+    except Exception as e:
         st.session_state.debug_messages.append(f"Error in create_gantt_chart for {resort}: {str(e)}")
         current_date = datetime.now().date()
         df = pd.DataFrame({
