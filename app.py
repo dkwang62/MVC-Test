@@ -420,23 +420,49 @@ def adjust_date_range(resort, checkin_date, num_nights):
     stay_end = checkin_date + timedelta(days=num_nights - 1)
     holiday_ranges = []
 
-    st.session_state.debug_messages.append(f"Checking holiday overlap for {checkin_date} to {stay_end} at {resort}")
-    try:
-        for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
-            try:
-                if len(holiday_data) >= 2:
-                    h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-                    h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-                    st.session_state.debug_messages.append(f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
-                    if (h_start <= stay_end) and (h_end >= checkin_date):
-                        holiday_ranges.append((h_start, h_end))
-                        st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} at {resort}")
-                        st.session_state.debug_messages.append(f"No overlap with {h_name} at {resort}")
-                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
-                except (IndexError, ValueError) as e:
-                    st.session_state.debug_messages.append(f"Invalid holiday range for {h_name} at {resort}: {e}")
-                    except ValueError as e:
-                        st.session_state.debug_messages.append(f"Invalid holiday range in {resort}, {year_str}: {e}")
+st.session_state.debug_messages.append(f"Checking holiday overlap for {checkin_date} to {stay_end} at {resort}")
+try:
+    for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
+        try:
+            if len(holiday_data) >= 2:
+                h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
+                h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
+                st.session_state.debug_messages.append(
+                    f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}"
+                )
+                if (h_start <= stay_end) and (h_end >= checkin_date):
+                    holiday_ranges.append((h_start, h_end))
+                    st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} at {resort}")
+                else:
+                    st.session_state.debug_messages.append(f"No overlap with {h_name} at {resort}")
+            else:
+                st.session_state.debug_messages.append(
+                    f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}"
+                )
+        except (IndexError, ValueError) as e:
+            st.session_state.debug_messages.append(
+                f"Invalid holiday range for {h_name} at {resort}: {e}"
+            )
+except Exception as e:
+    st.session_state.debug_messages.append(
+        f"Unexpected error checking holidays for {resort}: {e}"
+    )
+
+if holiday_ranges:
+    earliest_holiday_start = min(h_start for h_start, _ in holiday_ranges)
+    latest_holiday_end = max(h_end for _, h_end in holiday_ranges)
+    adjusted_start = min(checkin_date, earliest_holiday_start)
+    adjusted_end = max(stay_end, latest_holiday_end)
+    adjusted_nights = (adjusted_end - adjusted_start).days + 1
+    st.session_state.debug_messages.append(
+        f"Adjusted date range to include holiday week: {adjusted_start} to {adjusted_end} ({adjusted_nights} nights) at {resort}"
+    )
+    return adjusted_start, adjusted_nights, True
+
+st.session_state.debug_messages.append(
+    f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}"
+)
+return checkin_date, num_nights, False
 
     if holiday_ranges:
         earliest_holiday_start = min(h_start for h_start, _ in holiday_ranges)
