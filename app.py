@@ -586,8 +586,8 @@ def create_gantt_chart(resort, year):
         fig.update_yaxes(autorange="reversed")
         return fig
 
-# Calculate stay function
-def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
+def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier,
+                   display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
     breakdown = []
     total_points = 0
     total_cost = 0
@@ -632,31 +632,38 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                         total_capital_cost += capital_cost
                         total_depreciation_cost += depreciation_cost
                     breakdown.append(row)
+                    continue  # skip further processing of this day
+
                 elif current_holiday and date <= holiday_end:
                     continue  # Skip additional days within the holiday week
-                row = {
-                    "Date": date_str,
-                    "Day": date.strftime("%a"),
-                    "Points": discounted_points
-                }
-                if display_mode == "both":
-                    maintenance_cost = math.ceil(discounted_points * rate_per_point)
-                    capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
-                    depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point)
-                    total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                    row["Total Cost"] = f"${total_day_cost}"
-                    row["Maintenance"] = f"${maintenance_cost}"
-                    row["Capital Cost"] = f"${capital_cost}"
-                    row["Depreciation"] = f"${depreciation_cost}"
-                    total_cost += total_day_cost
-                    total_capital_cost += capital_cost
-                    total_depreciation_cost += depreciation_cost
-                breakdown.append(row)
+
+            # Normal day (non-holiday)
+            row = {
+                "Date": date_str,
+                "Day": date.strftime("%a"),
+                "Points": discounted_points
+            }
+            if display_mode == "both":
+                maintenance_cost = math.ceil(discounted_points * rate_per_point)
+                capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
+                depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point)
+                total_day_cost = maintenance_cost + capital_cost + depreciation_cost
+                row["Total Cost"] = f"${total_day_cost}"
+                row["Maintenance"] = f"${maintenance_cost}"
+                row["Capital Cost"] = f"${capital_cost}"
+                row["Depreciation"] = f"${depreciation_cost}"
+                total_cost += total_day_cost
+                total_capital_cost += capital_cost
+                total_depreciation_cost += depreciation_cost
+            breakdown.append(row)
 
             total_points += discounted_points
+
+        except Exception as e:
             st.session_state.debug_messages.append(f"Error calculating for {resort}, {date_str}: {str(e)}")
             st.error(f"Failed to calculate for {resort}, {date_str}: {str(e)}")
             continue
+
     return pd.DataFrame(breakdown), total_points, total_cost, total_capital_cost, total_depreciation_cost
 
 # Compare room types function
