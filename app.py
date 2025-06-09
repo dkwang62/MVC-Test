@@ -6,13 +6,31 @@ import plotly.express as px
 import json
 import traceback
 from collections import defaultdict
-import pytesseract
-from PIL import Image
-import re
-import io
-import subprocess  # Added for Tesseract version check
 
-# Helper functions for Cost Calculator
+# Load data and initialize
+try:
+    with open("data.json", "r") as f:
+        data = json.load(f)
+    season_blocks = data["season_blocks"]
+    holiday_weeks = data["holiday_weeks"]
+    room_view_legend = data["room_view_legend"]
+    reference_points = data["reference_points"]
+
+    # Automatically determine resorts with complete data
+    season_resorts = set(season_blocks.keys())
+    holiday_resorts = set(holiday_weeks.keys())
+    reference_resorts = set(reference_points.keys())
+    display_resorts = sorted(season_resorts & holiday_resorts & reference_resorts)
+except Exception as e:
+    st.error(f"Failed to load data.json: {str(e)}")
+    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
+    st.stop()
+
+# Initialize session state
+if "debug_messages" not in st.session_state:
+    st.session_state.debug_messages = []
+
+# Helper functions
 def get_display_room_type(room_key):
     if room_key in room_view_legend:
         return room_view_legend[room_key]
@@ -69,6 +87,7 @@ def get_internal_room_key(display_name):
     view = reverse_legend.get(view_display, view_display)
     return f"{base} {view}"
 
+# Generate data function with caching
 def generate_data(resort, date, cache=None):
     if "data_cache" not in st.session_state:
         st.session_state.data_cache = {}
@@ -264,6 +283,7 @@ def generate_data(resort, date, cache=None):
         st.error(f"Failed to generate data for {resort} on {date_str}: {str(e)}")
         raise
 
+# Adjust date range function
 def adjust_date_range(resort, checkin_date, num_nights):
     year_str = str(checkin_date.year)
     stay_end = checkin_date + timedelta(days=num_nights - 1)
@@ -300,6 +320,7 @@ def adjust_date_range(resort, checkin_date, num_nights):
     st.session_state.debug_messages.append(f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}")
     return checkin_date, num_nights, False
 
+# Create Gantt chart function
 def create_gantt_chart(resort, year):
     gantt_data = []
     year_str = str(year)
@@ -371,7 +392,7 @@ def create_gantt_chart(resort, year):
             y="Task",
             color="Type",
             color_discrete_map=colors,
-            title=f"{resort_aliases.get(resort, resort)} Seasons and Holidays ({year})",
+            title=f"{resort} Seasons and Holidays ({year})",
             height=600
         )
         fig.update_yaxes(autorange="reversed")
@@ -404,10 +425,11 @@ def create_gantt_chart(resort, year):
         fig.update_yaxes(autorange="reversed")
         return fig
 
+# Calculate stay function
 def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
     breakdown = []
     total_points = 0
-    total_rent = 0
+    total_cost = 0
     total_capital_cost = 0
     total_depreciation_cost = 0
     current_holiday = None
@@ -441,11 +463,11 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                         capital_cost = math.ceil(holiday_points * capital_cost_per_point * cost_of_capital)
                         depreciation_cost = math.ceil(holiday_points * depreciation_cost_per_point)
                         total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                        row["Cost"] = f"${total_day_cost}"
-                        row["Maintenance Cost"] = f"${maintenance_cost}"
+                        row["Total Cost"] = f"${total_day_cost}"
+                        row["Maintenance"] = f"${maintenance_cost}"
                         row["Capital Cost"] = f"${capital_cost}"
-                        row["Depreciation Cost"] = f"${depreciation_cost}"
-                        total_rent += total_day_cost
+                        row["Depreciation"] = f"${depreciation_cost}"
+                        total_cost += total_day_cost
                         total_capital_cost += capital_cost
                         total_depreciation_cost += depreciation_cost
                     breakdown.append(row)
@@ -462,11 +484,11 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
                     capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
                     depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point)
                     total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                    row["Cost"] = f"${total_day_cost}"
-                    row["Maintenance Cost"] = f"${maintenance_cost}"
+                    row["Total Cost"] = f"${total_day_cost}"
+                    row["Maintenance"] = f"${maintenance_cost}"
                     row["Capital Cost"] = f"${capital_cost}"
-                    row["Depreciation Cost"] = f"${depreciation_cost}"
-                    total_rent += total_day_cost
+                    row["Depreciation"] = f"${depreciation_cost}"
+                    total_cost += total_day_cost
                     total_capital_cost += capital_cost
                     total_depreciation_cost += depreciation_cost
                 breakdown.append(row)
@@ -476,8 +498,9 @@ def calculate_stay(resort, room_type, checkin_date, num_nights, discount_percent
             st.session_state.debug_messages.append(f"Error calculating for {resort}, {date_str}: {str(e)}")
             st.error(f"Failed to calculate for {resort}, {date_str}: {str(e)}")
             continue
-    return pd.DataFrame(breakdown), total_points, total_rent, total_capital_cost, total_depreciation_cost
+    return pd.DataFrame(breakdown), total_points, total_cost, total_capital_cost, total_depreciation_cost
 
+# Compare room types function
 def compare_room_types(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, display_mode, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
     compare_data = []
     chart_data = []
@@ -504,8 +527,7 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
             st.session_state.debug_messages.append(f"Invalid holiday date for {h_name} at {resort}: {e}")
     
     total_points_by_room = {room: 0 for room in room_types}
-    total_rent_by_room = {room: 0 for room in room_types}
-    total_depreciation_by_room = {room: 0 for room in room_types}
+    total_cost_by_room = {room: 0 for room in room_types}
     holiday_totals = {room: defaultdict(dict) for room in room_types}
     
     # Calculate depreciation cost per point
@@ -551,12 +573,8 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
                         capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
                         depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point)
                         total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                        row["Rent"] = f"${total_day_cost}"
-                        row["Maintenance Cost"] = f"${maintenance_cost}"
-                        row["Capital Cost"] = f"${capital_cost}"
-                        row["Depreciation Cost"] = f"${depreciation_cost}"
-                        total_rent_by_room[room] += total_day_cost
-                        total_depreciation_by_room[room] += depreciation_cost
+                        row["Total Cost"] = f"${total_day_cost}"
+                        total_cost_by_room[room] += total_day_cost
                     compare_data.append(row)
                 
                 chart_row = {
@@ -572,11 +590,8 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
                     capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital)
                     depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point)
                     total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                    chart_row["Rent"] = f"${total_day_cost}"
-                    chart_row["RentValue"] = total_day_cost
-                    chart_row["Maintenance Cost"] = f"${maintenance_cost}"
-                    chart_row["Capital Cost"] = f"${capital_cost}"
-                    chart_row["Depreciation Cost"] = f"${depreciation_cost}"
+                    chart_row["Total Cost"] = f"${total_day_cost}"
+                    chart_row["TotalCostValue"] = total_day_cost
                 chart_data.append(chart_row)
                 
                 if not current_holiday or is_ap_room:
@@ -600,31 +615,25 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
                     capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital)
                     depreciation_cost = math.ceil(totals["points"] * depreciation_cost_per_point)
                     total_holiday_cost = maintenance_cost + capital_cost + depreciation_cost
-                    row["Rent"] = f"${total_holiday_cost}"
-                    row["Maintenance Cost"] = f"${maintenance_cost}"
-                    row["Capital Cost"] = f"${capital_cost}"
-                    row["Depreciation Cost"] = f"${depreciation_cost}"
+                    row["Total Cost"] = f"${total_holiday_cost}"
                 compare_data.append(row)
     
-    total_row = {"Date": "Total Points (Non-Holiday)"}
+    total_points_row = {"Date": "Total Points (Non-Holiday)"}
     for room in room_types:
-        total_row[room] = total_points_by_room[room]
-    compare_data.append(total_row)
+        total_points_row[room] = total_points_by_room[room]
+    compare_data.append(total_points_row)
     
     if display_mode == "both":
-        total_rent_row = {"Date": "Total Cost (Non-Holiday)"}
-        total_depreciation_row = {"Date": "Total Depreciation Cost (Non-Holiday)"}
+        total_cost_row = {"Date": "Total Cost (Non-Holiday)"}
         for room in room_types:
-            total_rent_row[room] = f"${total_rent_by_room[room]}"
-            total_depreciation_row[room] = f"${total_depreciation_by_room[room]}"
-        compare_data.append(total_rent_row)
-        compare_data.append(total_depreciation_row)
+            total_cost_row[room] = f"${total_cost_by_room[room]}"
+        compare_data.append(total_cost_row)
     
     compare_df = pd.DataFrame(compare_data)
     compare_df_pivot = compare_df.pivot_table(
         index="Date",
         columns="Room Type",
-        values=["Points"] if display_mode == "points" else ["Points", "Rent", "Maintenance Cost", "Capital Cost", "Depreciation Cost"],
+        values=["Points"] if display_mode == "points" else ["Points", "Total Cost"],
         aggfunc="first"
     ).reset_index()
     compare_df_pivot.columns = ['Date'] + [f"{col[1]} {col[0]}" for col in compare_df_pivot.columns[1:]]
@@ -635,149 +644,9 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     
     return chart_df, compare_df_pivot, holiday_totals
 
-def run_json_builder():
-    st.title("🏖️ Marriott Resort Chart to JSON Converter")
-    st.markdown("Upload a resort point chart and auto-generate JSON like `data.json`.\n\n*Currently in prototype — focuses on structure and logic, not full OCR precision yet.*")
-
-    # Set Tesseract path
-    pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
-    st.session_state.debug_messages.append(f"Tesseract path set to: {pytesseract.pytesseract.tesseract_cmd}")
-
-    # Debug Tesseract version
-    try:
-        tesseract_version = subprocess.run(['tesseract', '--version'], capture_output=True, text=True)
-        st.session_state.debug_messages.append(f"Tesseract version: {tesseract_version.stdout}")
-    except FileNotFoundError:
-        st.session_state.debug_messages.append("Tesseract not found in PATH")
-
-    # Upload image
-    uploaded_file = st.file_uploader("Upload Resort Chart Image", type=["png", "jpg", "jpeg"])
-    extracted_text = ""
-    
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        # Preprocess image
-        image = image.convert('L')  # Grayscale
-        image = image.point(lambda x: 0 if x < 128 else 255, '1')  # Binarize
-        st.image(image, caption="Processed Resort Chart", use_column_width=True)
-        
-        # Extract text
-        try:
-            extracted_text = pytesseract.image_to_string(image)
-            st.text_area("Extracted Text (OCR Preview)", extracted_text, height=300)
-        except Exception as e:
-            st.error(f"OCR failed: {str(e)}")
-            st.session_state.debug_messages.append(f"OCR error: {str(e)}")
-            return
-
-    # Manual text input fallback
-    manual_text = st.text_area("Manually Enter Chart Text (if OCR fails)", "", height=200)
-    if manual_text:
-        extracted_text = manual_text
-
-    # Parse season blocks
-    season_blocks = {}
-    date_range_pattern = r"([A-Za-z]{3,9})\s(\d{1,2})–(\d{1,2})"
-    months = {
-        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-        'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-    }
-
-    found_ranges = re.findall(date_range_pattern, extracted_text)
-    for match in found_ranges:
-        month, start_day, end_day = match
-        if month[:3] in months:
-            start = f"2025-{months[month[:3]]}-{int(start_day):02}"
-            end = f"2025-{months[month[:3]]}-{int(end_day):02}"
-            season_blocks.setdefault("Low Season", []).append([start, end])
-
-    # Manual override for legend
-    manual_legend = st.text_input("Legend (format: GV=Gardenview, OV=Oceanview, ...)", "GV=Gardenview, OV=Oceanview")
-    legend_pairs = [item.strip().split("=") for item in manual_legend.split(",") if "=" in item]
-    legend_dict = {k.strip(): v.strip() for k, v in legend_pairs}
-
-    if st.button("Generate JSON"):
-        output = {
-            "season_blocks": {
-                "New Resort": {
-                    "2025": season_blocks
-                }
-            },
-            "holiday_weeks": {
-                "New Resort": {
-                    "2025": {
-                        "Christmas": ["2025-12-19", "2025-12-25"]
-                    }
-                }
-            },
-            "reference_points": {
-                "New Resort": {
-                    "Low Season": {
-                        "Fri-Sat": {
-                            "1-BDRM GV": 350
-                        },
-                        "Sun-Thu": {
-                            "1-BDRM GV": 250
-                        },
-                        "Full Week": {
-                            "1-BDRM GV": 1750
-                        }
-                    }
-                }
-            },
-            "room_view_legend": legend_dict
-        }
-
-        st.download_button("📥 Download JSON", data=json.dumps(output, indent=2), file_name="new_resort.json", mime="application/json")
-
-# Resort display name mapping
-resort_aliases = {
-    "Kauai Beach Club": "Kauai Beach Club",
-    "Ko Olina Beach Club": "Ko Olina Beach Club",
-    "Grande Vista": "Grande Vista",
-    "Newport Coast Villas": "Newport Coast Villas",
-    "Crystal Shores": "Crystal Shores",
-    "Maui Ocean Club": "Maui Ocean Club",
-    "Shadow Ridge": "Shadow Ridge",
-    "Desert Springs Villas II": "Desert Springs Villas II",
-    "Marriott's Bali Nusa Dua Terrace": "Marriott's Bali Nusa Dua Terrace",
-    "Marriott's Bali Nusa Dua Gardens": "Marriott's Bali Nusa Dua Gardens",
-    "Marriott's Phuket Beach Club": "Marriott's Phuket Beach Club",
-    "The Westin Ka'anapali Ocean Resort Villas": "The Westin Ka'anapali Ocean Resort Villas",
-    "Playa Andaluza": "Playa Andaluza",
-    "Marbella Beach": "Marbella Beach",
-    "Marriott's Beachplace Towers": "Marriott's Beachplace Towers",
-    "Sheraton Kauai Resort": "Sheraton Kauai Resort",
-    "Village Paris": "Village Paris"
-}
-reverse_aliases = {v: k for k, v in resort_aliases.items()}
-display_resorts = list(resort_aliases.values())
-
-# Initialize session state
-if "debug_messages" not in st.session_state:
-    st.session_state.debug_messages = []
-if "data_cache" not in st.session_state:
-    st.session_state.data_cache = {}
-
-# Load data for Cost Calculator
-try:
-    with open("data.json", "r") as f:
-        data = json.load(f)
-    season_blocks = data["season_blocks"]
-    holiday_weeks = data["holiday_weeks"]
-    room_view_legend = data["room_view_legend"]
-    reference_points = data["reference_points"]
-except Exception as e:
-    st.error(f"Failed to load data.json: {str(e)}")
-    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
-
 # Main UI
-with st.sidebar:
-    st.header("Mode Selection")
-    app_mode = st.selectbox("Select Application Mode", ["Cost Calculator", "JSON Builder"], index=0)
-    
-    if app_mode == "Cost Calculator":
+try:
+    with st.sidebar:
         st.header("Cost Parameters")
         display_options = [
             (0, "both"), (25, "both"), (30, "both"),
@@ -804,47 +673,44 @@ with st.sidebar:
 
         discount_percent, display_mode = display_options[display_mode_select]
         rate_per_point = st.number_input("Maintenance Rate per Point ($)", min_value=0.0, value=0.81, step=0.01)
-        capital_cost_per_point = st.number_input("Capital Cost per Point ($)", min_value=0.0, value=16.0, step=0.1)
+        capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
         cost_of_capital_percent = st.number_input("Cost of Capital (%)", min_value=0.0, max_value=100.0, value=7.0, step=0.1)
         useful_life = st.number_input("Useful Life (Years)", min_value=1, value=15, step=1)
         salvage_value = st.number_input("Salvage Value per Point ($)", min_value=0.0, value=3.0, step=0.1)
         cost_of_capital = cost_of_capital_percent / 100
         st.caption(f"Cost calculation based on {discount_percent}% discount.")
 
-# Run the selected mode
-if app_mode == "JSON Builder":
-    run_json_builder()
-else:
     discount_multiplier = 1 - (discount_percent / 100)
 
     st.title("Marriott Vacation Club Cost Calculator")
 
     with st.expander("\U0001F334 How Cost Is Calculated"):
         st.markdown(f"""
-        - Ordinary Membership: No last minute discounts
+        - Authored by Desmond Kwang https://www.facebook.com/dkwang62
         - Maintenance rate: ${rate_per_point:.2f} per point
-        - Capital cost per point: ${capital_cost_per_point:.2f}
+        - Purchase price: ${capital_cost_per_point:.2f} per point
         - Cost of capital: {cost_of_capital_percent:.1f}%
         - Useful Life: {useful_life} years
         - Salvage Value: ${salvage_value:.2f} per point
-        - Depreciation cost per point: ${(capital_cost_per_point - salvage_value) / useful_life:.2f} (calculated as (Capital Cost per Point - Salvage Value) / Useful Life)
+        - Depreciation: ${(capital_cost_per_point - salvage_value) / useful_life:.2f} per point (calculated as (Purchase price per point - Salvage Value) / Useful Life)
         - Selected discount: {discount_percent}%
-        - Cost of capital calculated as (points * capital cost per point * cost of capital percentage)
-        - Total cost is maintenance cost plus capital cost plus depreciation cost
+        - Cost of capital calculated as (points * purchase price per point * cost of capital percentage)
+        - Total cost is maintenance plus capital cost plus depreciation
         """)
 
-    resort_display = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"), key="resort_select")
-    resort = reverse_aliases.get(resort_display, resort_display)
+    resort = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"))
 
+    # Track resort changes in session state
     if "last_resort" not in st.session_state:
         st.session_state.last_resort = resort
     if st.session_state.last_resort != resort:
+        # Clear previous room type data when resort changes
         if "room_types" in st.session_state:
             del st.session_state.room_types
         if "display_to_internal" in st.session_state:
             del st.session_state.display_to_internal
         if "data_cache" in st.session_state:
-            st.session_state.data_cache.clear()
+            st.session_state.data_cache.clear()  # Clear cache to avoid stale data
         st.session_state.last_resort = resort
         st.session_state.debug_messages.append(f"Resort changed to {resort}. Cleared room type data and cache.")
 
@@ -853,6 +719,7 @@ else:
 
     year_select = str(checkin_date.year)
 
+    # Compute room types only if not already in session state
     if "room_types" not in st.session_state:
         sample_date = checkin_date
         st.session_state.debug_messages.append(f"Generating room types for {resort} on {sample_date}")
@@ -892,7 +759,7 @@ else:
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
         try:
-            breakdown, total_points, total_rent, total_capital_cost, total_depreciation_cost = calculate_stay(
+            breakdown, total_points, total_cost, total_capital_cost, total_depreciation_cost = calculate_stay(
                 resort, room_type, checkin_date, adjusted_nights, discount_percent, discount_multiplier, display_mode, 
                 rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value
             )
@@ -904,7 +771,7 @@ else:
             
             st.success(f"Total Points Used: {total_points}")
             if display_mode == "both":
-                st.success(f"Estimated Total Cost: ${total_rent}")
+                st.success(f"Estimated Total Cost: ${total_cost}")
                 st.success(f"Total Capital Cost Component: ${total_capital_cost}")
                 st.success(f"Total Depreciation Cost: ${total_depreciation_cost}")
             
@@ -927,8 +794,8 @@ else:
                     capital_cost_per_point, cost_of_capital, useful_life, salvage_value
                 )
                 
-                display_columns = ["Date"] + [col for col in compare_df_pivot.columns if "Points" in col or (display_mode == "both" and ("Rent" in col or "Maintenance Cost" in col or "Capital Cost" in col or "Depreciation Cost" in col))]
-                st.write(f"### {'Points' if display_mode == 'points' else 'Points, Rent, Maintenance, Capital, and Depreciation Costs'} Comparison")
+                display_columns = ["Date"] + [col for col in compare_df_pivot.columns if "Points" in col or (display_mode == "both" and "Total Cost" in col)]
+                st.write(f"### {'Points' if display_mode == 'points' else 'Points and Total Cost'} Comparison")
                 st.dataframe(compare_df_pivot[display_columns], use_container_width=True)
                 
                 compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
@@ -942,7 +809,7 @@ else:
                 if not chart_df.empty:
                     required_columns = ["Date", "Room Type", "Points", "Holiday"]
                     if display_mode == "both":
-                        required_columns.extend(["Rent", "RentValue", "Maintenance Cost", "Capital Cost", "Depreciation Cost"])
+                        required_columns.extend(["Total Cost", "TotalCostValue"])
                     if all(col in chart_df.columns for col in required_columns):
                         non_holiday_df = chart_df[chart_df["Holiday"] == "No"]
                         holiday_data = []
@@ -961,11 +828,8 @@ else:
                                         capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital)
                                         depreciation_cost = math.ceil(totals["points"] * ((capital_cost_per_point - salvage_value) / useful_life))
                                         total_holiday_cost = maintenance_cost + capital_cost + depreciation_cost
-                                        row["Rent"] = f"${total_holiday_cost}"
-                                        row["RentValue"] = total_holiday_cost
-                                        row["Maintenance Cost"] = f"${maintenance_cost}"
-                                        row["Capital Cost"] = f"${capital_cost}"
-                                        row["Depreciation Cost"] = f"${depreciation_cost}"
+                                        row["Total Cost"] = f"${total_holiday_cost}"
+                                        row["TotalCostValue"] = total_holiday_cost
                                     holiday_data.append(row)
                         holiday_df = pd.DataFrame(holiday_data)
                         
@@ -1045,6 +909,9 @@ else:
         except Exception as e:
             st.error(f"Calculation failed: {str(e)}")
             st.session_state.debug_messages.append(f"Calculation error: {str(e)}\n{traceback.format_exc()}")
+except Exception as e:
+    st.error(f"Application failed to initialize: {str(e)}")
+    st.session_state.debug_messages.append(f"Initialization error: {str(e)}\n{traceback.format_exc()}")
 
 # Debug Information
 with st.expander("Debug Information"):
