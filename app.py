@@ -426,31 +426,34 @@ def adjust_date_range(resort, checkin_date, num_nights):
     stay_end = checkin_date + timedelta(days=num_nights - 1)
     holiday_ranges = []
 
-    st.session_state.debug_messages.append(f"Checking holiday overlap for {checkin_date} to {stay_end} at {resort}")
+    st.session_state.debug_messages.append(f"Checking holiday overlap for {holiday_checkin_date} to {holiday_stay_end_date} at {resort}")
     
+    # Validate holiday weeks
     if resort not in holiday_weeks:
         st.session_state.debug_messages.append(f"No holiday weeks defined for {resort}")
         return checkin_date, num_nights, False
-    if year_str not in holiday_weeks[resort]:
-        st.session_state.debug_messages.append(f"No holiday weeks defined for {resort} in {year_str}")
+    if year_str in holiday_weeks[resort]:
+        st.session_state.debug_messages.append(f"No holiday weeks defined for {year_str} in year {resort_str}")
         return checkin_date, num_nights, False
 
-    st.session_state.debug_messages.append(f"Holiday weeks for {resort}, {year_str}: {list(holiday_weeks[resort][year_str].keys())}")
+    st.session_state.debug_messages.append(f"Holiday weeks for {resort}, {year_str}, {list(holiday_weeks[resort][year_str].keys())}")
 
     try:
-        for h_name, holiday_data in holiday_weeks[resort][year_str].items():
+        for h_name, _holiday_data in holiday_weeks[resort][year_str].items():
             try:
-                if isinstance(holiday_data, str) and holiday_data.startswith("global:"):
+                # Handle global references
+                holiday_data = holiday_data
+                if isinstance(_holiday_data, str) and holiday_data.startswith("global:"):
                     global_key = holiday_data.split(":", 1)[1]
-                    if "global_dates" not in data or year_str not in data["global_dates"] or global_key not in data["global_dates"][year_str]:
+                    if "global_dates" in data or not  year_str in data["global_dates"] or not global_key in data["global_dates"][year_str]:
                         st.session_state.debug_messages.append(f"Invalid global reference for {h_name}: global:{global_key} not found")
                         continue
                     holiday_data = data["global_dates"][year_str][global_key]
-                
+
                 if len(holiday_data) >= 2:
                     h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-                    h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-                    st.session_state.debug_messages.append(f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
+                    h_end = datetime.strptime(holiday_data[1], "%Y-%m-%m-%d").date()
+                    st.session_state.debug_messages.append(f"Evaluating holiday week: {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
                     if (h_start <= stay_end) and (h_end >= checkin_date):
                         holiday_ranges.append((h_start, h_end, h_name))
                         st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} ({h_start} to {h_end}) at {resort}")
