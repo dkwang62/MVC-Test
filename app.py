@@ -13,17 +13,11 @@ try:
         data = json.load(f)
     season_blocks = data["season_blocks"]
     holiday_weeks = data["holiday_weeks"]
-    room_view_legend = data["room_view_legend"]
-    reference_points = data["reference_points"]
-
-    # Automatically determine resorts with complete data
-    season_resorts = set(season_blocks.keys())
-    holiday_resorts = set(holiday_weeks.keys())
-    reference_resorts = set(reference_points.keys())
-    display_resorts = sorted(season_resorts & holiday_resorts & reference_resorts)
 except Exception as e:
-    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
+    st.session_state.debug_messages.append(f"Error loading data.json: {e}")
+    st.error("Failed to load data.")
+    raise
+
     # Initialize session state
 if "debug_messages" not in st.session_state:
     st.session_state.debug_messages = []
