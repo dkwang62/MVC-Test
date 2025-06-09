@@ -8,25 +8,93 @@ import traceback
 from collections import defaultdict
 
 # Load data and initialize
-try:
-    with open("data.json", "r") as f:
-        data = json.load(f)
-    season_blocks = data["season_blocks"]
-    holiday_weeks = data["holiday_weeks"]
-    room_view_legend = data["room_view_legend"]
-    reference_points = data["reference_points"]
+import streamlit as st
+import json
+from datetime import datetime, timedelta
 
-    # Automatically determine resorts with complete data
-    season_resorts = set(season_blocks.keys())
-    holiday_resorts = set(holiday_weeks.keys())
-    reference_resorts = set(reference_points.keys())
-    display_resorts = sorted(season_resorts & holiday_resorts & reference_resorts)
-except Exception as e:
-    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
-    # Initialize session state
+# Load data.json
+with open("data.json", "r") as f:
+    data = json.load(f)
+
+# Initialize session state
 if "debug_messages" not in st.session_state:
     st.session_state.debug_messages = []
+if "data_cache" not in st.session_state:
+    st.session_state.data_cache = {}
+
+resort = st.selectbox("Select Resort", options=data["resorts_list"], index=data["resorts_list"].index("Ko Olina Beach Club"))
+
+checkin_date = st.date_input(
+    "Check-in Date",
+    min_value=datetime(2025, 1, 3).date(),
+    max_value=datetime(2026, 12, 31).date(),
+    value=datetime(2025, 7, 8).date()
+)
+num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
+
+year_select = str(checkin_date.year)
+
+# Track resort and year changes
+if (
+    "last_resort" not in st.session_state
+    or st.session_state.last_resort != resort
+    or "last_year" not in st.session_state
+    or st.session_state.last_year != year_select
+):
+    st.session_state.data_cache.clear()
+    if "room_types" in st.session_state:
+        del st.session_state.room_types
+    if "display_to_internal" in st.session_state:
+        del st.session_state.display_to_internal
+    st.session_state.last_resort = resort
+    st.session_state.last_year = year_select
+    st.session_state.debug_messages.append(
+        f"Cleared cache due to resort ({resort}) or year ({year_select}) change"
+    )
+
+# Mock generate_data (replace with your actual function)
+def generate_data(resort, date):
+    sample_entry = {
+        "1-BDRM": 1000,
+        "2-BDRM": 1500
+    }
+    display_to_internal = {"1-BDRM": "1-BDRM", "2-BDRM": "2-BDRM"}
+    return sample_entry, display_to_internal
+
+# Compute room types
+if "room_types" not in st.session_state:
+    sample_date = checkin_date
+    st.session_state.debug_messages.append(f"Generating room types for {resort} on {sample_date}")
+    sample_entry, display_to_internal = generate_data(resort, sample_date)
+    room_types = sorted(
+        [
+            k
+            for k in sample_entry
+            if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]
+        ]
+    )
+    if not room_types:
+        st.error(f"No room types found for {resort}.")
+        st.session_state.debug_messages.append(f"No room types for {resort}")
+        st.stop()
+    st.session_state.room_types = room_types
+    st.session_state.display_to_internal = display_to_internal
+    st.session_state.debug_messages.append(f"Room types for {resort}: {room_types}")
+else:
+    room_types = st.session_state.room_types
+    display_to_internal = st.session_state.display_to_internal
+
+room_type = st.selectbox("Select Room Type", options=room_types, key="room_type_select")
+compare_rooms = st.multiselect("Compare With Other Room Types", options=[r for r in room_types if r != room_type])
+
+original_checkin_date = checkin_date
+checkin_date, adjusted_nights, was_adjusted = adjust_date_range(resort, checkin_date, num_nights)
+if was_adjusted:
+    st.info(
+        f"Date range adjusted to include full holiday week: {checkin_date.strftime('%Y-%m-%d')} to "
+        f"{(checkin_date + timedelta(days=adjusted_nights - 1)).strftime('%Y-%m-%d')} ({adjusted_nights} nights)."
+    )
+st.session_state.last_checkin_date = checkin_date
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -156,60 +224,6 @@ def generate_data(resort, date, cache=None):
                         holiday_start_date = start
             except (IndexError, ValueError) as e:
                 st.session_state.debug_messages.append(f"Holiday parse error for {h_name}: {e}")
-import streamlit as st
-import math
-from datetime import datetime, timedelta
-import pandas as pd
-import plotly.express as px
-import json
-import traceback
-from collections import defaultdict
-
-# Load data and initialize
-try:
-    with open("data.json", "r") as f:
-        data = json.load(f)
-    season_blocks = data["season_blocks"]
-    holiday_weeks = data["holiday_weeks"]
-    room_view_legend = data["room_view_legend"]
-    reference_points = data["reference_points"]
-
-    # Automatically determine resorts with complete data
-    season_resorts = set(season_blocks.keys())
-    holiday_resorts = set(holiday_weeks.keys())
-    reference_resorts = set(reference_points.keys())
-    display_resorts = sorted(season_resorts & holiday_resorts & reference_resorts)
-except Exception as e:
-    st.session_state.debug_messages = [f"Data load error: {str(e)}"]
-    st.stop()
-    # Initialize session state
-if "debug_messages" not in st.session_state:
-    st.session_state.debug_messages = []
-
-# Helper functions
-def get_display_room_type(room_key):
-    if room_key in room_view_legend:
-        return room_view_legend[room_key]
-    parts = room_key.split()
-    if not parts:
-        return room_key
-    base = parts[0]
-    if room_key.startswith("AP_"):
-        if room_key == "AP_Studio_MA":
-            return "AP Studio Mountain"
-        elif room_key == "AP_1BR_MA":
-            return "AP 1BR Mountain"
-        elif room_key == "AP_2BR_MA":
-            return "AP 2BR Mountain"
-        elif room_key == "AP_2BR_MK":
-            return "AP 2BR Ocean"
-    view = parts[-1]
-    if len(parts) > 1 and view in room_view_legend:
-        view_display = room_view_legend[view]
-        return f"{base} {view_display}"
-    if room_key in ["2BR", "1BR", "3BR"]:
-        return room_key
-    return room_key
 
 def get_internal_room_key(display_name):
     reverse_legend = {v: k for k, v in room_view_legend.items()}
@@ -423,24 +437,27 @@ def generate_data(resort, date, cache=None):
         
 # adjust date range        
 def adjust_date_range(resort, checkin_date, num_nights):
+    from datetime import datetime, timedelta
+    import streamlit as st
+
     year_str = str(checkin_date.year)
     stay_end = checkin_date + timedelta(days=num_nights - 1)
     holiday_ranges = []
 
     st.session_state.debug_messages.append(f"Checking holiday overlap for {checkin_date} to {stay_end} at {resort}")
 
-    # Validate holiday weeks
-    if resort not in holiday_weeks:
+    # Check if holiday_weeks exists in data
+    if "holiday_weeks" not in data or resort not in data["holiday_weeks"]:
         st.session_state.debug_messages.append(f"No holiday weeks defined for {resort}")
         return checkin_date, num_nights, False
-    if year_str not in holiday_weeks[resort]:
+    if year_str not in data["holiday_weeks"][resort]:
         st.session_state.debug_messages.append(f"No holiday weeks defined for {resort} in {year_str}")
         return checkin_date, num_nights, False
 
-    st.session_state.debug_messages.append(f"Holiday weeks for {resort}, {year_str}: {list(holiday_weeks[resort][year_str].keys())}")
+    st.session_state.debug_messages.append(f"Holiday weeks for {resort}, {year_str}: {list(data['holiday_weeks'][resort][year_str].keys())}")
 
     try:
-        for h_name, holiday_data in holiday_weeks[resort][year_str].items():
+        for h_name, holiday_data in data["holiday_weeks"][resort][year_str].items():
             try:
                 # Handle global references
                 if isinstance(holiday_data, str) and holiday_data.startswith("global:"):
