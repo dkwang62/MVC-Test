@@ -146,27 +146,27 @@ def generate_data(resort, date, cache=None):
             # Resolve global reference if needed
             if isinstance(holiday_data, str) and holiday_data.startswith("global:"):
                 global_key = holiday_data.split(":", 1)[1]
-                holiday_data = data["global_dates"][year][global_key]
-try:
-    if len(holiday_data) >= 2:
-    start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-    end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-    st.session_state.debug_messages.append(f"Checking holiday {h_name} for {resort}: {start} to {end}")
-    if start <= date <= end:
-    is_holiday = True
-    holiday_name = h_name
-    season = "Holiday Week"
-    holiday_start_date = start
-    holiday_end_date = end
-    if date == start:
-    is_holiday_start = True
-    st.session_state.debug_messages.append(f"Holiday match for {resort}: {holiday_name} on {date_str}")
-    if len(holiday_data) > 2:
-    st.session_state.debug_messages.append(f"Warning: Extra values in holiday {h_name} data: {holiday_data[2:]}")
-    break
-    else:
-    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} in {resort}: {holiday_data}")
-except (IndexError, ValueError) as e:
+                    holiday_data = data["global_dates"][year][global_key]
+                try:
+                    if len(holiday_data) >= 2:
+                    start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
+                    end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
+                    st.session_state.debug_messages.append(f"Checking holiday {h_name} for {resort}: {start} to {end}")
+                if start <= date <= end:
+                    is_holiday = True
+                    holiday_name = h_name
+                    season = "Holiday Week"
+                    holiday_start_date = start
+                    holiday_end_date = end
+                if date == start:
+                    is_holiday_start = True
+                    st.session_state.debug_messages.append(f"Holiday match for {resort}: {holiday_name} on {date_str}")
+                    if len(holiday_data) > 2:
+                    st.session_state.debug_messages.append(f"Warning: Extra values in holiday {h_name} data: {holiday_data[2:]}")
+                break
+                else:
+                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} in {resort}: {holiday_data}")
+            except (IndexError, ValueError) as e:
                 st.session_state.debug_messages.append(f"Invalid holiday data format for {h_name} in {resort}: {e}")
 
     # Season determination only if no holiday
@@ -298,16 +298,16 @@ def adjust_date_range(resort, checkin_date, num_nights):
         for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
             try:
                 if len(holiday_data) >= 2:
-                h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-                h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-                st.session_state.debug_messages.append(f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
-                if (h_start <= stay_end) and (h_end >= checkin_date):
-                holiday_ranges.append((h_start, h_end))
-                st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} at {resort}")
+                    h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
+                    h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
+                    st.session_state.debug_messages.append(f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
+                    if (h_start <= stay_end) and (h_end >= checkin_date):
+                        holiday_ranges.append((h_start, h_end))
+                        st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} at {resort}")
+                    else:
+                        st.session_state.debug_messages.append(f"No overlap with {h_name} at {resort}")
                 else:
-                st.session_state.debug_messages.append(f"No overlap with {h_name} at {resort}")
-                else:
-                st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
+                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
             except (IndexError, ValueError) as e:
                 st.session_state.debug_messages.append(f"Invalid holiday range for {h_name} at {resort}: {e}")
     except ValueError as e:
@@ -333,17 +333,17 @@ def create_gantt_chart(resort, year):
         for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
             try:
                 if len(holiday_data) >= 2:
-                start_date = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-                end_date = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-                gantt_data.append({
-                "Task": h_name,
-                "Start": start_date,
-                "Finish": end_date,
-                "Type": "Holiday"
-                })
-                st.session_state.debug_messages.append(f"Added holiday: {h_name}, Start: {start_date}, Finish: {end_date} for {resort}")
+                    start_date = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
+                    end_date = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
+                    gantt_data.append({
+                        "Task": h_name,
+                        "Start": start_date,
+                        "Finish": end_date,
+                        "Type": "Holiday"
+                    })
+                    st.session_state.debug_messages.append(f"Added holiday: {h_name}, Start: {start_date}, Finish: {end_date} for {resort}")
                 else:
-                st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
+                    st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
             except (IndexError, ValueError) as e:
                 st.session_state.debug_messages.append(f"Invalid holiday data for {h_name} at {resort}: {e}")
         season_types = list(season_blocks.get(resort, {}).get(year_str, {}).keys())
@@ -517,16 +517,16 @@ def compare_room_types(resort, room_types, checkin_date, num_nights, discount_mu
     for h_name, holiday_data in holiday_weeks.get(resort, {}).get(str(checkin_date.year), {}).items():
         try:
             if len(holiday_data) >= 2:
-            h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
-            h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
-            if (h_start <= stay_end) and (h_end >= stay_start):
-            holiday_ranges.append((h_start, h_end))
-            for d in [h_start + timedelta(days=x) for x in range((h_end - h_start).days + 1)]:
-            if d in all_dates:
-            holiday_names[d] = h_name
-            st.session_state.debug_messages.append(f"Date {d} overlaps with holiday {h_name} ({h_start} to {h_end}) at {resort}")
+                h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
+                h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
+                if (h_start <= stay_end) and (h_end >= stay_start):
+                    holiday_ranges.append((h_start, h_end))
+                    for d in [h_start + timedelta(days=x) for x in range((h_end - h_start).days + 1)]:
+                        if d in all_dates:
+                            holiday_names[d] = h_name
+                            st.session_state.debug_messages.append(f"Date {d} overlaps with holiday {h_name} ({h_start} to {h_end}) at {resort}")
             else:
-            st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
+                st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
         except (IndexError, ValueError) as e:
             st.session_state.debug_messages.append(f"Invalid holiday date for {h_name} at {resort}: {e}")
 
