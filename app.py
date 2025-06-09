@@ -420,38 +420,59 @@ def generate_data(resort, date, cache=None):
         st.session_state.debug_messages.append(f"Error in generate_data for {resort}: {str(e)}\n{traceback.format_exc()}")
         st.error(f"Failed to generate data for {resort} on {date_str}: {str(e)}")
         raise
-# Adjust date range function
+# adjust date range        
 def adjust_date_range(resort, checkin_date, num_nights):
     year_str = str(checkin_date.year)
     stay_end = checkin_date + timedelta(days=num_nights - 1)
     holiday_ranges = []
 
     st.session_state.debug_messages.append(f"Checking holiday overlap for {checkin_date} to {stay_end} at {resort}")
+    
+    if resort not in holiday_weeks:
+        st.session_state.debug_messages.append(f"No holiday weeks defined for {resort}")
+        return checkin_date, num_nights, False
+    if year_str not in holiday_weeks[resort]:
+        st.session_state.debug_messages.append(f"No holiday weeks defined for {resort} in {year_str}")
+        return checkin_date, num_nights, False
+
+    st.session_state.debug_messages.append(f"Holiday weeks for {resort}, {year_str}: {list(holiday_weeks[resort][year_str].keys())}")
+
     try:
-        for h_name, holiday_data in holiday_weeks.get(resort, {}).get(year_str, {}).items():
+        for h_name, holiday_data in holiday_weeks[resort][year_str].items():
             try:
+                if isinstance(holiday_data, str) and holiday_data.startswith("global:"):
+                    global_key = holiday_data.split(":", 1)[1]
+                    if "global_dates" not in data or year_str not in data["global_dates"] or global_key not in data["global_dates"][year_str]:
+                        st.session_state.debug_messages.append(f"Invalid global reference for {h_name}: global:{global_key} not found")
+                        continue
+                    holiday_data = data["global_dates"][year_str][global_key]
+                
                 if len(holiday_data) >= 2:
                     h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
                     h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
                     st.session_state.debug_messages.append(f"Evaluating holiday {h_name}: {holiday_data[0]} to {holiday_data[1]} at {resort}")
                     if (h_start <= stay_end) and (h_end >= checkin_date):
-                        holiday_ranges.append((h_start, h_end))
-                        st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} at {resort}")
-                        st.session_state.debug_messages.append(f"No overlap with {h_name} at {resort}")
+                        holiday_ranges.append((h_start, h_end, h_name))
+                        st.session_state.debug_messages.append(f"Holiday overlap found with {h_name} ({h_start} to {h_end}) at {resort}")
+                    else:
+                        st.session_state.debug_messages.append(f"No overlap with {h_name} ({h_start} to {h_end}) at {resort}")
+                else:
                     st.session_state.debug_messages.append(f"Invalid holiday data length for {h_name} at {resort}: {holiday_data}")
-                except (IndexError, ValueError) as e:
-                    st.session_state.debug_messages.append(f"Invalid holiday range for {h_name} at {resort}: {e}")
-                    except ValueError as e:
-                        st.session_state.debug_messages.append(f"Invalid holiday range in {resort}, {year_str}: {e}")
+            except (IndexError, ValueError) as e:
+                st.session_state.debug_messages.append(f"Invalid holiday range for {h_name} at {resort}: {e}")
+    except Exception as e:
+        st.session_state.debug_messages.append(f"Error processing holiday weeks for {resort}, {year_str}: {e}")
 
     if holiday_ranges:
-        earliest_holiday_start = min(h_start for h_start, _ in holiday_ranges)
-        latest_holiday_end = max(h_end for _, h_end in holiday_ranges)
+        earliest_holiday_start = min(h_start for h_start, _, _ in holiday_ranges)
+        latest_holiday_end = max(h_end for _, h_end, _ in holiday_ranges)
         adjusted_start = min(checkin_date, earliest_holiday_start)
         adjusted_end = max(stay_end, latest_holiday_end)
         adjusted_nights = (adjusted_end - adjusted_start).days + 1
-        st.session_state.debug_messages.append(f"Adjusted date range to include holiday week: {adjusted_start} to {adjusted_end} ({adjusted_nights} nights) at {resort}")
+        holiday_names = [h_name for _, _, h_name in holiday_ranges]
+        st.session_state.debug_messages.append(f"Adjusted date range to include holiday week(s) {holiday_names}: {adjusted_start} to {adjusted_end} ({adjusted_nights} nights) at {resort}")
         return adjusted_start, adjusted_nights, True
+    
     st.session_state.debug_messages.append(f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}")
     return checkin_date, num_nights, False
 
@@ -829,49 +850,47 @@ try:
     resort = st.selectbox("Select Resort", options=display_resorts, index=display_resorts.index("Ko Olina Beach Club"))
 
     # Track resort changes in session state
-    if "last_resort" not in st.session_state:
-        st.session_state.last_resort = resort
-    if st.session_state.last_resort != resort:
-        # Clear previous room type data when resort changes
-        if "room_types" in st.session_state:
-            del st.session_state.room_types
-        if "display_to_internal" in st.session_state:
-            del st.session_state.display_to_internal
-        if "data_cache" in st.session_state:
-            st.session_state.data_cache.clear()  # Clear cache to avoid stale data
-        st.session_state.last_resort = resort
-        st.session_state.debug_messages.append(f"Resort changed to {resort}. Cleared room type data and cache.")
+ # Track resort and year changes in session state
+if "last_resort" not in st.session_state or st.session_state.last_resort != resort or "last_year" not in st.session_state or st.session_state.last_year != year_select:
+    st.session_state.data_cache.clear()
+    if "room_types" in st.session_state:
+        del st.session_state.room_types
+    if "display_to_internal" in st.session_state:
+        del st.session_state.display_to_internal
+    st.session_state.last_resort = resort
+    st.session_state.last_year = year_select
+    st.session_state.debug_messages.append(f"Cleared cache and room data due to resort ({resort}) or year ({year_select}) change")
 
-    checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 8).date())
-    num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
+checkin_date = st.date_input("Check-in Date", min_value=datetime(2024, 12, 27).date(), max_value=datetime(2026, 12, 31).date(), value=datetime(2026, 7, 8).date())
+num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
 
-    year_select = str(checkin_date.year)
+year_select = str(checkin_date.year)
 
-    # Compute room types only if not already in session state
-    if "room_types" not in st.session_state:
-        sample_date = checkin_date
-        st.session_state.debug_messages.append(f"Generating room types for {resort} on {sample_date}")
-        sample_entry, display_to_internal = generate_data(resort, sample_date)
-        room_types = sorted([k for k in sample_entry if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]])
-        if not room_types:
-            st.error(f"No room types found for {resort}.")
-            st.session_state.debug_messages.append(f"No room types for {resort}")
-            st.stop()
-        st.session_state.room_types = room_types
-        st.session_state.display_to_internal = display_to_internal
-        st.session_state.debug_messages.append(f"Room types for {resort}: {room_types}")
-        room_types = st.session_state.room_types
-        display_to_internal = st.session_state.display_to_internal
+# Compute room types only if not already in session state
+if "room_types" not in st.session_state:
+    sample_date = checkin_date
+    st.session_state.debug_messages.append(f"Generating room types for {resort} on {sample_date}")
+    sample_entry, display_to_internal = generate_data(resort, sample_date)
+    room_types = sorted([k for k in sample_entry if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]])
+    if not room_types:
+        st.error(f"No room types found for {resort}.")
+        st.session_state.debug_messages.append(f"No room types for {resort}")
+        st.stop()
+    st.session_state.room_types = room_types
+    st.session_state.display_to_internal = display_to_internal
+    st.session_state.debug_messages.append(f"Room types for {resort}: {room_types}")
+else:
+    room_types = st.session_state.room_types
+    display_to_internal = st.session_state.display_to_internal
 
-    room_type = st.selectbox("Select Room Type", options=room_types, key="room_type_select")
-    compare_rooms = st.multiselect("Compare With Other Room Types", options=[r for r in room_types if r != room_type])
+room_type = st.selectbox("Select Room Type", options=room_types, key="room_type_select")
+compare_rooms = st.multiselect("Compare With Other Room Types", options=[r for r in room_types if r != room_type])
 
-    original_checkin_date = checkin_date
-    checkin_date, adjusted_nights, was_adjusted = adjust_date_range(resort, checkin_date, num_nights)
-    if was_adjusted:
-        st.info(f"Date range adjusted to include full holiday week: {checkin_date.strftime('%Y-%m-%d')} to {(checkin_date + timedelta(days=adjusted_nights - 1)).strftime('%Y-%m-%d')} ({adjusted_nights} nights).")
-    st.session_state.last_checkin_date = checkin_date
-
+original_checkin_date = checkin_date
+checkin_date, adjusted_nights, was_adjusted = adjust_date_range(resort, checkin_date, num_nights)
+if was_adjusted:
+    st.info(f"Date range adjusted to include full holiday week: {checkin_date.strftime('%Y-%m-%d')} to {(checkin_date + timedelta(days=adjusted_nights - 1)).strftime('%Y-%m-%d')} ({adjusted_nights} nights).")
+st.session_state.last_checkin_date = checkin_date
     reference_entry, _ = generate_data(resort, checkin_date)
     reference_points_resort = {k: v for k, v in reference_entry.items() if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]}
 
