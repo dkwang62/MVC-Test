@@ -2349,6 +2349,114 @@
       }
     }
   },
+  "global_dates": {
+    "2025": {
+      "Presidents Day": [
+        "2025-02-14",
+        "2025-02-20"
+      ],
+      "Easter": [
+        "2025-04-18",
+        "2025-04-24"
+      ],
+      "Independence Day": [
+        "2025-07-04",
+        "2025-07-10"
+      ],
+      "Thanksgiving": [
+        "2025-11-21",
+        "2025-11-27"
+      ],
+      "Thanksgiving 2": [
+        "2025-11-28",
+        "2025-12-04"
+      ],
+      "Christmas": [
+        "2025-12-19",
+        "2025-12-25"
+      ],
+      "New Year's Eve/Day": [
+        "2025-12-26",
+        "2026-01-01"
+      ],
+      "Chinese New Year": [
+        "2025-01-24",
+        "2025-01-30"
+      ],
+      "Easter1": [
+        "2025-04-11",
+        "2025-04-17"
+      ],
+      "Week 1": [
+        "2025-01-03",
+        "2025-01-09"
+      ],
+      "Mid\u2013Term": [
+        "2025-05-16",
+        "2025-05-29"
+      ],
+      "Memorial Day": [
+        "2025-05-23",
+        "2025-05-29"
+      ],
+      "Labor Day": [
+        "2025-08-29",
+        "2025-09-04"
+      ]
+    },
+    "2026": {
+      "Presidents Day": [
+        "2026-02-13",
+        "2026-02-19"
+      ],
+      "Easter": [
+        "2026-04-03",
+        "2026-04-09"
+      ],
+      "Independence Day": [
+        "2026-07-03",
+        "2026-07-09"
+      ],
+      "Thanksgiving": [
+        "2026-11-20",
+        "2026-11-26"
+      ],
+      "Thanksgiving 2": [
+        "2026-11-27",
+        "2026-12-03"
+      ],
+      "Christmas": [
+        "2026-12-18",
+        "2026-12-24"
+      ],
+      "New Year's Eve/Day": [
+        "2026-12-25",
+        "2026-12-31"
+      ],
+      "Chinese New Year": [
+        "2026-02-13",
+        "2026-02-19"
+      ],
+      "Easter1": [
+        "2026-03-27",
+        "2026-04-02"
+      ],
+      "Week 1": [
+        "2026-01-02",
+        "2026-01-08"
+      ],
+      "Mid\u2013Term": [
+        "2026-05-15",
+        "2026-05-28"
+      ],
+      "Memorial Day": [
+        "2026-05-22",
+        "2026-05-28"
+      ],
+      "Labor Day": [
+        "2026-09-04",
+        "2026-09-10"
+      ]
   "holiday_weeks": {
     "Kauai Beach Club": {
       "2025": {
@@ -6014,139 +6122,4 @@
         }
       }
     }
-  },
-  "resorts_list": [
-    "Aruba Ocean Club",
-    "Aruba Surf Club",
-    "Bali Nusa Dua Gardens",
-    "Bali Nusa Dua Terrace",
-    "Beachplace Towers",
-    "Crystal Shores",
-    "Desert Shoulders Villas II",
-    "Grande Vista",
-    "Kauai Beach Club",
-    "Ko Olina Beach Club",
-    "Marbella Beach",
-    "Maui Ocean Club",
-    "Mayflower Washington",
-    "Newport Coast Villas",
-    "Phuket Beach Club",
-    "Playa Andaluza",
-    "Shadow Ridge",
-    "Sheraton Kauai",
-    "Surfers Paradise",
-    "Village Paris",
-    "Waikoloa Ocean Club",
-    "Westin Ka'anapali"
-  ],
-  "global_dates": {
-    "2025": {
-      "Presidents Day": [
-        "2025-02-14",
-        "2025-02-20"
-      ],
-      "Easter": [
-        "2025-04-18",
-        "2025-04-24"
-      ],
-      "Independence Day": [
-        "2025-07-04",
-        "2025-07-10"
-      ],
-      "Thanksgiving": [
-        "2025-11-21",
-        "2025-11-27"
-      ],
-      "Thanksgiving 2": [
-        "2025-11-28",
-        "2025-12-04"
-      ],
-      "Christmas": [
-        "2025-12-19",
-        "2025-12-25"
-      ],
-      "New Year's Eve/Day": [
-        "2025-12-26",
-        "2026-01-01"
-      ],
-      "Chinese New Year": [
-        "2025-01-24",
-        "2025-01-30"
-      ],
-      "Easter1": [
-        "2025-04-11",
-        "2025-04-17"
-      ],
-      "Week 1": [
-        "2025-01-03",
-        "2025-01-09"
-      ],
-      "Mid\u2013Term": [
-        "2025-05-16",
-        "2025-05-29"
-      ],
-      "Memorial Day": [
-        "2025-05-23",
-        "2025-05-29"
-      ],
-      "Labor Day": [
-        "2025-08-29",
-        "2025-09-04"
-      ]
-    },
-    "2026": {
-      "Presidents Day": [
-        "2026-02-13",
-        "2026-02-19"
-      ],
-      "Easter": [
-        "2026-04-03",
-        "2026-04-09"
-      ],
-      "Independence Day": [
-        "2026-07-03",
-        "2026-07-09"
-      ],
-      "Thanksgiving": [
-        "2026-11-20",
-        "2026-11-26"
-      ],
-      "Thanksgiving 2": [
-        "2026-11-27",
-        "2026-12-03"
-      ],
-      "Christmas": [
-        "2026-12-18",
-        "2026-12-24"
-      ],
-      "New Year's Eve/Day": [
-        "2026-12-25",
-        "2026-12-31"
-      ],
-      "Chinese New Year": [
-        "2026-02-13",
-        "2026-02-19"
-      ],
-      "Easter1": [
-        "2026-03-27",
-        "2026-04-02"
-      ],
-      "Week 1": [
-        "2026-01-02",
-        "2026-01-08"
-      ],
-      "Mid\u2013Term": [
-        "2026-05-15",
-        "2026-05-28"
-      ],
-      "Memorial Day": [
-        "2026-05-22",
-        "2026-05-28"
-      ],
-      "Labor Day": [
-        "2026-09-04",
-        "2026-09-10"
-      ]
-    }
   }
-}
