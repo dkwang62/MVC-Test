@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import math
 from datetime import datetime, timedelta
@@ -935,4 +934,3 @@ with st.expander("Debug Information"):
     except Exception as e:
         st.error(f"Error in debug section: {str(e)}")
         st.session_state.debug_messages.append(f"Debug section error: {str(e)}\n{traceback.format_exc()}")
-```
