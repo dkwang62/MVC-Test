@@ -792,8 +792,10 @@ try:
         if user_mode == "Renter":
             st.markdown("""
             - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Rate per point: $0.81 for 2025 stays, $0.86 for 2026 stays
-            - Rent calculated as points * rate per point
+            - Rental Rate per Point based on MVC Abound maintenance fees
+            - $0.81 for 2025 stays (actual rate)
+            - $0.86 for 2026 stays (forecasted rate)
+            - Rent = Points × Rate per Point
             """)
         else:
             st.markdown(f"""
