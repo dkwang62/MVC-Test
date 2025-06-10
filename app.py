@@ -380,13 +380,12 @@ def create_gantt_chart(resort, year):
     fig.update_layout(xaxis_title="Date", yaxis_title="Period", showlegend=True)
     return fig
 
-def calculate_stay_renter(resort, room_type, checkin_date, num_nights):
+def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_point):
     breakdown = []
     total_points = 0
     total_rent = 0
     current_holiday = None
     holiday_end = None
-    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
 
     for i in range(num_nights):
         date = checkin_date + timedelta(days=i)
@@ -501,13 +500,12 @@ def calculate_stay_owner(resort, room_type, checkin_date, num_nights, discount_p
 
     return pd.DataFrame(breakdown), total_points, total_cost, total_capital_cost, total_depreciation_cost
 
-def compare_room_types_renter(resort, room_types, checkin_date, num_nights):
+def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate_per_point):
     compare_data = []
     chart_data = []
     all_dates = [checkin_date + timedelta(days=i) for i in range(num_nights)]
     stay_start = checkin_date
     stay_end = checkin_date + timedelta(days=num_nights - 1)
-    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
 
     holiday_ranges = []
     holiday_names = {}
@@ -781,7 +779,11 @@ try:
             cost_of_capital = cost_of_capital_percent / 100
             st.caption(f"Cost calculation based on {discount_percent}% discount.")
         else:
-            rate_per_point = 0.81  # Default for 2025, adjusted in functions for 2026
+            rate_option = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate"])
+            if rate_option == "Based on Maintenance Rate":
+                rate_per_point = 0.81 if datetime.now().year == 2025 else 0.86
+            else:
+                rate_per_point = st.number_input("Custom Rate per Point ($)", min_value=0.0, value=0.81, step=0.01)
             discount_percent, display_mode, capital_cost_per_point, cost_of_capital, useful_life, salvage_value = 0, "both", 0, 0, 0, 0
 
     discount_multiplier = 1 - (discount_percent / 100)
@@ -792,9 +794,9 @@ try:
         if user_mode == "Renter":
             st.markdown("""
             - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Rental Rate per Point based on MVC Abound maintenance fees
-            - $0.81 for 2025 stays (actual rate)
-            - $0.86 for 2026 stays (forecasted rate)
+            - Rental Rate per Point can be based on MVC Abound maintenance fees or custom input
+            - Default: $0.81 for 2025 stays (actual rate)
+            - Default: $0.86 for 2026 stays (forecasted rate)
             - Rent = Points × Rate per Point
             """)
         else:
@@ -891,7 +893,7 @@ try:
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
         if user_mode == "Renter":
-            breakdown, total_points, total_rent = calculate_stay_renter(resort, room_type, checkin_date, adjusted_nights)
+            breakdown, total_points, total_rent = calculate_stay_renter(resort, room_type, checkin_date, adjusted_nights, rate_per_point)
             st.subheader("Stay Breakdown")
             if not breakdown.empty:
                 st.dataframe(breakdown, use_container_width=True)
@@ -914,7 +916,7 @@ try:
                 st.subheader("Room Type Comparison")
                 st.info("Note: Non-holiday weeks are compared day-by-day; holiday weeks are compared as total points for the week.")
                 all_rooms = [room_type] + compare_rooms
-                chart_df, compare_df_pivot, holiday_totals = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights)
+                chart_df, compare_df_pivot, holiday_totals = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights, rate_per_point)
 
                 st.write("### Points and Rent Comparison")
                 st.dataframe(compare_df_pivot, use_container_width=True)
