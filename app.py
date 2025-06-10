@@ -561,16 +561,6 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
     total_rent_by_room = {room: 0 for room in room_types}
     holiday_totals = {room: defaultdict(dict) for room in room_types}
 
-    # Predefine holiday start dates for consistent table entries
-    holiday_start_entries = {}
-    for date in all_dates:
-        is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
-        holiday_name = holiday_names.get(date, None)
-        if is_holiday_date and holiday_name:
-            h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
-            if h_start not in holiday_start_entries:
-                holiday_start_entries[h_start] = holiday_name
-
     for date in all_dates:
         date_str = date.strftime("%Y-%m-%d")
         day_of_week = date.strftime("%a")
@@ -587,7 +577,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                 rent = math.ceil(points * rate_per_point)
 
                 if is_holiday_date and not is_ap_room:
-                    if is_holiday_start and date in holiday_start_entries:
+                    if is_holiday_start:
                         if holiday_name not in holiday_totals[room]:
                             h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
                             h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == holiday_name)
@@ -605,14 +595,8 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                             "Points": points,
                             "Rent": f"${rent}"
                         })
-                    # For non-start holiday dates, add zero entries to ensure date appears
-                    elif date not in holiday_start_entries:
-                        compare_data.append({
-                            "Date": date_str,
-                            "Room Type": room,
-                            "Points": 0,
-                            "Rent": "$0"
-                        })
+                    # Skip non-start holiday dates for non-AP rooms
+                    continue
                 else:
                     compare_data.append({
                         "Date": date_str,
@@ -690,16 +674,6 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
     holiday_totals = {room: defaultdict(dict) for room in room_types}
     depreciation_cost_per_point = (capital_cost_per_point - salvage_value) / useful_life
 
-    # Predefine holiday start dates for consistent table entries
-    holiday_start_entries = {}
-    for date in all_dates:
-        is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
-        holiday_name = holiday_names.get(date, None)
-        if is_holiday_date and holiday_name:
-            h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
-            if h_start not in holiday_start_entries:
-                holiday_start_entries[h_start] = holiday_name
-
     for date in all_dates:
         date_str = date.strftime("%Y-%m-%d")
         day_of_week = date.strftime("%a")
@@ -716,7 +690,7 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
                 discounted_points = math.floor(points * discount_multiplier)
 
                 if is_holiday_date and not is_ap_room:
-                    if is_holiday_start and date in holiday_start_entries:
+                    if is_holiday_start:
                         if holiday_name not in holiday_totals[room]:
                             h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
                             h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == holiday_name)
@@ -739,16 +713,8 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
                             total_holiday_cost = maintenance_cost + capital_cost + depreciation_cost
                             row["Total Cost"] = f"${total_holiday_cost}"
                         compare_data.append(row)
-                    # For non-start holiday dates, add zero entries to ensure date appears
-                    elif date not in holiday_start_entries:
-                        row = {
-                            "Date": date_str,
-                            "Room Type": room,
-                            "Points": 0
-                        }
-                        if display_mode == "both":
-                            row["Total Cost"] = "$0"
-                        compare_data.append(row)
+                    # Skip non-start holiday dates for non-AP rooms
+                    continue
                 else:
                     row = {
                         "Date": date_str,
@@ -808,6 +774,7 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
     chart_df = pd.DataFrame(chart_data)
 
     return chart_df, compare_df_pivot, holiday_totals
+
 # Main UI
 try:
     with st.sidebar:
