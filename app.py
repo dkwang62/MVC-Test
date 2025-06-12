@@ -808,6 +808,17 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
 
 # Main UI
 try:
+    # Define checkin_date and num_nights first
+    checkin_date = st.date_input(
+        "Check-in Date",
+        min_value=datetime(2025, 1, 3).date(),
+        max_value=datetime(2026, 12, 31).date(),
+        value=datetime(2025, 7, 8).date()
+    )
+    num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
+    checkout_date = checkin_date + timedelta(days=num_nights)
+    st.write(f"Checkout Date: {checkout_date.strftime('%Y-%m-%d')}")
+
     with st.sidebar:
         st.header("Parameters")
         user_mode = st.selectbox("User Mode", options=["Renter", "Owner"], index=0)
@@ -890,16 +901,6 @@ try:
             """)
 
     resort = st.selectbox("Select Resort", options=data["resorts_list"], index=data["resorts_list"].index("Ko Olina Beach Club"))
-
-    checkin_date = st.date_input(
-        "Check-in Date",
-        min_value=datetime(2025, 1, 3).date(),
-        max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 7, 8).date()
-    )
-    num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
-    checkout_date = checkin_date + timedelta(days=num_nights)
-    st.write(f"Checkout Date: {checkout_date.strftime('%Y-%m-%d')}")
 
     year_select = str(checkin_date.year)
 
