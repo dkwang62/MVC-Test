@@ -823,29 +823,30 @@ try:
 
     # Move the "How [Cost/Rent] is Calculated" expander right after the title
     with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
-        if user_mode == "Renter":
-            st.markdown("""
-            - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
-            - Default: $0.81 for 2025 stays (actual rate)
-            - Default: $0.86 for 2026 stays (forecasted rate)
-            - **Booked within 60 days**: 30% discount on points required, only for Presidential-level owners, applies to stays within 60 days from today
-            - **Booked within 30 days**: 25% discount on points required, only for Executive-level owners, applies to stays within 30 days from today
-            - Rent = (Points × Discount Multiplier) × Rate per Point
-            """)
-        else:
-            st.markdown(f"""
-            - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Maintenance rate: ${rate_per_point:.2f} per point
-            - Purchase price: ${capital_cost_per_point:.2f} per point
-            - Cost of capital: {cost_of_capital_percent:.1f}%
-            - Useful Life: {useful_life} years
-            - Salvage Value: ${salvage_value:.2f} per point
-            - Depreciation: ${(capital_cost_per_point - salvage_value) / useful_life:.2f} per point
-            - Selected discount: {discount_percent}%
-            - Cost of capital calculated as (points * purchase price per point * cost of capital percentage)
-            - Total cost is maintenance plus capital cost plus depreciation
-            """)
+    if user_mode == "Renter":
+        st.markdown("""
+        - Authored by Desmond Kwang https://www.facebook.com/dkwang62
+        - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
+        - Default: $0.81 for 2025 stays (actual rate)
+        - Default: $0.86 for 2026 stays (forecasted rate)
+        - **Booked within 60 days**: 30% discount on points required, only for Presidential-level owners, applies to stays within 60 days from today
+        - **Booked within 30 days**: 25% discount on points required, only for Executive-level owners, applies to stays within 30 days from today
+        - Rent = (Points × Discount Multiplier) × Rate per Point
+        """)
+    else:
+        depreciation_rate = (capital_cost_per_point - salvage_value) / useful_life
+        st.markdown(f"""
+        - Authored by Desmond Kwang https://www.facebook.com/dkwang62
+        - Maintenance rate: ${rate_per_point:.2f} per point
+        - Purchase price: ${capital_cost_per_point:.2f} per point
+        - Cost of capital: {cost_of_capital_percent:.1f}%
+        - Useful Life: {useful_life} years
+        - Salvage Value: ${salvage_value:.2f} per point
+        - Depreciation: ${depreciation_rate:.2f} per point
+        - Selected discount: {discount_percent}%
+        - Cost of capital calculated as (points * purchase price per point * cost of capital percentage)
+        - Total cost is maintenance plus capital cost plus depreciation
+        """)
 
     # Define checkin_date and num_nights first
     checkin_date = st.date_input(
