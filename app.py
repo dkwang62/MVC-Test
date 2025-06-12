@@ -485,8 +485,6 @@ def calculate_stay_owner(resort, room_type, checkin_date, num_nights, discount_p
     current_holiday = None
     holiday_end = None
 
-    depreciation_cost_per_point = (capital_cost_per_point - salvage_value) / useful_life
-
     for i in range(num_nights):
         date = checkin_date + timedelta(days=i)
         date_str = date.strftime("%Y-%m-%d")
@@ -494,6 +492,9 @@ def calculate_stay_owner(resort, room_type, checkin_date, num_nights, discount_p
             entry, _ = generate_data(resort, date)
             points = entry.get(room_type, 0)
             discounted_points = math.floor(points * discount_multiplier)
+
+        # Dynamically calculate depreciation cost per point
+            depreciation_cost_per_point = (capital_cost_per_point - salvage_value) / useful_life
 
             if entry.get("HolidayWeek", False):
                 if entry.get("HolidayWeekStart", False):
@@ -704,7 +705,6 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
     total_points_by_room = {room: 0 for room in room_types}
     total_cost_by_room = {room: 0 for room in room_types}
     holiday_totals = {room: defaultdict(dict) for room in room_types}
-    depreciation_cost_per_point = (capital_cost_per_point - salvage_value) / useful_life
 
     for date in all_dates:
         date_str = date.strftime("%Y-%m-%d")
@@ -714,6 +714,8 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
             is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
             holiday_name = holiday_names.get(date)
             is_holiday_start = entry.get("HolidayWeekStart", False)
+            # Dynamically calculate depreciation cost per point
+            depreciation_cost_per_point = (capital_cost_per_point - salvage_value) / useful_life
 
             for room in room_types:
                 internal_room = get_internal_room_key(room)
@@ -853,7 +855,7 @@ try:
         "Check-in Date",
         min_value=datetime(2025, 1, 3).date(),
         max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 6, 12).date()  # Updated to today's date
+        value=datetime(2025, 6, 12).date()
     )
     num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
     checkout_date = checkin_date + timedelta(days=num_nights)
