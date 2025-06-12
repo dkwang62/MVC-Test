@@ -839,15 +839,8 @@ try:
             depreciation_rate = (capital_cost_per_point - salvage_value) / useful_life
             st.markdown(f"""
             - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Maintenance rate: ${rate_per_point:.2f} per point
-            - Purchase price: ${capital_cost_per_point:.2f} per point
-            - Cost of capital: {cost_of_capital_percent:.1f}%
-            - Useful Life: {useful_life} years
-            - Salvage Value: ${salvage_value:.2f} per point
-            - Depreciation: ${depreciation_rate:.2f} per point
-            - Selected discount: {discount_percent}%
-            - Cost of capital calculated as (points * purchase price per point * cost of capital percentage)
-            - Total cost is maintenance plus capital cost plus depreciation
+            - Cost of capital = points * purchase price per point * cost of capital percentage
+            - Total cost = maintenance + capital cost + depreciation
             """)
 
     # Define checkin_date and num_nights first
