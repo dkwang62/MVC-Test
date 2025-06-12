@@ -852,7 +852,7 @@ try:
         "Check-in Date",
         min_value=datetime(2025, 1, 3).date(),
         max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 7, 8).date()
+        value=datetime(2025, 6, 12).date()  # Updated to today's date
     )
     num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
     checkout_date = checkin_date + timedelta(days=num_nights)
