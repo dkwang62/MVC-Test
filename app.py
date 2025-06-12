@@ -808,6 +808,8 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
 
 # Main UI
 try:
+    # Initialize user_mode before title
+    user_mode = st.sidebar.selectbox("User Mode", options=["Renter", "Owner"], index=0)
     st.title("Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
 
     # Define checkin_date and num_nights first
@@ -823,7 +825,6 @@ try:
 
     with st.sidebar:
         st.header("Parameters")
-        user_mode = st.selectbox("User Mode", options=["Renter", "Owner"], index=0)
         if user_mode == "Owner":
             display_options = [
                 (0, "both"), (25, "both"), (30, "both"),
