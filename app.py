@@ -821,8 +821,8 @@ try:
 
     st.title("Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
 
-    # Move the "How [Cost/Rent] is Calculated" expander right after the title
-    with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
+# Move the "How [Cost/Rent] is Calculated" expander right after the title
+with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
     if user_mode == "Renter":
         st.markdown("""
         - Authored by Desmond Kwang https://www.facebook.com/dkwang62
@@ -847,6 +847,29 @@ try:
         - Cost of capital calculated as (points * purchase price per point * cost of capital percentage)
         - Total cost is maintenance plus capital cost plus depreciation
         """)
+Explanation of the Fix
+The depreciation_rate is now calculated inside the expander using the current values of capital_cost_per_point, salvage_value, and useful_life, which are updated via the sidebar inputs.
+When the user changes Useful Life (e.g., from 15 to 9) or Salvage Value (e.g., from 3.0 to another value), Streamlit re-runs the app, and the new values are reflected in the calculation.
+For example:
+With useful_life = 9, capital_cost_per_point = 16.0, and salvage_value = 3.0:
+(16.0 - 3.0) / 9 = 1.444... → Displayed as 1.44 per point.
+Verification
+If you set Useful Life to 9 and Salvage Value to 3.0 in the sidebar (as shown in your image), the depreciation should update to approximately $1.44 per point.
+The issue of it being "fixed at 0.87" should no longer occur because the value will now adjust dynamically with the input changes.
+Additional Notes
+Ensure that the sidebar inputs (useful_life and salvage_value) are updated before the "Calculate" button is pressed, as the expander content updates on app re-run.
+If you want the expander to update in real-time without a button press, you could use a st.empty() placeholder and update it with st.markdown inside a callback, but the current approach should suffice for your use case.
+Let me know if you need further assistance!
+
+
+
+
+
+
+
+11.8s
+
+How can Grok help?
 
     # Define checkin_date and num_nights first
     checkin_date = st.date_input(
