@@ -32,6 +32,9 @@ try:
     checkout_date = checkin_date + timedelta(days=num_nights)
     st.write(f"Checkout Date: {checkout_date.strftime('%Y-%m-%d')}")
 
+    # Set year_select based on checkin_date
+    year_select = checkin_date.year
+
     with st.sidebar:
         st.header("Parameters")
         if user_mode == "Owner":
@@ -115,8 +118,6 @@ try:
             - Total cost is the sum of selected components (maintenance, capital, depreciation){' (shown only if multiple components selected)' if len(cost_components) > 1 else ''}
             """)
 
-    # [Rest of the code continues with the existing logic, including the Calculate button and subsequent sections]
-
     if (
         "last_resort" not in st.session_state
         or st.session_state.last_resort != resort
@@ -183,8 +184,21 @@ try:
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
         if user_mode == "Renter":
-            # Placeholder for renter mode calculation (to be implemented)
-            pass
+            # Placeholder for renter mode calculation
+            try:
+                breakdown, total_points, total_cost = calculate_stay_renter(
+                    resort, room_type, checkin_date, adjusted_nights, rate_per_point, booking_discount
+                )
+                st.subheader("Stay Breakdown")
+                if not breakdown.empty:
+                    st.dataframe(breakdown, use_container_width=True)
+                else:
+                    st.error("No data available for the selected period.")
+                st.success(f"Total Points Used: {total_points}")
+                st.success(f"Estimated Total Cost: ${total_cost}" if total_cost > 0 else "Estimated Total Cost: $-")
+            except Exception as e:
+                st.error(f"Calculation error: {str(e)}")
+                st.session_state.debug_messages.append(f"Renter calculation error: {str(e)}")
         else:  # Owner mode
             breakdown, total_points, total_cost, total_maintenance_cost, total_capital_cost, total_depreciation_cost = calculate_stay_owner(
                 resort, room_type, checkin_date, adjusted_nights, discount_percent, discount_multiplier, display_mode,
