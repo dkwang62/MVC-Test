@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import math
 import json
@@ -62,6 +63,8 @@ if "debug_messages" not in st.session_state:
     st.session_state.debug_messages = []
 if "data_cache" not in st.session_state:
     st.session_state.data_cache = {}
+if "allow_renter_modifications" not in st.session_state:
+    st.session_state.allow_renter_modifications = True
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -858,15 +861,25 @@ try:
     # Move the "How [Cost/Rent] is Calculated" expander right after the title
     with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
         if user_mode == "Renter":
-            st.markdown("""
-            - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
-            - Default: $0.81 for 2025 stays (actual rate)
-            - Default: $0.86 for 2026 stays (forecasted rate)
-            - **Booked within 60 days**: 30% discount on points required, only for Presidential-level owners, applies to stays within 60 days from today
-            - **Booked within 30 days**: 25% discount on points required, only for Executive-level owners, applies to stays within 30 days from today
-            - Rent = (Points × Discount Multiplier) × Rate per Point
-            """)
+            if st.session_state.allow_renter_modifications:
+                st.markdown("""
+                - Authored by Desmond Kwang https://www.facebook.com/dkwang62
+                - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
+                - Default: $0.81 for 2025 stays (actual rate)
+                - Default: $0.86 for 2026 stays (forecasted rate)
+                - **Booked within 60 days**: 30% discount on points required, only for Presidential-level owners, applies to stays within 60 days from today
+                - **Booked within 30 days**: 25% discount on points required, only for Executive-level owners, applies to stays within 30 days from today
+                - Rent = (Points × Discount Multiplier) × Rate per Point
+                """)
+            else:
+                st.markdown("""
+                - Authored by Desmond Kwang https://www.facebook.com/dkwang62
+                - Rental Rate per Point is based on MVC Abound maintenance fees
+                - Default: $0.81 for 2025 stays (actual rate)
+                - Default: $0.86 for 2026 stays (forecasted rate)
+                - Rent = Points × Rate per Point
+                - Note: The owner has disabled parameter modifications for renters.
+                """)
         else:
             depreciation_rate = (capital_cost_per_point - salvage_value) / useful_life if include_depreciation else 0
             st.markdown(f"""
@@ -882,15 +895,27 @@ try:
         "Check-in Date",
         min_value=datetime(2025, 1, 3).date(),
         max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 6, 12).date()
+        value=datetime(2025, 6, 12).date(),
+        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
     )
-    num_nights = st.number_input("Number of Nights", min_value=1, max_value=30, value=7)
+    num_nights = st.number_input(
+        "Number of Nights",
+        min_value=1,
+        max_value=30,
+        value=7,
+        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+    )
     checkout_date = checkin_date + timedelta(days=num_nights)
     st.write(f"Checkout Date: {checkout_date.strftime('%Y-%m-%d')}")
 
     with st.sidebar:
         st.header("Parameters")
         if user_mode == "Owner":
+            st.session_state.allow_renter_modifications = st.checkbox(
+                "Allow Renters to Modify Parameters",
+                value=st.session_state.allow_renter_modifications,
+                help="When checked, renters can modify all parameters. When unchecked, renters cannot modify any parameters, and discounts are not applied."
+            )
             capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
             display_options = [
                 (0, "Ordinary"),
@@ -924,24 +949,39 @@ try:
 
             st.caption(f"Cost calculation based on {discount_percent}% Last-Minute Discount.")
         else:
-            rate_option = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"])
+            rate_option = st.radio(
+                "Rate Option",
+                ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"],
+                disabled=not st.session_state.allow_renter_modifications
+            )
             if rate_option == "Based on Maintenance Rate":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
                 booking_discount = None
             elif rate_option == "Booked within 60 days":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_60_days"
+                booking_discount = "within_60_days" if st.session_state.allow_renter_modifications else None
             elif rate_option == "Booked within 30 days":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_30_days"
+                booking_discount = "within_30_days" if st.session_state.allow_renter_modifications else None
             else:
-                rate_per_point = st.number_input("Custom Rate per Point ($)", min_value=0.0, value=0.81, step=0.01)
+                rate_per_point = st.number_input(
+                    "Custom Rate per Point ($)",
+                    min_value=0.0,
+                    value=0.81,
+                    step=0.01,
+                    disabled=not st.session_state.allow_renter_modifications
+                )
                 booking_discount = None
 
     discount_multiplier = 1 - (discount_percent / 100)
     cost_of_capital = cost_of_capital_percent / 100
 
-    resort = st.selectbox("Select Resort", options=data["resorts_list"], index=data["resorts_list"].index("Ko Olina Beach Club"))
+    resort = st.selectbox(
+        "Select Resort",
+        options=data["resorts_list"],
+        index=data["resorts_list"].index("Ko Olina Beach Club"),
+        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+    )
 
     year_select = str(checkin_date.year)
 
@@ -984,8 +1024,17 @@ try:
         room_types = st.session_state.room_types
         display_to_internal = st.session_state.display_to_internal
 
-    room_type = st.selectbox("Select Room Type", options=room_types, key="room_type_select")
-    compare_rooms = st.multiselect("Compare With Other Room Types", options=[r for r in room_types if r != room_type])
+    room_type = st.selectbox(
+        "Select Room Type",
+        options=room_types,
+        key="room_type_select",
+        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+    )
+    compare_rooms = st.multiselect(
+        "Compare With Other Room Types",
+        options=[r for r in room_types if r != room_type],
+        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+    )
 
     original_checkin_date = checkin_date
     checkin_date, adjusted_nights, was_adjusted = adjust_date_range(resort, checkin_date, num_nights)
@@ -1019,16 +1068,17 @@ try:
                 st.error("No data available for the selected period.")
 
             # Display discount status message
-            if booking_discount == "within_60_days":
-                if discount_applied:
-                    st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) within 60 days from today: {', '.join(discounted_days)}")
-                else:
-                    st.warning(f"No 30% discount on points applied. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
-            elif booking_discount == "within_30_days":
-                if discount_applied:
-                    st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) within 30 days from today: {', '.join(discounted_days)}")
-                else:
-                    st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+            if st.session_state.allow_renter_modifications:
+                if booking_discount == "within_60_days":
+                    if discount_applied:
+                        st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) within 60 days from today: {', '.join(discounted_days)}")
+                    else:
+                        st.warning(f"No 30% discount on points applied. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+                elif booking_discount == "within_30_days":
+                    if discount_applied:
+                        st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) within 30 days from today: {', '.join(discounted_days)}")
+                    else:
+                        st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
             st.success(f"Total Points Used: {total_points}")
             st.success(f"Estimated Total Rent: ${total_rent}")
@@ -1049,16 +1099,17 @@ try:
                 chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights, rate_per_point, booking_discount)
 
                 # Display discount status for comparison
-                if booking_discount == "within_60_days":
-                    if discount_applied:
-                        st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) in comparison: {', '.join(discounted_days)}")
-                    else:
-                        st.warning(f"No 30% discount on points applied in comparison. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
-                elif booking_discount == "within_30_days":
-                    if discount_applied:
-                        st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) in comparison: {', '.join(discounted_days)}")
-                    else:
-                        st.warning(f"No 25% discount on points applied in comparison. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+                if st.session_state.allow_renter_modifications:
+                    if booking_discount == "within_60_days":
+                        if discount_applied:
+                            st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) in comparison: {', '.join(discounted_days)}")
+                        else:
+                            st.warning(f"No 30% discount on points applied in comparison. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+                    elif booking_discount == "within_30_days":
+                        if discount_applied:
+                            st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) in comparison: {', '.join(discounted_days)}")
+                        else:
+                            st.warning(f"No 25% discount on points applied in comparison. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
                 st.write("### Points and Rent Comparison")
                 st.dataframe(compare_df_pivot, use_container_width=True)
@@ -1329,3 +1380,4 @@ except Exception as e:
                 st.write(msg)
         else:
             st.write("No debug messages available.")
+```
