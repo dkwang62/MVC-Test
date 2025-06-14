@@ -871,8 +871,9 @@ try:
             depreciation_rate = (capital_cost_per_point - salvage_value) / useful_life if include_depreciation else 0
             st.markdown(f"""
             - Authored by Desmond Kwang https://www.facebook.com/dkwang62
-            - Cost of capital = points * purchase price per point * cost of capital percentage
-            - Total cost = maintenance + capital cost + depreciation
+            - Cost of capital = Points × Purchase Price per Point × Cost of Capital Percentage
+            - Depreciation = Points × [(Purchase Price per Point − Salvage Value) ÷ Useful Life]
+            - Total cost = Maintenance + Capital Cost + Depreciation
             - If no cost components are selected, only points are displayed
             """)
 
@@ -890,6 +891,7 @@ try:
     with st.sidebar:
         st.header("Parameters")
         if user_mode == "Owner":
+            capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
             display_options = [
                 (0, "Ordinary"),
                 (25, "Executive"),
@@ -901,7 +903,7 @@ try:
                 return f"{discount}% Discount ({level})"
 
             discount_percent = st.selectbox(
-                "Discount Level",
+                "Last-Minute Discount Level",
                 options=[d[0] for d in display_options],
                 format_func=lambda x: next(f"{d[0]}% Discount ({d[1]})" for d in display_options if d[0] == x),
                 index=0
@@ -913,7 +915,6 @@ try:
 
             include_capital = st.checkbox("Include Capital Cost", value=True)
             if include_capital:
-                capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
                 cost_of_capital_percent = st.number_input("Cost of Capital (%)", min_value=0.0, max_value=100.0, value=7.0, step=0.1)
 
             include_depreciation = st.checkbox("Include Depreciation Cost", value=True)
@@ -921,7 +922,7 @@ try:
                 useful_life = st.number_input("Useful Life (Years)", min_value=1, value=15, step=1)
                 salvage_value = st.number_input("Salvage Value per Point ($)", min_value=0.0, value=3.0, step=0.1)
 
-            st.caption(f"Cost calculation based on {discount_percent}% discount.")
+            st.caption(f"Cost calculation based on {discount_percent}% Last-Minute Discount.")
         else:
             rate_option = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"])
             if rate_option == "Based on Maintenance Rate":
