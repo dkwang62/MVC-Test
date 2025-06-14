@@ -44,11 +44,7 @@ room_view_legend = {
     "OS": "Oceanside",
     "K": "King",
     "DB": "Double Bed",
-    "OV": "Ocean",
-    "IV": "Island",
     "MV": "Mountain",
-    "PH": "Penthouse",
-    "GV": "Garden",
     "MA": "Mountain",
     "MK": "Ocean",
     "OF": "Front"
@@ -63,7 +59,7 @@ if "debug_messages" not in st.session_state:
 if "data_cache" not in st.session_state:
     st.session_state.data_cache = {}
 if "allow_renter_modifications" not in st.session_state:
-    st.session_state.allow_renter_modifications = True
+    st.session_state.allow_renter_modifications = False  # Default to disallow
 
 # Helper functions
 def get_display_room_type(room_key):
@@ -607,10 +603,9 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
 
             for room in room_types:
                 internal_room = get_internal_room_key(room)
-                is_ap_room = internal_room in ap_room_types
                 points = entry.get(room, 0)
                 effective_points = points
-                if booking_discount and not is_ap_room:
+                if booking_discount:
                     days_until = (date - datetime.now().date()).days
                     if booking_discount == "within_60_days" and days_until <= 60:
                         effective_points = math.floor(points * 0.7)  # 30% discount
@@ -626,7 +621,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                         st.session_state.debug_messages.append(f"{date_str}: {room}: No point discount, {days_until} days away, {effective_points} points")
                 rent = math.ceil(effective_points * rate_per_point)
 
-                if is_holiday_date and not is_ap_room:
+                if is_holiday_date:
                     if is_holiday_start:
                         if holiday_name not in holiday_totals[room]:
                             h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
@@ -877,7 +872,7 @@ try:
                 - Default: $0.81 for 2025 stays (actual rate)
                 - Default: $0.86 for 2026 stays (forecasted rate)
                 - Rent = Points × Rate per Point
-                - Note: The owner has disabled parameter modifications for renters.
+                - Note: Rate modifications are disabled by the owner.
                 """)
         else:
             depreciation_rate = (capital_cost_per_point - salvage_value) / useful_life if include_depreciation else 0
@@ -889,20 +884,18 @@ try:
             - If no cost components are selected, only points are displayed
             """)
 
-    # Define checkin_date and num_nights first
+    # Define checkin_date and num_nights
     checkin_date = st.date_input(
         "Check-in Date",
         min_value=datetime(2025, 1, 3).date(),
         max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 6, 12).date(),
-        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+        value=datetime(2025, 6, 12).date()
     )
     num_nights = st.number_input(
         "Number of Nights",
         min_value=1,
         max_value=30,
-        value=7,
-        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+        value=7
     )
     checkout_date = checkin_date + timedelta(days=num_nights)
     st.write(f"Checkout Date: {checkout_date.strftime('%Y-%m-%d')}")
@@ -911,9 +904,9 @@ try:
         st.header("Parameters")
         if user_mode == "Owner":
             st.session_state.allow_renter_modifications = st.checkbox(
-                "Allow Renters to Modify Parameters",
+                "Allow Renters to Modify Rate Parameters",
                 value=st.session_state.allow_renter_modifications,
-                help="When checked, renters can modify all parameters. When unchecked, renters cannot modify any parameters, and discounts are not applied."
+                help="When checked, renters can modify rate options and apply discounts. When unchecked, rate parameters are hidden, and no discounts are applied."
             )
             capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
             display_options = [
@@ -947,30 +940,32 @@ try:
                 salvage_value = st.number_input("Salvage Value per Point ($)", min_value=0.0, value=3.0, step=0.1)
 
             st.caption(f"Cost calculation based on {discount_percent}% Last-Minute Discount.")
-        else:
+        elif user_mode == "Renter" and st.session_state.allow_renter_modifications:
             rate_option = st.radio(
                 "Rate Option",
-                ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"],
-                disabled=not st.session_state.allow_renter_modifications
+                ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"]
             )
             if rate_option == "Based on Maintenance Rate":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
                 booking_discount = None
             elif rate_option == "Booked within 60 days":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_60_days" if st.session_state.allow_renter_modifications else None
+                booking_discount = "within_60_days"
             elif rate_option == "Booked within 30 days":
                 rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_30_days" if st.session_state.allow_renter_modifications else None
+                booking_discount = "within_30_days"
             else:
                 rate_per_point = st.number_input(
                     "Custom Rate per Point ($)",
                     min_value=0.0,
                     value=0.81,
-                    step=0.01,
-                    disabled=not st.session_state.allow_renter_modifications
+                    step=0.01
                 )
                 booking_discount = None
+
+    if user_mode == "Renter" and not st.session_state.allow_renter_modifications:
+        rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+        booking_discount = None
 
     discount_multiplier = 1 - (discount_percent / 100)
     cost_of_capital = cost_of_capital_percent / 100
@@ -978,8 +973,7 @@ try:
     resort = st.selectbox(
         "Select Resort",
         options=data["resorts_list"],
-        index=data["resorts_list"].index("Ko Olina Beach Club"),
-        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+        index=data["resorts_list"].index("Ko Olina Beach Club")
     )
 
     year_select = str(checkin_date.year)
@@ -1026,13 +1020,11 @@ try:
     room_type = st.selectbox(
         "Select Room Type",
         options=room_types,
-        key="room_type_select",
-        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+        key="room_type_select"
     )
     compare_rooms = st.multiselect(
         "Compare With Other Room Types",
-        options=[r for r in room_types if r != room_type],
-        disabled=not st.session_state.allow_renter_modifications if user_mode == "Renter" else False
+        options=[r for r in room_types if r != room_type]
     )
 
     original_checkin_date = checkin_date
@@ -1066,7 +1058,7 @@ try:
             else:
                 st.error("No data available for the selected period.")
 
-            # Display discount status message
+            # Display discount status message only if modifications are allowed
             if st.session_state.allow_renter_modifications:
                 if booking_discount == "within_60_days":
                     if discount_applied:
@@ -1097,7 +1089,7 @@ try:
                 all_rooms = [room_type] + compare_rooms
                 chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights, rate_per_point, booking_discount)
 
-                # Display discount status for comparison
+                # Display discount status for comparison only if modifications are allowed
                 if st.session_state.allow_renter_modifications:
                     if booking_discount == "within_60_days":
                         if discount_applied:
