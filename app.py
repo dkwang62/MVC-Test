@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import math
 import json
@@ -1380,4 +1379,3 @@ except Exception as e:
                 st.write(msg)
         else:
             st.write("No debug messages available.")
-```
