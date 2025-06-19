@@ -903,11 +903,6 @@ try:
     with st.sidebar:
         st.header("Parameters")
         if user_mode == "Owner":
-            st.session_state.allow_renter_modifications = st.checkbox(
-                "Allow Renters to Modify Rate Parameters",
-                value=st.session_state.allow_renter_modifications,
-                help="When checked, renters can modify rate options and apply discounts. When unchecked, rate parameters are hidden, and no discounts are applied."
-            )
             capital_cost_per_point = st.number_input("Purchase Price per Point ($)", min_value=0.0, value=16.0, step=0.1)
             display_options = [
                 (0, "Ordinary"),
@@ -940,28 +935,36 @@ try:
                 salvage_value = st.number_input("Salvage Value per Point ($)", min_value=0.0, value=3.0, step=0.1)
 
             st.caption(f"Cost calculation based on {discount_percent}% Last-Minute Discount.")
-        elif user_mode == "Renter" and st.session_state.allow_renter_modifications:
-            rate_option = st.radio(
-                "Rate Option",
-                ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"]
+        elif user_mode == "Renter":
+            st.session_state.allow_renter_modifications = st.checkbox(
+                "More Options",
+                value=st.session_state.allow_renter_modifications,
+                help="When checked, you can modify rate options and apply discounts. When unchecked, rates are based on standard maintenance fees."
             )
-            if rate_option == "Based on Maintenance Rate":
-                rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = None
-            elif rate_option == "Booked within 60 days":
-                rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_60_days"
-            elif rate_option == "Booked within 30 days":
-                rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
-                booking_discount = "within_30_days"
-            else:
-                rate_per_point = st.number_input(
-                    "Custom Rate per Point ($)",
-                    min_value=0.0,
-                    value=0.81,
-                    step=0.01
+            if not st.session_state.allow_renter_modifications:
+                st.caption("Currently based on Maintenance Rates")
+            if st.session_state.allow_renter_modifications:
+                rate_option = st.radio(
+                    "Rate Option",
+                    ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"]
                 )
-                booking_discount = None
+                if rate_option == "Based on Maintenance Rate":
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    booking_discount = None
+                elif rate_option == "Booked within 60 days":
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    booking_discount = "within_60_days"
+                elif rate_option == "Booked within 30 days":
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    booking_discount = "within_30_days"
+                else:
+                    rate_per_point = st.number_input(
+                        "Custom Rate per Point ($)",
+                        min_value=0.0,
+                        value=0.81,
+                        step=0.01
+                    )
+                    booking_discount = None
 
     if user_mode == "Renter" and not st.session_state.allow_renter_modifications:
         rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
