@@ -850,6 +850,7 @@ try:
     include_depreciation = True
 
     st.title("Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
+    st.markdown("**Note:** Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
 
     # Move the "How [Cost/Rent] is Calculated" expander right after the title
     with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
