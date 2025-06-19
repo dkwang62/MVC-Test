@@ -15,7 +15,7 @@ with open("data.json", "r") as f:
 # Define constants
 room_view_legend = {
     "GV": "Garden",
-    "OV": "Ocean",
+    "OV": "Ocean View",
     "OF": "Oceanfront",
     "S": "Standard",
     "IS": "Island Side",
@@ -46,8 +46,7 @@ room_view_legend = {
     "DB": "Double Bed",
     "MV": "Mountain",
     "MA": "Mountain",
-    "MK": "Ocean",
-    "OF": "Front"
+    "MK": "Ocean"
 }
 season_blocks = data.get("season_blocks", {})
 reference_points = data.get("reference_points", {})
