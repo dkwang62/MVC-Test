@@ -440,7 +440,12 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                     st.session_state.debug_messages.append(f"{date_str}: 25% point discount applied, {points} -> {effective_points} points")
                 else:
                     st.session_state.debug_messages.append(f"{date_str}: No point discount, {days_until} days away, {effective_points} points")
-            rent = math.ceil(effective_points * rate_per_point)
+            
+            # CHANGED: Calculate rent using original 'points' (full, as if no discount applied), not effective_points
+            rent = math.ceil(points * rate_per_point)  # Now uses full points for rent
+            # CHANGED: Add debug log for full rent
+            if booking_discount and effective_points != points:
+                st.session_state.debug_messages.append(f"{date_str}: Full rent charged despite point discount: ${rent} (based on {points} points)")
 
             if entry.get("HolidayWeek", False):
                 if entry.get("HolidayWeekStart", False):
@@ -450,11 +455,11 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                     breakdown.append({
                         "Date": f"{current_holiday} ({holiday_start.strftime('%b %d, %Y')} - {holiday_end.strftime('%b %d, %Y')})",
                         "Day": "",
-                        "Points": effective_points,
-                        "Rent": f"${rent}"
+                        "Points": effective_points,  # Still shows discounted points
+                        "Rent": f"${rent}"  # Now full rent
                     })
-                    total_points += effective_points
-                    total_rent += rent
+                    total_points += effective_points  # Total points still discounted
+                    total_rent += rent  # Total rent now full
                 elif current_holiday and date <= holiday_end:
                     continue
             else:
@@ -463,11 +468,11 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                 breakdown.append({
                     "Date": date_str,
                     "Day": date.strftime("%a"),
-                    "Points": effective_points,
-                    "Rent": f"${rent}"
+                    "Points": effective_points,  # Still shows discounted points
+                    "Rent": f"${rent}"  # Now full rent
                 })
-                total_points += effective_points
-                total_rent += rent
+                total_points += effective_points  # Total points still discounted
+                total_rent += rent  # Total rent now full
         except Exception as e:
             st.session_state.debug_messages.append(f"Error calculating for {resort}, {date_str}: {str(e)}")
             continue
@@ -618,7 +623,12 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                         st.session_state.debug_messages.append(f"{date_str}: {room} 25% point discount, {points} -> {effective_points}")
                     else:
                         st.session_state.debug_messages.append(f"{date_str}: {room}: No point discount, {days_until} days away, {effective_points} points")
-                rent = math.ceil(effective_points * rate_per_point)
+                
+                # CHANGED: Calculate rent using original 'points' (full, as if no discount applied), not effective_points
+                rent = math.ceil(points * rate_per_point)  # Now uses full points for rent
+                # CHANGED: Add debug log for full rent
+                if booking_discount and effective_points != points:
+                    st.session_state.debug_messages.append(f"{date_str}: {room} Full rent charged despite point discount: ${rent} (based on {points} points)")
 
                 if is_holiday_date:
                     if is_holiday_start:
@@ -627,7 +637,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                             h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == holiday_name)
                             holiday_totals[room][holiday_name] = {
                                 "points": effective_points,
-                                "rent": rent,
+                                "rent": rent,  # CHANGED: Now full rent
                                 "start": h_start,
                                 "end": h_end
                             }
@@ -636,27 +646,27 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                         compare_data.append({
                             "Date": f"{holiday_name} ({start_str} - {end_str})",
                             "Room Type": room,
-                            "Points": effective_points,
-                            "Rent": f"${rent}"
+                            "Points": effective_points,  # Still shows discounted points
+                            "Rent": f"${rent}"  # Now full rent
                         })
                     continue
                 compare_data.append({
                     "Date": date_str,
                     "Room Type": room,
-                    "Points": effective_points,
-                    "Rent": f"${rent}"
+                    "Points": effective_points,  # Still shows discounted points
+                    "Rent": f"${rent}"  # Now full rent
                 })
-                total_points_by_room[room] += effective_points
-                total_rent_by_room[room] += rent
+                total_points_by_room[room] += effective_points  # Total points still discounted
+                total_rent_by_room[room] += rent  # Total rent now full
 
                 chart_data.append({
                     "Date": date,
                     "DateStr": date_str,
                     "Day": day_of_week,
                     "Room Type": room,
-                    "Points": effective_points,
-                    "Rent": f"${rent}",
-                    "RentValue": rent,
+                    "Points": effective_points,  # Still discounted for points chart
+                    "Rent": f"${rent}",  # CHANGED: Full rent for rent display/chart
+                    "RentValue": rent,  # CHANGED: Full rent value
                     "Holiday": entry.get("holiday_name", "No")
                 })
 
@@ -860,7 +870,7 @@ try:
                 - Authored by Desmond Kwang https://www.facebook.com/dkwang62
                 - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
                 - Default: $0.81 for 2025 stays (actual rate)
-                - Default: $0.86 for 2026 stays (forecasted rate)
+                - Default: $0.83 for 2026 stays (forecasted rate)
                 - **Booked within 60 days**: 30% discount on points required, only for Presidential-level owners, applies to stays within 60 days from today
                 - **Booked within 30 days**: 25% discount on points required, only for Executive-level owners, applies to stays within 30 days from today
                 - Rent = (Points × Discount Multiplier) × Rate per Point
@@ -870,7 +880,7 @@ try:
                 - Authored by Desmond Kwang https://www.facebook.com/dkwang62
                 - Rental Rate per Point is based on MVC Abound maintenance fees
                 - Default: $0.81 for 2025 stays (actual rate)
-                - Default: $0.86 for 2026 stays (forecasted rate)
+                - Default: $0.83 for 2026 stays (forecasted rate)
                 - Rent = Points × Rate per Point
                 - Note: Rate modifications are disabled by the owner.
                 """)
@@ -949,13 +959,13 @@ try:
                     ["Based on Maintenance Rate", "Custom Rate", "Booked within 60 days", "Booked within 30 days"]
                 )
                 if rate_option == "Based on Maintenance Rate":
-                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.83
                     booking_discount = None
                 elif rate_option == "Booked within 60 days":
-                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.83
                     booking_discount = "within_60_days"
                 elif rate_option == "Booked within 30 days":
-                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+                    rate_per_point = 0.81 if checkin_date.year == 2025 else 0.83
                     booking_discount = "within_30_days"
                 else:
                     rate_per_point = st.number_input(
@@ -967,7 +977,7 @@ try:
                     booking_discount = None
 
     if user_mode == "Renter" and not st.session_state.allow_renter_modifications:
-        rate_per_point = 0.81 if checkin_date.year == 2025 else 0.86
+        rate_per_point = 0.81 if checkin_date.year == 2025 else 0.83
         booking_discount = None
 
     discount_multiplier = 1 - (discount_percent / 100)
@@ -1074,6 +1084,10 @@ try:
                     else:
                         st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
+            # CHANGED: Add a note for clarity on the new behavior
+            if booking_discount and discount_applied:
+                st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
+
             st.success(f"Total Points Used: {total_points}")
             st.success(f"Estimated Total Rent: ${total_rent}")
 
@@ -1105,6 +1119,10 @@ try:
                         else:
                             st.warning(f"No 25% discount on points applied in comparison. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
+                # CHANGED: Add a note for clarity on the new behavior in comparison
+                if booking_discount and discount_applied:
+                    st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
+
                 st.write("### Points and Rent Comparison")
                 st.dataframe(compare_df_pivot, use_container_width=True)
 
@@ -1126,8 +1144,8 @@ try:
                                     "Holiday": holiday_name,
                                     "Room Type": room,
                                     "Points": totals["points"],
-                                    "Rent": f"${totals['rent']}",
-                                    "RentValue": totals["rent"],
+                                    "Rent": f"${totals['rent']}",  # Now full rent from updated totals
+                                    "RentValue": totals["rent"],  # Now full
                                     "Start": totals["start"],
                                     "End": totals["end"]
                                 })
