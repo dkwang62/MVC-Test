@@ -1375,7 +1375,6 @@ try:
                             )
                             st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader(f"{resort} Season and Holiday Calendar for {year_select}")
         gantt_fig = create_gantt_chart(resort, year_select)
         st.plotly_chart(gantt_fig, use_container_width=True)
 
