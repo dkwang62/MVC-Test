@@ -998,8 +998,6 @@ try:
 
     year_select = str(checkin_date.year)
 
-    # ... (rest of the code remains the same)
-
     if (
         "last_resort" not in st.session_state
         or st.session_state.last_resort != resort
