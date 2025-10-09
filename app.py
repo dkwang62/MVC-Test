@@ -846,10 +846,10 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
 
 # Main UI
 try:
-    # Initialize user_mode at the start
-    user_mode = st.sidebar.selectbox("User Mode", options=["Renter", "Owner"], index=0)
+    # Explicitly initialize user_mode at the top
+    user_mode = st.sidebar.selectbox("User Mode", options=["Renter", "Owner"], index=0, key="user_mode_select")
 
-    # New title at the top
+    # Set title immediately after defining user_mode
     st.title(f"Marriott Vacation Club {'Rent' if user_mode == 'Renter' else 'Cost'} Calculator")
     st.write("Note: Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
 
@@ -868,7 +868,7 @@ try:
     # Move the "How [Cost/Rent] is Calculated" expander right after the initial setup
     with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
         if user_mode == "Renter":
-            if st.session_state.allow_renter_modifications:
+            if st.session_state.get("allow_renter_modifications", False):
                 st.markdown("""
                 - Authored by Desmond Kwang https://www.facebook.com/dkwang62
                 - Rental Rate per Point is based on MVC Abound maintenance fees or custom input
@@ -951,7 +951,7 @@ try:
         elif user_mode == "Renter":
             st.session_state.allow_renter_modifications = st.checkbox(
                 "More Options",
-                value=st.session_state.allow_renter_modifications,
+                value=st.session_state.get("allow_renter_modifications", False),
                 help="When checked, you can modify rate options and apply discounts. When unchecked, rates are based on standard maintenance fees."
             )
             if not st.session_state.allow_renter_modifications:
@@ -979,7 +979,7 @@ try:
                     )
                     booking_discount = None
 
-    if user_mode == "Renter" and not st.session_state.allow_renter_modifications:
+    if user_mode == "Renter" and not st.session_state.get("allow_renter_modifications", False):
         rate_per_point = 0.81 if checkin_date.year == 2025 else 0.83
         booking_discount = None
 
@@ -1079,7 +1079,7 @@ try:
                 st.error("No data available for the selected period.")
 
             # Display discount status message only if modifications are allowed
-            if st.session_state.allow_renter_modifications:
+            if st.session_state.get("allow_renter_modifications", False):
                 if booking_discount == "within_60_days":
                     if discount_applied:
                         st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) within 60 days from today: {', '.join(discounted_days)}")
@@ -1113,7 +1113,7 @@ try:
                 chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights, rate_per_point, booking_discount)
 
                 # Display discount status for comparison only if modifications are allowed
-                if st.session_state.allow_renter_modifications:
+                if st.session_state.get("allow_renter_modifications", False):
                     if booking_discount == "within_60_days":
                         if discount_applied:
                             st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) in comparison: {', '.join(discounted_days)}")
@@ -1395,4 +1395,4 @@ except Exception as e:
             for msg in st.session_state.debug_messages:
                 st.write(msg)
         else:
-            st.write("No debug messages available.")
+            st.write("No debug messages available
