@@ -1065,7 +1065,7 @@ try:
         st.session_state.debug_messages.append("Starting new calculation...")
         if user_mode == "Renter":
             breakdown, total_points, total_rent, discount_applied, discounted_days = calculate_stay_renter(resort, room_type, checkin_date, adjusted_nights, rate_per_point, booking_discount)
-            st.subheader("Stay Breakdown")
+            st.subheader(f"{resort} Stay Breakdown")
             if not breakdown.empty:
                 st.dataframe(breakdown, use_container_width=True)
             else:
@@ -1123,7 +1123,7 @@ try:
                 if booking_discount and discount_applied:
                     st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
 
-                st.write("### Points and Rent Comparison")
+                st.write(f"### {resort} Points and Rent Comparison")
                 st.dataframe(compare_df_pivot, use_container_width=True)
 
                 compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
