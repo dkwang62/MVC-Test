@@ -189,7 +189,7 @@
         ]
       }
     },
-    "Newport Coast Villas": {
+    "Newport Coast": {
       "2025": {
         "Low Season": [
           [
@@ -435,7 +435,7 @@
         ]
       }
     },
-    "Desert Springs Villas II": {
+    "Desert Springs II": {
       "2025": {
         "Low Season": [
           [
@@ -2185,7 +2185,7 @@
         ]
       }
     },
-    "Grand Chateau Las Vegas": {
+    "Grand Chateau Vegas": {
       "2025": {
         "High Season": [
           [
@@ -2591,7 +2591,7 @@
         "New Year's Eve/Day": "global:New Year's Eve/Day"
       }
     },
-    "Newport Coast Villas": {
+    "Newport Coast": {
       "2025": {
         "Independence Day": "global:Independence Day",
         "Christmas": "global:Christmas",
@@ -2631,7 +2631,7 @@
         "New Year's Eve/Day": "global:New Year's Eve/Day"
       }
     },
-    "Desert Springs Villas II": {
+    "Desert Springs II": {
       "2025": {
         "Independence Day": "global:Independence Day",
         "Thanksgiving": "global:Thanksgiving",
@@ -2953,7 +2953,7 @@
         "New Year's Eve/Day": "global:New Year's Eve/Day"
       }
     },
-    "Grand Chateau Las Vegas": {
+    "Grand Chateau Vegas": {
       "2025": {
         "Independence Day": "global:Independence Day",
         "Christmas": "global:Christmas",
@@ -3488,7 +3488,7 @@
         }
       }
     },
-    "Newport Coast Villas": {
+    "Newport Coast": {
       "Low Season": {
         "Fri-Sat": {
           "2BR": 700
@@ -3789,7 +3789,7 @@
         }
       }
     },
-    "Desert Springs Villas II": {
+    "Desert Springs II": {
       "Low Season": {
         "Fri-Sat": {
           "Studio": 175,
@@ -5667,7 +5667,7 @@
         }
       }
     },
-    "Grand Chateau Las Vegas": {
+    "Grand Chateau Vegas": {
       "High Season": {
         "Fri-Sat": {
           "Guestroom": 375,
@@ -6005,8 +6005,8 @@
     "BeachPlace Towers",
     "Canyon Villas Arizona",
     "Crystal Shores",
-    "Desert Springs Villas II",
-    "Grand Chateau Las Vegas",
+    "Desert Springs II",
+    "Grand Chateau Vegas",
     "Grande Vista",
     "Kauai Beach Club",
     "Ko Olina Beach Club",
@@ -6016,7 +6016,7 @@
     "Pulse New York",
     "Pulse San Diego",
     "Mountainside Utah",
-    "Newport Coast Villas",
+    "Newport Coast",
     "Ocean Pointe",
     "Phuket Beach Club",
     "Playa Andaluza",
