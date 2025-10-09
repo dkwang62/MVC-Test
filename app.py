@@ -988,7 +988,7 @@ try:
     )
 
     # Now set the title with the defined resort
-    st.title(f"{resort} Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
+    st.title(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
 
     year_select = str(checkin_date.year)
 
