@@ -343,7 +343,7 @@
     },
     "Crystal Shores": {
       "2025": {
-        "Mid Season": [
+        "High Season": [
           [
             "2025-01-03",
             "2025-01-30"
@@ -363,7 +363,7 @@
             "2025-04-10"
           ]
         ],
-        "High Season": [
+        "Mid Season": [
           [
             "2025-05-02",
             "2025-07-03"
@@ -389,7 +389,7 @@
         ]
       },
       "2026": {
-        "Mid Season": [
+        "High Season": [
           [
             "2026-01-02",
             "2026-01-29"
@@ -409,7 +409,7 @@
             "2026-04-09"
           ]
         ],
-        "High Season": [
+        "Mid Season": [
           [
             "2026-05-01",
             "2026-07-02"
@@ -3610,7 +3610,7 @@
       }
     },
     "Crystal Shores": {
-      "Mid Season": {
+      "High Season": {
         "Fri-Sat": {
           "2BR S": 925,
           "2BR IS": 1025,
@@ -3670,7 +3670,7 @@
           "3BR PHUF": 950
         }
       },
-      "High Season": {
+      "Mid Season": {
         "Fri-Sat": {
           "2BR S": 550,
           "2BR IS": 625,
