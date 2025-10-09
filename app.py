@@ -441,9 +441,8 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                 else:
                     st.session_state.debug_messages.append(f"{date_str}: No point discount, {days_until} days away, {effective_points} points")
             
-            # CHANGED: Calculate rent using original 'points' (full, as if no discount applied), not effective_points
-            rent = math.ceil(points * rate_per_point)  # Now uses full points for rent
-            # CHANGED: Add debug log for full rent
+            # Calculate rent using original points (full, as if no discount applied)
+            rent = math.ceil(points * rate_per_point)
             if booking_discount and effective_points != points:
                 st.session_state.debug_messages.append(f"{date_str}: Full rent charged despite point discount: ${rent} (based on {points} points)")
 
@@ -455,11 +454,11 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                     breakdown.append({
                         "Date": f"{current_holiday} ({holiday_start.strftime('%b %d, %Y')} - {holiday_end.strftime('%b %d, %Y')})",
                         "Day": "",
-                        "Points": effective_points,  # Still shows discounted points
-                        "Rent": f"${rent}"  # Now full rent
+                        "Points": effective_points,
+                        room_type: f"${rent}"  # Use room_type as the column header with rent value
                     })
-                    total_points += effective_points  # Total points still discounted
-                    total_rent += rent  # Total rent now full
+                    total_points += effective_points
+                    total_rent += rent
                 elif current_holiday and date <= holiday_end:
                     continue
             else:
@@ -468,15 +467,16 @@ def calculate_stay_renter(resort, room_type, checkin_date, num_nights, rate_per_
                 breakdown.append({
                     "Date": date_str,
                     "Day": date.strftime("%a"),
-                    "Points": effective_points,  # Still shows discounted points
-                    "Rent": f"${rent}"  # Now full rent
+                    "Points": effective_points,
+                    room_type: f"${rent}"  # Use room_type as the column header with rent value
                 })
-                total_points += effective_points  # Total points still discounted
-                total_rent += rent  # Total rent now full
+                total_points += effective_points
+                total_rent += rent
         except Exception as e:
             st.session_state.debug_messages.append(f"Error calculating for {resort}, {date_str}: {str(e)}")
             continue
 
+    # Convert to DataFrame without index
     return pd.DataFrame(breakdown), total_points, total_rent, discount_applied, discounted_days
 
 def calculate_stay_owner(resort, room_type, checkin_date, num_nights, discount_percent, discount_multiplier, include_maintenance, include_capital, include_depreciation, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value):
@@ -624,9 +624,8 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                     else:
                         st.session_state.debug_messages.append(f"{date_str}: {room}: No point discount, {days_until} days away, {effective_points} points")
                 
-                # CHANGED: Calculate rent using original 'points' (full, as if no discount applied), not effective_points
-                rent = math.ceil(points * rate_per_point)  # Now uses full points for rent
-                # CHANGED: Add debug log for full rent
+                # Calculate rent using original points (full, as if no discount applied)
+                rent = math.ceil(points * rate_per_point)
                 if booking_discount and effective_points != points:
                     st.session_state.debug_messages.append(f"{date_str}: {room} Full rent charged despite point discount: ${rent} (based on {points} points)")
 
@@ -637,7 +636,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                             h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == holiday_name)
                             holiday_totals[room][holiday_name] = {
                                 "points": effective_points,
-                                "rent": rent,  # CHANGED: Now full rent
+                                "rent": rent,
                                 "start": h_start,
                                 "end": h_end
                             }
@@ -646,27 +645,27 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                         compare_data.append({
                             "Date": f"{holiday_name} ({start_str} - {end_str})",
                             "Room Type": room,
-                            "Points": effective_points,  # Still shows discounted points
-                            "Rent": f"${rent}"  # Now full rent
+                            "Points": effective_points,
+                            room: f"${rent}"  # Use room as the column header with rent value
                         })
                     continue
                 compare_data.append({
                     "Date": date_str,
                     "Room Type": room,
-                    "Points": effective_points,  # Still shows discounted points
-                    "Rent": f"${rent}"  # Now full rent
+                    "Points": effective_points,
+                    room: f"${rent}"  # Use room as the column header with rent value
                 })
-                total_points_by_room[room] += effective_points  # Total points still discounted
-                total_rent_by_room[room] += rent  # Total rent now full
+                total_points_by_room[room] += effective_points
+                total_rent_by_room[room] += rent
 
                 chart_data.append({
                     "Date": date,
                     "DateStr": date_str,
                     "Day": day_of_week,
                     "Room Type": room,
-                    "Points": effective_points,  # Still discounted for points chart
-                    "Rent": f"${rent}",  # CHANGED: Full rent for rent display/chart
-                    "RentValue": rent,  # CHANGED: Full rent value
+                    "Points": effective_points,
+                    "Rent": f"${rent}",
+                    "RentValue": rent,
                     "Holiday": entry.get("holiday_name", "No")
                 })
 
@@ -859,7 +858,7 @@ try:
     include_capital = True
     include_depreciation = True
 
-    st.title("Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
+    st.title(f"{resort} Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
     st.markdown("**Note:** Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
 
     # Move the "How [Cost/Rent] is Calculated" expander right after the title
@@ -1084,7 +1083,6 @@ try:
                     else:
                         st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
-            # CHANGED: Add a note for clarity on the new behavior
             if booking_discount and discount_applied:
                 st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
 
@@ -1119,7 +1117,6 @@ try:
                         else:
                             st.warning(f"No 25% discount on points applied in comparison. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
-                # CHANGED: Add a note for clarity on the new behavior in comparison
                 if booking_discount and discount_applied:
                     st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
 
@@ -1144,8 +1141,8 @@ try:
                                     "Holiday": holiday_name,
                                     "Room Type": room,
                                     "Points": totals["points"],
-                                    "Rent": f"${totals['rent']}",  # Now full rent from updated totals
-                                    "RentValue": totals["rent"],  # Now full
+                                    "Rent": f"${totals['rent']}",
+                                    "RentValue": totals["rent"],
                                     "Start": totals["start"],
                                     "End": totals["end"]
                                 })
@@ -1156,7 +1153,7 @@ try:
                         end_date = non_holiday_df["Date"].max()
                         start_date_str = start_date.strftime("%b %d")
                         end_date_str = end_date.strftime("%b %d, %Y")
-                        title = f"Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+                        title = f"{resort} Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
                         st.subheader(title)
                         day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
                         fig = px.bar(
@@ -1190,7 +1187,7 @@ try:
                         end_date = holiday_df["End"].max()
                         start_date_str = start_date.strftime("%b %d")
                         end_date_str = end_date.strftime("%b %d, %Y")
-                        title = f"Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+                        title = f"{resort} Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
                         st.subheader(title)
                         fig = px.bar(
                             holiday_df,
@@ -1276,7 +1273,7 @@ try:
                         display_columns.extend([col for col in compare_df_pivot.columns if "Depreciation" in col])
                     if include_maintenance or include_capital or include_depreciation:
                         display_columns.extend([col for col in compare_df_pivot.columns if "Total Cost" in col])
-                st.write(f"### {'Points' if not (include_maintenance or include_capital or include_depreciation) else 'Points and Selected Costs'} Comparison")
+                st.write(f"### {resort} {'Points' if not (include_maintenance or include_capital or include_depreciation) else 'Points and Selected Costs'} Comparison")
                 st.dataframe(compare_df_pivot[display_columns], use_container_width=True)
 
                 compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
@@ -1320,7 +1317,7 @@ try:
                             end_date = non_holiday_df["Date"].max()
                             start_date_str = start_date.strftime("%b %d")
                             end_date_str = end_date.strftime("%b %d, %Y")
-                            title = f"Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+                            title = f"{resort} Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
                             st.subheader(title)
                             day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
                             fig = px.bar(
@@ -1354,7 +1351,7 @@ try:
                             end_date = holiday_df["End"].max()
                             start_date_str = start_date.strftime("%b %d")
                             end_date_str = end_date.strftime("%b %d, %Y")
-                            title = f"Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+                            title = f"{resort} Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
                             st.subheader(title)
                             fig = px.bar(
                                 holiday_df,
@@ -1376,7 +1373,7 @@ try:
                             )
                             st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader(f"Season and Holiday Calendar for {year_select}")
+        st.subheader(f"{resort} Season and Holiday Calendar for {year_select}")
         gantt_fig = create_gantt_chart(resort, year_select)
         st.plotly_chart(gantt_fig, use_container_width=True)
 
