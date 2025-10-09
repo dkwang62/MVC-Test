@@ -578,7 +578,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
         try:
             if isinstance(holiday_data, str) and holiday_data.startswith("global:"):
                 global_key = holiday_data.split(":", 1)[1]
-                holiday_data = data["global_dates"].get(str(checkin_date.year), {}).get(global_key, {})
+                holiday_data = data["global_dates"].get(str(checkin_date.year), {}).get(global_key, [])
             if len(holiday_data) >= 2:
                 h_start = datetime.strptime(holiday_data[0], "%Y-%m-%d").date()
                 h_end = datetime.strptime(holiday_data[1], "%Y-%m-%d").date()
@@ -664,8 +664,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
                     "Day": day_of_week,
                     "Room Type": room,
                     "Points": effective_points,
-                    "Rent": f"${rent}",
-                    "RentValue": rent,
+                    "RentValue": rent,  # Store rent value for charting
                     "Holiday": entry.get("holiday_name", "No")
                 })
 
@@ -684,13 +683,15 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
     compare_data.append(total_rent_row)
 
     compare_df = pd.DataFrame(compare_data)
+    # Pivot table using dynamic room_type columns for rent values
     compare_df_pivot = compare_df.pivot_table(
         index="Date",
         columns="Room Type",
-        values=["Points", "Rent"],
+        values=["Points"] + room_types,  # Include Points and all room_types as value columns
         aggfunc="first"
     ).reset_index()
-    compare_df_pivot.columns = ['Date'] + [f"{col[1]} {col[0]}" for col in compare_df_pivot.columns[1:]]
+    # Flatten the multi-level columns and rename appropriately
+    compare_df_pivot.columns = ['Date'] + [f"{col[1]} {col[0]}" if col[0] != "" else col[1] for col in compare_df_pivot.columns[1:]]
     chart_df = pd.DataFrame(chart_data)
 
     return chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days
