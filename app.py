@@ -1218,7 +1218,7 @@ try:
                 include_maintenance, include_capital, include_depreciation, rate_per_point, capital_cost_per_point,
                 cost_of_capital, useful_life, salvage_value
             )
-            st.subheader(f"{resort}" Stay Breakdown")
+            st.subheader(f"{resort} Stay Breakdown")
             if not breakdown.empty:
                 # Filter columns based on display mode
                 display_columns = ["Date", "Day", "Points"]
