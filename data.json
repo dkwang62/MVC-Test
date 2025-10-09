@@ -1765,7 +1765,7 @@
     },
     "Aruba Surf Club": {
       "2025": {
-        "Mid Season": [
+        "High Season": [
           [
             "2025-01-03",
             "2025-02-06"
@@ -1779,7 +1779,7 @@
             "2025-05-01"
           ]
         ],
-        "High Season": [
+        "Peak Season": [
           [
             "2025-02-07",
             "2025-02-13"
@@ -1789,7 +1789,7 @@
             "2025-04-03"
           ]
         ],
-        "Shoulder": [
+        "Mid Season": [
           [
             "2025-05-02",
             "2025-07-03"
@@ -1811,7 +1811,7 @@
         ]
       },
       "2026": {
-        "Mid Season": [
+        "High Season": [
           [
             "2026-01-02",
             "2026-02-05"
@@ -1821,7 +1821,7 @@
             "2026-04-30"
           ]
         ],
-        "High Season": [
+        "Peak Season": [
           [
             "2026-02-06",
             "2026-02-12"
@@ -1831,7 +1831,7 @@
             "2026-04-09"
           ]
         ],
-        "Shoulder": [
+        "Mid Season": [
           [
             "2026-05-01",
             "2026-07-02"
@@ -1879,7 +1879,7 @@
             "2025-04-03"
           ]
         ],
-        "Shoulder": [
+        "Mid Season": [
           [
             "2025-05-02",
             "2025-07-03"
@@ -1901,7 +1901,7 @@
         ]
       },
       "2026": {
-        "Mid Season": [
+        "High Season": [
           [
             "2026-01-02",
             "2026-02-05"
@@ -1921,7 +1921,7 @@
             "2026-04-09"
           ]
         ],
-        "Shoulder": [
+        "Mid Season": [
           [
             "2026-05-01",
             "2026-07-02"
@@ -5029,7 +5029,7 @@
           "3-BDRM OV": 450
         }
       },
-      "Shoulder": {
+      "Mid Season": {
         "Fri-Sat": {
           "Studio GV": 250,
           "Studio OS": 300,
@@ -5061,7 +5061,7 @@
           "3-BDRM OV": 575
         }
       },
-      "High Season": {
+      "Peak Season": {
         "Fri-Sat": {
           "Studio GV": 325,
           "Studio OS": 375,
@@ -5093,7 +5093,7 @@
           "3-BDRM OV": 750
         }
       },
-      "Mid Season": {
+      "High Season": {
         "Fri-Sat": {
           "Studio GV": 300,
           "Studio OS": 350,
@@ -5204,7 +5204,7 @@
       }
     },
     "Aruba Ocean Club": {
-      "Mid Season": {
+      "High Season": {
         "Fri-Sat": {
           "Studio OV": 350,
           "Studio OF": 450,
@@ -5222,7 +5222,7 @@
           "2-BDRM OF": 675
         }
       },
-      "High Season": {
+      "Peak Season": {
         "Fri-Sat": {
           "Studio OV": 375,
           "Studio OF": 500,
@@ -5240,7 +5240,7 @@
           "2-BDRM OF": 750
         }
       },
-      "Shoulder": {
+      "Mid Season": {
         "Fri-Sat": {
           "Studio OV": 300,
           "Studio OF": 375,
