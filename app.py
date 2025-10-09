@@ -1395,4 +1395,4 @@ except Exception as e:
             for msg in st.session_state.debug_messages:
                 st.write(msg)
         else:
-            st.write("No debug messages available
+            st.write("No debug messages available.")
