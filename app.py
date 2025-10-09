@@ -846,6 +846,10 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
 
 # Main UI
 try:
+    # New title at the top
+    st.title(f"Marriott Vacation Club {'Rent' if user_mode == 'Renter' else 'Cost'} Calculator")
+    st.write("Note: Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
+
     # Initialize variables outside the sidebar
     user_mode = st.sidebar.selectbox("User Mode", options=["Renter", "Owner"], index=0)
     rate_per_point = 0.81  # Default value
@@ -987,8 +991,8 @@ try:
         index=data["resorts_list"].index("Ko Olina Beach Club")
     )
 
-    # Now set the title with the defined resort
-    st.title(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
+    # Existing title with smaller font after resort selection
+    st.subheader(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
 
     year_select = str(checkin_date.year)
 
