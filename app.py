@@ -991,6 +991,12 @@ try:
         index=data["resorts_list"].index("Ko Olina Beach Club")
     )
 
+    # New title and note
+    st.title(f"Marriott Vacation Club {'Rent' if user_mode == 'Renter' else 'Cost'} Calculator")
+    st.write("Note: Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
+
+    year_select = str(checkin_date.year)
+
     # Existing title with smaller font after resort selection
     st.subheader(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
 
