@@ -2099,6 +2099,92 @@
         ]
       }
     },
+    "Pulse San Diego": {
+      "2025": {
+        "Low Season": [
+          [
+            "2025-01-03",
+            "2025-02-13"
+          ],
+          [
+            "2025-02-21",
+            "2025-03-06"
+          ],
+          [
+            "2025-12-05",
+            "2025-12-18"
+          ]
+        ],
+        "Mid Season": [
+          [
+            "2025-10-03",
+            "2025-11-20"
+          ]
+        ],
+        "High Season": [
+          [
+            "2025-03-07",
+            "2025-05-22"
+          ],
+          [
+            "2025-09-05",
+            "2025-10-02"
+          ]
+        ],
+        "Peak Season": [
+          [
+            "2025-05-30",
+            "2025-07-03"
+          ],
+          [
+            "2025-07-11",
+            "2025-08-28"
+          ]
+        ]
+      },
+      "2026": {
+        "Low Season": [
+          [
+            "2026-01-02",
+            "2026-02-12"
+          ],
+          [
+            "2026-02-20",
+            "2026-03-05"
+          ],
+          [
+            "2026-12-04",
+            "2026-12-17"
+          ]
+        ],
+        "Mid Season": [
+          [
+            "2026-10-02",
+            "2026-11-19"
+          ]
+        ],
+        "High Season": [
+          [
+            "2026-03-06",
+            "2026-05-21"
+          ],
+          [
+            "2026-09-11",
+            "2026-10-01"
+          ]
+        ],
+        "Peak Season": [
+          [
+            "2026-05-29",
+            "2026-07-02"
+          ],
+          [
+            "2026-07-10",
+            "2026-09-03"
+          ]
+        ]
+      }
+    },
     "Grand Chateau Las Vegas": {
       "2025": {
         "High Season": [
@@ -2824,6 +2910,28 @@
       }
     },
     "Pulse New York": {
+      "2025": {
+        "Presidents Day": "global:Presidents Day",
+        "Memorial Day": "global:Memorial Day",
+        "Independence Day": "global:Independence Day",
+        "Labor Day": "global:Labor Day",
+        "Thanksgiving": "global:Thanksgiving",
+        "Thanksgiving 2": "global:Thanksgiving 2",
+        "Christmas": "global:Christmas",
+        "New Year's Eve/Day": "global:New Year's Eve/Day"
+      },
+      "2026": {
+        "Presidents Day": "global:Presidents Day",
+        "Memorial Day": "global:Memorial Day",
+        "Independence Day": "global:Independence Day",
+        "Labor Day": "global:Labor Day",
+        "Thanksgiving": "global:Thanksgiving",
+        "Thanksgiving 2": "global:Thanksgiving 2",
+        "Christmas": "global:Christmas",
+        "New Year's Eve/Day": "global:New Year's Eve/Day"
+      }
+    },
+    "Pulse San Diego": {
       "2025": {
         "Presidents Day": "global:Presidents Day",
         "Memorial Day": "global:Memorial Day",
@@ -5312,7 +5420,7 @@
           "Junior Suite K": 3000,
           "Executive Suite K": 3000
         },
-        "Thanksgiving Alt": {
+        "Thanksgiving 2": {
           "Guestroom K": 2300,
           "Guestroom DB": 2300,
           "Deluxe DB": 2525,
@@ -5422,7 +5530,7 @@
           "Deluxe King": 5175,
           "Deluxe Double": 5175
         },
-        "Thanksgiving Alt": {
+        "Thanksgiving 2": {
           "Guestroom Queen": 4050,
           "Guestroom King": 4725,
           "Guestroom King City": 5625,
@@ -5448,6 +5556,114 @@
           "Guestroom King Empire": 6825,
           "Deluxe King": 5375,
           "Deluxe Double": 5375
+        }
+      }
+    },
+    "Pulse San Diego": {
+      "Low Season": {
+        "Fri-Sat": {
+          "Doubles": 225,
+          "King": 225,
+          "King City": 250,
+          "2-Bedroom": 450
+        },
+        "Sun-Thu": {
+          "Doubles": 175,
+          "King": 175,
+          "King City": 200,
+          "2-Bedroom": 350
+        }
+      },
+      "Mid Season": {
+        "Fri-Sat": {
+          "Doubles": 275,
+          "King": 275,
+          "King City": 300,
+          "2-Bedroom": 550
+        },
+        "Sun-Thu": {
+          "Doubles": 200,
+          "King": 200,
+          "King City": 225,
+          "2-Bedroom": 4000
+        }
+      },
+      "High Season": {
+        "Fri-Sat": {
+          "Doubles": 325,
+          "King": 325,
+          "King City": 350,
+          "2-Bedroom": 650
+        },
+        "Sun-Thu": {
+          "Doubles": 225,
+          "King": 225,
+          "King City": 250,
+          "2-Bedroom": 450
+        }
+      },
+      "Peak Season": {
+        "Fri-Sat": {
+          "Doubles": 375,
+          "King": 375,
+          "King City": 425,
+          "2-Bedroom": 750
+        },
+        "Sun-Thu": {
+          "Doubles": 300,
+          "King": 300,
+          "King City": 325,
+          "2-Bedroom": 600
+        }
+      },
+      "Holiday Week": {
+        "Presidents Day": {
+          "Doubles": 1750,
+          "King": 1750,
+          "King City": 1925,
+          "2-Bedroom": 3500
+        },
+        "Memorial Day": {
+          "Doubles": 2025,
+          "King": 2025,
+          "King City": 2275,
+          "2-Bedroom": 4050
+        },
+        "Independence Day": {
+          "Doubles": 2500,
+          "King": 2500,
+          "King City": 2775,
+          "2-Bedroom": 5000
+        },
+        "Labor Day": {
+          "Doubles": 2025,
+          "King": 2025,
+          "King City": 2275,
+          "2-Bedroom": 4050
+        },
+        "Thanksgiving": {
+          "Doubles": 1750,
+          "King": 1750,
+          "King City": 1925,
+          "2-Bedroom": 3500
+        },
+        "Thanksgiving 2": {
+          "Doubles": 1600,
+          "King": 1600,
+          "King City": 1775,
+          "2-Bedroom": 3200
+        },
+        "Christmas": {
+          "Doubles": 2125,
+          "King": 2125,
+          "King City": 2400,
+          "2-Bedroom": 4250
+        },
+        "New Year's Eve/Day": {
+          "Doubles": 2325,
+          "King": 2325,
+          "King City": 2600,
+          "2-Bedroom": 4650
         }
       }
     },
@@ -5798,6 +6014,7 @@
     "Maui Ocean Club",
     "Mayflower Washington",
     "Pulse New York",
+    "Pulse San Diego",
     "Mountainside Utah",
     "Newport Coast Villas",
     "Ocean Pointe",
