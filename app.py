@@ -858,10 +858,7 @@ try:
     include_capital = True
     include_depreciation = True
 
-    st.title(f"{resort} Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
-    st.markdown("**Note:** Adjust your preferences in the sidebar to switch between Renter and Owner modes or customize options.")
-
-    # Move the "How [Cost/Rent] is Calculated" expander right after the title
+    # Move the "How [Cost/Rent] is Calculated" expander right after the initial setup
     with st.expander("\U0001F334 How " + ("Rent" if user_mode == "Renter" else "Cost") + " Is Calculated"):
         if user_mode == "Renter":
             if st.session_state.allow_renter_modifications:
@@ -982,11 +979,15 @@ try:
     discount_multiplier = 1 - (discount_percent / 100)
     cost_of_capital = cost_of_capital_percent / 100
 
+    # Define resort after other initial inputs
     resort = st.selectbox(
         "Select Resort",
         options=data["resorts_list"],
         index=data["resorts_list"].index("Ko Olina Beach Club")
     )
+
+    # Now set the title with the defined resort
+    st.title(f"{resort} Marriott Vacation Club " + ("Rent Calculator" if user_mode == "Renter" else "Cost Calculator"))
 
     year_select = str(checkin_date.year)
 
