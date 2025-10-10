@@ -1116,12 +1116,6 @@ try:
         if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]
     }
 
-    ap_room_types = []
-    ap_display_room_types = []
-    if resort == "Ko Olina Beach Club Hawaii" and "AP Rooms" in reference_points.get(resort, {}):
-        ap_room_types = list(reference_points[resort]["AP Rooms"].get("Fri-Sat", {}).keys())
-        ap_display_room_types = [get_display_room_type(rt) for rt in ap_room_types]
-
     if st.button("Calculate"):
         st.session_state.debug_messages.append("Starting new calculation...")
         if user_mode == "Renter":
@@ -1320,7 +1314,7 @@ try:
                 all_rooms = [room_type] + compare_rooms
                 chart_df, compare_df_pivot, holiday_totals = compare_room_types_owner(
                     resort, all_rooms, checkin_date, adjusted_nights, discount_multiplier,
-                    discount_percent, ap_display_room_types, year_select, rate_per_point,
+                    discount_percent, [], year_select, rate_per_point,
                     capital_cost_per_point, cost_of_capital, useful_life, salvage_value,
                     include_maintenance, include_capital, include_depreciation
                 )
