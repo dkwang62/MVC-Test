@@ -986,65 +986,66 @@ try:
     discount_multiplier = 1 - (discount_percent / 100)
     cost_of_capital = cost_of_capital_percent / 100
 
-    # Modified Resort Selection with Filterable Dropdown
-    st.subheader("Select Resort")
-    # Initialize session state for filter text if not already set
-    if "resort_filter_text" not in st.session_state:
-        st.session_state.resort_filter_text = ""
-    # Initialize session state for selected resort if not already set
-    if "selected_resort" not in st.session_state:
-        st.session_state.selected_resort = data["resorts_list"][data["resorts_list"].index("Ko Olina Beach Club Hawaii")]
+# Modified Resort Selection with Filterable Dropdown and Improved User Guidance
+st.subheader("Select Resort")
+# Initialize session state for filter text if not already set
+if "resort_filter_text" not in st.session_state:
+    st.session_state.resort_filter_text = ""
+# Initialize session state for selected resort if not already set
+if "selected_resort" not in st.session_state:
+    st.session_state.selected_resort = data["resorts_list"][data["resorts_list"].index("Ko Olina Beach Club")]
 
-    # Text input for filtering resorts
-    filter_text = st.text_input(
-        "Filter Resorts",
-        value=st.session_state.resort_filter_text,
-        placeholder="Type to filter resorts...",
-        key="resort_filter_input"
-    )
+# Text input for filtering resorts with enhanced placeholder and help tooltip
+filter_text = st.text_input(
+    "Filter Resorts",
+    value=st.session_state.resort_filter_text,
+    placeholder="Type a location (e.g., Hawaii, Florida, Aruba) or resort name (e.g., Ko Olina)",
+    help="Enter a location like 'Hawaii' or 'Florida', or part of a resort name like 'Ko Olina' or 'Beach' to filter the list.",
+    key="resort_filter_input"
+)
 
-    # Update session state with filter text
-    if filter_text != st.session_state.resort_filter_text:
-        st.session_state.resort_filter_text = filter_text
-        # Reset selected resort if it no longer matches the filter
-        if st.session_state.selected_resort not in data["resorts_list"] or \
-           filter_text.lower() not in st.session_state.selected_resort.lower():
-            st.session_state.selected_resort = None if filter_text else data["resorts_list"][0]
+# Update session state with filter text
+if filter_text != st.session_state.resort_filter_text:
+    st.session_state.resort_filter_text = filter_text
+    # Reset selected resort if it no longer matches the filter
+    if st.session_state.selected_resort not in data["resorts_list"] or \
+       filter_text.lower() not in st.session_state.selected_resort.lower():
+        st.session_state.selected_resort = None if filter_text else data["resorts_list"][0]
 
-    # Filter resorts based on input text (case-insensitive)
-    filtered_resorts = [
-        resort for resort in data["resorts_list"]
-        if filter_text.lower() in resort.lower()
-    ]
+# Filter resorts based on input text (case-insensitive)
+filtered_resorts = [
+    resort for resort in data["resorts_list"]
+    if filter_text.lower() in resort.lower()
+]
 
-    # If no matches, show a placeholder option
-    if not filtered_resorts:
-        filtered_resorts = ["No matching resorts found"]
-        resort = st.session_state.selected_resort if st.session_state.selected_resort else None
-        st.warning("No resorts match your filter. Showing all resorts below.")
-        filtered_resorts = data["resorts_list"]  # Fallback to full list
-    else:
-        # Ensure the previously selected resort is in the list if it matches the filter
-        if st.session_state.selected_resort and \
-           filter_text.lower() in st.session_state.selected_resort.lower() and \
-           st.session_state.selected_resort not in filtered_resorts:
-            filtered_resorts.append(st.session_state.selected_resort)
-        filtered_resorts = sorted(filtered_resorts)  # Sort for consistent display
+# If no matches, show a placeholder and fallback to full list
+if not filtered_resorts:
+    filtered_resorts = ["No matching resorts found"]
+    resort = st.session_state.selected_resort if st.session_state.selected_resort else None
+    st.warning("No resorts match your filter. Showing all resorts below.")
+    filtered_resorts = data["resorts_list"]  # Fallback to full list
+else:
+    # Ensure the previously selected resort is in the list if it matches the filter
+    if st.session_state.selected_resort and \
+       filter_text.lower() in st.session_state.selected_resort.lower() and \
+       st.session_state.selected_resort not in filtered_resorts:
+        filtered_resorts.append(st.session_state.selected_resort)
+    filtered_resorts = sorted(filtered_resorts)  # Sort for consistent display
 
-    # Resort selectbox with filtered options
-    resort = st.selectbox(
-        "Select Resort",
-        options=filtered_resorts,
-        index=filtered_resorts.index(st.session_state.selected_resort) if st.session_state.selected_resort in filtered_resorts else 0,
-        key="resort_select",
-        disabled=len(filtered_resorts) == 1 and filtered_resorts[0] == "No matching resorts found"
-    )
+# Resort selectbox with filtered options
+resort = st.selectbox(
+    "Select Resort",
+    options=filtered_resorts,
+    index=filtered_resorts.index(st.session_state.selected_resort) if st.session_state.selected_resort in filtered_resorts else 0,
+    key="resort_select",
+    disabled=len(filtered_resorts) == 1 and filtered_resorts[0] == "No matching resorts found"
+)
 
-    # Update session state when resort changes
-    if resort != st.session_state.selected_resort:
-        st.session_state.selected_resort = resort
-        st.session_state.debug_messages.append(f"Resort changed to {resort}")
-
+# Update session state when resort changes
+if resort != st.session_state.selected_resort:
+    st.session_state.selected_resort = resort
+    st.session_state.debug_messages.append(f"Resort changed to {resort}")
+    
     # Existing title with smaller font after resort selection
     st.subheader(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
 
