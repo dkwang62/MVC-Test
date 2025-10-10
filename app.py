@@ -993,7 +993,7 @@ try:
         st.session_state.resort_filter_text = ""
     # Initialize session state for selected resort if not already set
     if "selected_resort" not in st.session_state:
-        st.session_state.selected_resort = data["resorts_list"][data["resorts_list"].index("Ko Olina Beach Club Hawaii Club")]
+        st.session_state.selected_resort = data["resorts_list"][data["resorts_list"].index("Ko Olina Beach Club Hawaii")]
 
     # Text input for filtering resorts with enhanced placeholder and help tooltip
     filter_text = st.text_input(
@@ -1118,7 +1118,7 @@ try:
 
     ap_room_types = []
     ap_display_room_types = []
-    if resort == "Ko Olina Beach Club Hawaii Club" and "AP Rooms" in reference_points.get(resort, {}):
+    if resort == "Ko Olina Beach Club Hawaii" and "AP Rooms" in reference_points.get(resort, {}):
         ap_room_types = list(reference_points[resort]["AP Rooms"].get("Fri-Sat", {}).keys())
         ap_display_room_types = [get_display_room_type(rt) for rt in ap_room_types]
 
