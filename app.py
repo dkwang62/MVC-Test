@@ -185,7 +185,6 @@ def adjust_date_range(resort, checkin_date, num_nights):
         return adjusted_start_date, adjusted_nights, True
     st.session_state.debug_messages.append(f"No holiday week adjustment needed for {checkin_date} to {stay_end} at {resort}")
     return checkin_date, num_nights, False
-
 def generate_data(resort, date, cache=None):
     if cache is None:
         cache = st.session_state.data_cache
@@ -202,15 +201,9 @@ def generate_data(resort, date, cache=None):
     is_fri_sat = day_of_week in ["Fri", "Sat"]
     is_sun = day_of_week == "Sun"
     day_category = "Fri-Sat" if is_fri_sat else ("Sun" if is_sun else "Mon-Thu")
-    ap_day_category = "Fri-Sat" if is_fri_sat else ("Sun" if is_sun else "Mon-Thu")
-    st.session_state.debug_messages.append(f"Default day_category: {day_category}, AP_day_category: {ap_day_category}")
+    st.session_state.debug_messages.append(f"Default day_category: {day_category}")
 
     entry = {}
-    ap_room_types = []
-    if resort == "Ko Olina Beach Club Hawaii" and "AP Rooms" in reference_points.get(resort, {}):
-        ap_room_types = list(reference_points[resort]["AP Rooms"].get(ap_day_category, {}).keys())
-        st.session_state.debug_messages.append(f"AP Room types found for {resort}: {ap_room_types}")
-
     season = None
     holiday_name = None
     is_holiday = False
@@ -302,22 +295,16 @@ def generate_data(resort, date, cache=None):
         if holiday_name in reference_points.get(resort, {}).get("Holiday Week", {}):
             normal_room_types = list(reference_points[resort]["Holiday Week"].get(holiday_name, {}).keys())
 
-    all_room_types = normal_room_types + ap_room_types
+    all_room_types = normal_room_types
     all_display_room_types = [get_display_room_type(rt) for rt in all_room_types]
     display_to_internal = dict(zip(all_display_room_types, all_room_types))
 
     for display_room_type, room_type in display_to_internal.items():
         points = 0
-        is_ap_room = room_type in ap_room_types
         if is_holiday and is_holiday_start:
-            if is_ap_room:
-                points = reference_points.get(resort, {}).get("AP Rooms", {}).get("Full Week", {}).get(room_type, 0)
-            else:
-                points = reference_points.get(resort, {}).get("Holiday Week", {}).get(holiday_name, {}).get(room_type, 0)
+            points = reference_points.get(resort, {}).get("Holiday Week", {}).get(holiday_name, {}).get(room_type, 0)
         elif is_holiday and not is_holiday_start and holiday_start_date <= date <= holiday_end_date:
             points = 0
-        elif is_ap_room:
-            points = reference_points.get(resort, {}).get("AP Rooms", {}).get(ap_day_category, {}).get(room_type, 0)
         elif normal_room_category:
             points = reference_points.get(resort, {}).get(season, {}).get(normal_room_category, {}).get(room_type, 0)
         entry[display_room_type] = points
@@ -696,7 +683,7 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
 
     return chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days
 
-def compare_room_types_owner(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, ap_display_room_types, year, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value, include_maintenance, include_capital, include_depreciation):
+def compare_room_types_owner(resort, room_types, checkin_date, num_nights, discount_multiplier, discount_percent, year, rate_per_point, capital_cost_per_point, cost_of_capital, useful_life, salvage_value, include_maintenance, include_capital, include_depreciation):
     compare_data = []
     chart_data = []
     all_dates = [checkin_date + timedelta(days=i) for i in range(num_nights)]
@@ -740,11 +727,10 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
 
             for room in room_types:
                 internal_room = get_internal_room_key(room)
-                is_ap_room = room in ap_display_room_types
                 points = entry.get(room, 0)
                 discounted_points = math.floor(points * discount_multiplier)
 
-                if is_holiday_date and not is_ap_room:
+                if is_holiday_date:
                     if is_holiday_start:
                         if holiday_name not in holiday_totals[room]:
                             h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
