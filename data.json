@@ -2575,6 +2575,8 @@
       "2025": {
         "Presidents Day": "global:Presidents Day",
         "Easter": "global:Easter",
+        "AP Holiday 1": "global:AP Holiday 1",
+        "AP Holiday 2": "global:AP Holiday 2",
         "Independence Day": "global:Independence Day",
         "Thanksgiving": "global:Thanksgiving",
         "Thanksgiving 2": "global:Thanksgiving 2",
@@ -2584,6 +2586,8 @@
       "2026": {
         "Presidents Day": "global:Presidents Day",
         "Easter": "global:Easter",
+        "AP Holiday 1": "global:AP Holiday 1",
+        "AP Holiday 2": "global:AP Holiday 2",
         "Independence Day": "global:Independence Day",
         "Thanksgiving": "global:Thanksgiving",
         "Thanksgiving 2": "global:Thanksgiving 2",
@@ -6073,6 +6077,14 @@
         "2025-05-23",
         "2025-05-29"
       ],
+      "AP Holiday 1": [
+        "2025-05-02",
+        "2025-05-08"
+      ],
+      "AP Holiday 2": [
+        "2025-08-09",
+        "2025-08-15"
+      ],
       "Labor Day": [
         "2025-08-29",
         "2025-09-04"
@@ -6122,6 +6134,14 @@
       "Memorial Day": [
         "2026-05-22",
         "2026-05-28"
+      ],
+      "AP Holiday 1": [
+        "2026-05-01",
+        "2026-05-07"
+      ],
+      "AP Holiday 2": [
+        "2026-08-14",
+        "2026-08-20"
       ],
       "Labor Day": [
         "2026-09-04",
