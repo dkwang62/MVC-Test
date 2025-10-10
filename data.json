@@ -3329,26 +3329,6 @@
           "3BR MK": 975
         }
       },
-      "AP Rooms": {
-        "Fri-Sat": {
-          "AP_Studio_MA": 440,
-          "AP_1BR_MA": 630,
-          "AP_2BR_MA": 960,
-          "AP_2BR_MK": 1160
-        },
-        "Sun": {
-          "AP_Studio_MA": 350,
-          "AP_1BR_MA": 510,
-          "AP_2BR_MA": 770,
-          "AP_2BR_MK": 910
-        },
-        "Mon-Thu": {
-          "AP_Studio_MA": 250,
-          "AP_1BR_MA": 360,
-          "AP_2BR_MA": 550,
-          "AP_2BR_MK": 660
-        }
-      },
       "Holiday Week": {
         "Presidents Day": {
           "AP_Studio_MA": 2230,
