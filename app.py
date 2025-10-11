@@ -1285,7 +1285,7 @@ try:
                         st.plotly_chart(fig, use_container_width=True)
 
         # Display Gantt chart at the bottom of all content
-        st.subheader(f"{resort} Seasons and Holidays ({year_select})")
+        # st.subheader(f"{resort} Seasons and Holidays ({year_select})")
         st.plotly_chart(gantt_fig, use_container_width=True)
 
 except Exception as e:
