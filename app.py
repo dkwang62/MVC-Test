@@ -912,10 +912,10 @@ try:
         st.session_state.selected_resort = "Ko Olina Beach Club Hawaii" if "Ko Olina Beach Club Hawaii" in data["resorts_list"] else data["resorts_list"][0]
 
     selected = st.multiselect(
-        "Type resort name or location eg Hawaii, Bali to filter)",
+        "Type resort name or location (eg Phuket, Hawaii, Florida, Pulse to filter)",
         options=data["resorts_list"],
         default=None,
-        max_selections=2,
+        max_selections=1,
         key="resort_multiselect"
     )
 
