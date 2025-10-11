@@ -1188,7 +1188,7 @@ try:
             all_rooms = [room_type] + compare_rooms
             chart_df, compare_df_pivot, holiday_totals = compare_room_types_owner(
                 resort, all_rooms, checkin_date, adjusted_nights, discount_multiplier,
-                discount_percent, [], year_select, rate_per_point,
+                discount_percent, year_select, rate_per_point,
                 capital_cost_per_point, cost_of_capital, useful_life, salvage_value,
                 include_maintenance, include_capital, include_depreciation
             )
