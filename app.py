@@ -1183,8 +1183,8 @@ try:
                     st.plotly_chart(fig, use_container_width=True)
 
         else:  # Owner mode
-            st.subheader(f"{resort} Room Type Comparison")
-            st.info("Note: Non-holiday weeks are compared day-by-day; holiday weeks are compared as total points for the week.")
+            # st.subheader(f"{resort} Room Type Comparison")
+            # st.info("Note: Non-holiday weeks are compared day-by-day; holiday weeks are compared as total points for the week.")
             all_rooms = [room_type] + compare_rooms
             chart_df, compare_df_pivot, holiday_totals = compare_room_types_owner(
                 resort, all_rooms, checkin_date, adjusted_nights, discount_multiplier,
