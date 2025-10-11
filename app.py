@@ -912,10 +912,10 @@ try:
         st.session_state.selected_resort = "Ko Olina Beach Club Hawaii" if "Ko Olina Beach Club Hawaii" in data["resorts_list"] else data["resorts_list"][0]
 
     selected = st.multiselect(
-        "Select Resort (type to filter)",
+        "Type resort name or location eg Hawaii, Bali to filter)",
         options=data["resorts_list"],
         default=None,
-        max_selections=1,
+        max_selections=2,
         key="resort_multiselect"
     )
 
@@ -925,7 +925,7 @@ try:
             st.session_state.selected_resort = resort
     else:
         resort = st.session_state.selected_resort
-        st.info(f"Please select a resort. Using default: {resort}")
+        st.info(f"Default: {resort}")
 
     # Existing title with smaller font after resort selection
     st.subheader(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
