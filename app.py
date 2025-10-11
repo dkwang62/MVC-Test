@@ -1022,7 +1022,7 @@ try:
             if not breakdown.empty:
                 csv_data = breakdown.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="Download Breakdown as CSV",
+                    label="Download Breakdown for Excel",
                     data=csv_data,
                     file_name=f"{resort}_stay_breakdown.csv",
                     mime="text/csv"
@@ -1065,7 +1065,7 @@ try:
             if not breakdown.empty:
                 csv_data = breakdown.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    label="Download Breakdown as CSV",
+                    label="Download Breakdown for Excel",
                     data=csv_data,
                     file_name=f"{resort}_stay_breakdown.csv",
                     mime="text/csv"
@@ -1073,8 +1073,6 @@ try:
 
     if compare_rooms:
         if user_mode == "Renter":
-            st.subheader(f"{resort} Room Type Comparison")
-            st.info("Note: Non-holiday weeks are compared day-by-day; holiday weeks are compared as total rent for the week.")
             all_rooms = [room_type] + compare_rooms
             chart_df, compare_df_pivot, holiday_totals, discount_applied, discounted_days = compare_room_types_renter(resort, all_rooms, checkin_date, adjusted_nights, rate_per_point, booking_discount)
 
@@ -1099,7 +1097,7 @@ try:
 
             compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="Download Room Comparison as CSV",
+                label="Download Room Comparison for Excel",
                 data=compare_csv,
                 file_name=f"{resort}_room_comparison.csv",
                 mime="text/csv"
@@ -1208,7 +1206,7 @@ try:
 
             compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="Download Room Comparison as CSV",
+                label="Download Room Comparison for Excel",
                 data=compare_csv,
                 file_name=f"{resort}_room_comparison.csv",
                 mime="text/csv"
