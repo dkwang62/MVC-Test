@@ -991,43 +991,101 @@ try:
         if k not in ["HolidayWeek", "HolidayWeekStart", "holiday_name", "holiday_start", "holiday_end"]
     }
 
-    if st.button("Calculate"):
-        if user_mode == "Renter":
-            breakdown, total_points, total_rent, discount_applied, discounted_days = calculate_stay_renter(resort, room_type, checkin_date, adjusted_nights, rate_per_point, booking_discount)
-            st.subheader(f"{resort} Stay Breakdown")
-            if not breakdown.empty:
-                st.dataframe(breakdown, use_container_width=True)
-            else:
-                st.error("No data available for the selected period.")
+if st.button("Calculate"):
+    # Generate the Gantt chart once at the start to use after the table
+    gantt_fig = create_gantt_chart(resort, year_select)
 
-            # Display discount status message only if modifications are allowed
-            if st.session_state.get("allow_renter_modifications", False):
-                if booking_discount == "within_60_days":
-                    if discount_applied:
-                        st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) within 60 days from today: {', '.join(discounted_days)}")
-                    else:
-                        st.warning(f"No 30% discount on points applied. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
-                elif booking_discount == "within_30_days":
-                    if discount_applied:
-                        st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) within 30 days from today: {', '.join(discounted_days)}")
-                    else:
-                        st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+    if user_mode == "Renter":
+        breakdown, total_points, total_rent, discount_applied, discounted_days = calculate_stay_renter(resort, room_type, checkin_date, adjusted_nights, rate_per_point, booking_discount)
+        st.subheader(f"{resort} Stay Breakdown")
+        if not breakdown.empty:
+            st.dataframe(breakdown, use_container_width=True)
+            # Display Gantt chart immediately after the table
+            st.subheader(f"{resort} Seasons and Holidays ({year_select})")
+            st.plotly_chart(gantt_fig, use_container_width=True)
+        else:
+            st.error("No data available for the selected period.")
+            # Still show the Gantt chart even if no breakdown data
+            st.subheader(f"{resort} Seasons and Holidays ({year_select})")
+            st.plotly_chart(gantt_fig, use_container_width=True)
 
-            if booking_discount and discount_applied:
-                st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
+        # Display discount status message only if modifications are allowed
+        if st.session_state.get("allow_renter_modifications", False):
+            if booking_discount == "within_60_days":
+                if discount_applied:
+                    st.info(f"30% discount on points (Presidential level) applied to {len(discounted_days)} day(s) within 60 days from today: {', '.join(discounted_days)}")
+                else:
+                    st.warning(f"No 30% discount on points applied. Presidential-level discount requires stay dates within 60 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
+            elif booking_discount == "within_30_days":
+                if discount_applied:
+                    st.info(f"25% discount on points (Executive level) applied to {len(discounted_days)} day(s) within 30 days from today: {', '.join(discounted_days)}")
+                else:
+                    st.warning(f"No 25% discount on points applied. Executive-level discount requires stay dates within 30 days from today ({datetime.now().date().strftime('%Y-%m-%d')}).")
 
-            st.success(f"Total Points Used: {total_points}")
-            st.success(f"Estimated Total Rent: ${total_rent}")
+        if booking_discount and discount_applied:
+            st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
 
-            if not breakdown.empty:
-                csv_data = breakdown.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="Download Breakdown for Excel",
-                    data=csv_data,
-                    file_name=f"{resort}_stay_breakdown.csv",
-                    mime="text/csv"
-                )
+        st.success(f"Total Points Used: {total_points}")
+        st.success(f"Estimated Total Rent: ${total_rent}")
 
+        if not breakdown.empty:
+            csv_data = breakdown.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download Breakdown for Excel",
+                data=csv_data,
+                file_name=f"{resort}_stay_breakdown.csv",
+                mime="text/csv"
+            )
+
+    else:  # Owner mode
+        breakdown, total_points, total_cost, total_maintenance_cost, total_capital_cost, total_depreciation_cost = calculate_stay_owner(
+            resort, room_type, checkin_date, adjusted_nights, discount_percent, discount_multiplier,
+            include_maintenance, include_capital, include_depreciation, rate_per_point, capital_cost_per_point,
+            cost_of_capital, useful_life, salvage_value
+        )
+        st.subheader(f"{resort} Stay Breakdown")
+        if not breakdown.empty:
+            # Filter columns based on display mode
+            display_columns = ["Date", "Day", "Points"]
+            if include_maintenance or include_capital or include_depreciation:
+                if include_maintenance:
+                    display_columns.append("Maintenance")
+                if include_capital:
+                    display_columns.append("Capital Cost")
+                if include_depreciation:
+                    display_columns.append("Depreciation")
+                if include_maintenance or include_capital or include_depreciation:
+                    display_columns.append("Total Cost")
+            st.dataframe(breakdown[display_columns], use_container_width=True)
+            # Display Gantt chart immediately after the table
+            st.subheader(f"{resort} Seasons and Holidays ({year_select})")
+            st.plotly_chart(gantt_fig, use_container_width=True)
+        else:
+            st.error("No data available for the selected period.")
+            # Still show the Gantt chart even if no breakdown data
+            st.subheader(f"{resort} Seasons and Holidays ({year_select})")
+            st.plotly_chart(gantt_fig, use_container_width=True)
+
+        st.success(f"Total Points Used: {total_points}")
+        if include_maintenance or include_capital or include_depreciation:
+            if total_cost > 0:
+                st.success(f"Estimated Total Cost: ${total_cost}")
+            if include_maintenance and total_maintenance_cost > 0:
+                st.success(f"Total Maintenance Cost: ${total_maintenance_cost}")
+            if include_capital and total_capital_cost > 0:
+                st.success(f"Total Capital Cost: ${total_capital_cost}")
+            if include_depreciation and total_depreciation_cost > 0:
+                st.success(f"Total Depreciation Cost: ${total_depreciation_cost}")
+
+        if not breakdown.empty:
+            csv_data = breakdown.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Download Breakdown for Excel",
+                data=csv_data,
+                file_name=f"{resort}_stay_breakdown.csv",
+                mime="text/csv"
+            )
+            
         else:  # Owner mode
             breakdown, total_points, total_cost, total_maintenance_cost, total_capital_cost, total_depreciation_cost = calculate_stay_owner(
                 resort, room_type, checkin_date, adjusted_nights, discount_percent, discount_multiplier,
