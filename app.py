@@ -1213,95 +1213,83 @@ try:
                     mime="text/csv"
                 )
 
-                if not chart_df.empty:
-                    required_columns = ["Date", "Room Type", "Points", "Holiday"]
-                    if include_maintenance or include_capital or include_depreciation:
-                        required_columns.extend(["Total Cost", "TotalCostValue"])
-                    if all(col in chart_df.columns for col in required_columns) or not (include_maintenance or include_capital or include_depreciation):
-                        non_holiday_df = chart_df[chart_df["Holiday"] == "No"]
-                        holiday_data = []
-                        for room in all_rooms:
-                            for holiday_name, totals in holiday_totals[room].items():
-                                if totals["points"] > 0:
-                                    row = {
-                                        "Holiday": holiday_name,
-                                        "Room Type": room,
-                                        "Points": totals["points"],
-                                        "Start": totals["start"],
-                                        "End": totals["end"]
-                                    }
-                                    if include_maintenance or include_capital or include_depreciation:
-                                        maintenance_cost = math.ceil(totals["points"] * rate_per_point) if include_maintenance else 0
-                                        capital_cost = math.ceil(totals["points"] * capital_cost_per_point * cost_of_capital) if include_capital else 0
-                                        depreciation_cost = math.ceil(totals["points"] * ((capital_cost_per_point - salvage_value) / useful_life)) if include_depreciation else 0
-                                        total_holiday_cost = maintenance_cost + capital_cost + depreciation_cost
-                                        if total_holiday_cost > 0:
-                                            row["Total Cost"] = f"${total_holiday_cost}"
-                                            row["TotalCostValue"] = total_holiday_cost
-                                    holiday_data.append(row)
-                        holiday_df = pd.DataFrame(holiday_data)
+    if not chart_df.empty:
+        non_holiday_df = chart_df[chart_df["Holiday"] == "No"]
+        holiday_data = []
+        for room in all_rooms:
+            for holiday_name, totals in holiday_totals[room].items():
+                if totals["rent"] > 0:
+                    holiday_data.append({
+                        "Holiday": holiday_name,
+                        "Room Type": room,
+                        "Rent": f"${totals['rent']}",
+                        "RentValue": totals["rent"],
+                        "Start": totals["start"],
+                        "End": totals["end"]
+                    })
+        holiday_df = pd.DataFrame(holiday_data)
 
-                        if not non_holiday_df.empty:
-                            start_date = non_holiday_df["Date"].min()
-                            end_date = non_holiday_df["Date"].max()
-                            start_date_str = start_date.strftime("%b %d")
-                            end_date_str = end_date.strftime("%b %d, %Y")
-                            title = f"{resort} Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
-                            st.subheader(title)
-                            day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
-                            fig = px.bar(
-                                non_holiday_df,
-                                x="Day",
-                                y="Points",
-                                color="Room Type",
-                                barmode="group",
-                                title=title,
-                                labels={"Points": "Points", "Day": "Day of Week"},
-                                height=600,
-                                text="Points",
-                                text_auto=True,
-                                category_orders={"Day": day_order}
-                            )
-                            fig.update_traces(texttemplate="%{text}", textposition="auto")
-                            fig.update_xaxes(
-                                ticktext=day_order,
-                                tickvals=[0, 1, 2, 3, 4, 5, 6],
-                                tickmode="array"
-                            )
-                            fig.update_layout(
-                                legend_title_text="Room Type",
-                                bargap=0.2,
-                                bargroupgap=0.1
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
+        if not non_holiday_df.empty:
+            start_date = non_holiday_df["Date"].min()
+            end_date = non_holiday_df["Date"].max()
+            start_date_str = start_date.strftime("%b %d")
+            end_date_str = end_date.strftime("%b %d, %Y")
+            title = f"{resort} Rent Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+            st.subheader(title)
+            day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+            fig = px.bar(
+                non_holiday_df,
+                x="Day",
+                y="RentValue",
+                color="Room Type",
+                barmode="group",
+                title=title,
+                labels={"RentValue": "Rent ($)", "Day": "Day of Week"},
+                height=600,
+                text="RentValue",  # Use RentValue column for text
+                text_auto=True,
+                category_orders={"Day": day_order}
+            )
+            fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")  # Format as dollar amount
+            fig.update_xaxes(
+                ticktext=day_order,
+                tickvals=[0, 1, 2, 3, 4, 5, 6],
+                tickmode="array"
+            )
+            fig.update_layout(
+                legend_title_text="Room Type",
+                bargap=0.2,
+                bargroupgap=0.1
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-                        if not holiday_df.empty:
-                            start_date = holiday_df["Start"].min()
-                            end_date = holiday_df["End"].max()
-                            start_date_str = start_date.strftime("%b %d")
-                            end_date_str = end_date.strftime("%b %d, %Y")
-                            title = f"{resort} Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
-                            st.subheader(title)
-                            fig = px.bar(
-                                holiday_df,
-                                x="Holiday",
-                                y="Points",
-                                color="Room Type",
-                                barmode="group",
-                                title=title,
-                                labels={"Points": "Points", "Holiday": "Holiday Week"},
-                                height=600,
-                                text="Points",
-                                text_auto=True
-                            )
-                            fig.update_traces(texttemplate="%{text}", textposition="auto")
-                            fig.update_layout(
-                                legend_title_text="Room Type",
-                                bargap=0.2,
-                                bargroupgap=0.1
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-
+        if not holiday_df.empty:
+            start_date = holiday_df["Start"].min()
+            end_date = holiday_df["End"].max()
+            start_date_str = start_date.strftime("%b %d")
+            end_date_str = end_date.strftime("%b %d, %Y")
+            title = f"{resort} Rent Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+            st.subheader(title)
+            fig = px.bar(
+                holiday_df,
+                x="Holiday",
+                y="RentValue",
+                color="Room Type",
+                barmode="group",
+                title=title,
+                labels={"RentValue": "Rent ($)", "Holiday": "Holiday Week"},
+                height=600,
+                text="RentValue",  # Use RentValue column for text
+                text_auto=True
+            )
+            fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")  # Format as dollar amount
+            fig.update_layout(
+                legend_title_text="Room Type",
+                bargap=0.2,
+                bargroupgap=0.1
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
         gantt_fig = create_gantt_chart(resort, year_select)
         st.plotly_chart(gantt_fig, use_container_width=True)
 
