@@ -972,28 +972,28 @@ try:
     discount_multiplier = 1 - (discount_percent / 100)
     cost_of_capital = cost_of_capital_percent / 100
 
-    # Modified Resort Selection with Filterable Dropdown and Improved User Guidance
-    st.subheader("Select Resort")
-    # Initialize session state for selected resort if not already set
-    if "selected_resort" not in st.session_state:
-        st.session_state.selected_resort = "Ko Olina Beach Club Hawaii" if "Ko Olina Beach Club Hawaii" in data["resorts_list"] else data["resorts_list"][0]
+# Modified Resort Selection with Filterable Dropdown and Improved User Guidance
+st.subheader("Select Resort")
+# Initialize session state for selected resort if not already set
+if "selected_resort" not in st.session_state:
+    st.session_state.selected_resort = "Ko Olina Beach Club Hawaii" if "Ko Olina Beach Club Hawaii" in data["resorts_list"] else data["resorts_list"][0]
 
-    selected = st.multiselect(
-        "Select Resort (type to filter)",
-        options=data["resorts_list"],
-        default=[st.session_state.selected_resort],
-        max_selections=1,
-        key="resort_multiselect"
-    )
+selected = st.multiselect(
+    "Select Resort (type to filter)",
+    options=data["resorts_list"],
+    default=None,
+    max_selections=1,
+    key="resort_multiselect"
+)
 
-    if selected:
-        resort = selected[0]
-        if resort != st.session_state.selected_resort:
-            st.session_state.selected_resort = resort
-            st.session_state.debug_messages.append(f"Resort changed to {resort}")
-    else:
-        resort = st.session_state.selected_resort
-
+if selected:
+    resort = selected[0]
+    if resort != st.session_state.selected_resort:
+        st.session_state.selected_resort = resort
+        st.session_state.debug_messages.append(f"Resort changed to {resort}")
+else:
+    resort = st.session_state.selected_resort
+    st.info(f"Please select a resort. Using default: {resort}")
     # Existing title with smaller font after resort selection
     st.subheader(f"{resort} {'Rent Calculator' if user_mode == 'Renter' else 'Cost Calculator'}")
 
