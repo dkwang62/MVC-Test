@@ -1166,7 +1166,7 @@ try:
                             y="RentValue",
                             color="Room Type",
                             barmode="group",
-                            title=title,
+                            # title=title,
                             labels={"RentValue": "Rent ($)", "Holiday": "Holiday Week"},
                             height=600,
                             text="RentValue",  # Use RentValue column for text
@@ -1270,7 +1270,7 @@ try:
                             y="PointsValue",
                             color="Room Type",
                             barmode="group",
-                            title=title,
+                            # title=title,
                             labels={"PointsValue": "Points", "Holiday": "Holiday Week"},
                             height=600,
                             text="Points",
