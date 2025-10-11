@@ -1198,7 +1198,7 @@ try:
                     display_columns.extend([col for col in compare_df_pivot.columns if "Depreciation" in col])
                 if include_maintenance or include_capital or include_depreciation:
                     display_columns.extend([col for col in compare_df_pivot.columns if "Total Cost" in col])
-            st.write(f"### {resort} {'Points' if not (include_maintenance or include_capital or include_depreciation) else 'Points and Selected Costs'} Comparison")
+            st.write(f"### {resort} {'Points' if not (include_maintenance or include_capital or include_depreciation) else 'Room Type Costs'} Comparison")
             st.dataframe(compare_df_pivot[display_columns], use_container_width=True)
 
             compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
