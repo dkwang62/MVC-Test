@@ -1235,8 +1235,8 @@ try:
                     end_date = non_holiday_df["Date"].max()
                     start_date_str = start_date.strftime("%b %d")
                     end_date_str = end_date.strftime("%b %d, %Y")
-                    title = f"{resort} Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
-                    st.subheader(title)
+                    # title = f"{resort} Points Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+                    # st.subheader(title)
                     day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
                     fig = px.bar(
                         non_holiday_df,
@@ -1244,7 +1244,7 @@ try:
                         y="Points",
                         color="Room Type",
                         barmode="group",
-                        title=title,
+                        # title=title,
                         labels={"Points": "Points", "Day": "Day of Week"},
                         height=600,
                         text="Points",
@@ -1257,33 +1257,6 @@ try:
                         tickvals=[0, 1, 2, 3, 4, 5, 6],
                         tickmode="array"
                     )
-                    fig.update_layout(
-                        legend_title_text="Room Type",
-                        bargap=0.2,
-                        bargroupgap=0.1
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-
-                if not holiday_df.empty:
-                    start_date = holiday_df["Start"].min()
-                    end_date = holiday_df["End"].max()
-                    start_date_str = start_date.strftime("%b %d")
-                    end_date_str = end_date.strftime("%b %d, %Y")
-                    title = f"{resort} Points Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
-                    st.subheader(title)
-                    fig = px.bar(
-                        holiday_df,
-                        x="Holiday",
-                        y="PointsValue",
-                        color="Room Type",
-                        barmode="group",
-                        title=title,
-                        labels={"PointsValue": "Points", "Holiday": "Holiday Week"},
-                        height=600,
-                        text="Points",
-                        text_auto=True
-                    )
-                    fig.update_traces(texttemplate="%{text}", textposition="auto")
                     fig.update_layout(
                         legend_title_text="Room Type",
                         bargap=0.2,
