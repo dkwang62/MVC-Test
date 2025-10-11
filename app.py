@@ -1092,7 +1092,7 @@ try:
             if booking_discount and discount_applied:
                 st.info("**Note:** Points shown are after discount (reduced usage). Rent is calculated at full price (no discount applied to rent amount).")
 
-            st.write(f"### {resort} Rent Comparison")
+            st.write(f"### {resort} Room Type Comparison")
             st.dataframe(compare_df_pivot, use_container_width=True)
 
             compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
@@ -1124,8 +1124,6 @@ try:
                     end_date = non_holiday_df["Date"].max()
                     start_date_str = start_date.strftime("%b %d")
                     end_date_str = end_date.strftime("%b %d, %Y")
-                    # title = f"{resort} Rent Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
-                    # st.subheader(title)
                     day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
                     fig = px.bar(
                         non_holiday_df,
@@ -1133,7 +1131,6 @@ try:
                         y="RentValue",
                         color="Room Type",
                         barmode="group",
-                     #  title=title,
                         labels={"RentValue": "Rent ($)", "Day": "Day of Week"},
                         height=600,
                         text="RentValue",  # Use RentValue column for text
@@ -1158,7 +1155,7 @@ try:
                     end_date = holiday_df["End"].max()
                     start_date_str = start_date.strftime("%b %d")
                     end_date_str = end_date.strftime("%b %d, %Y")
-                    title = f"{resort} Rent Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+                    title = f"{resort} Room Type Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
                     st.subheader(title)
                     fig = px.bar(
                         holiday_df,
