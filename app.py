@@ -1126,8 +1126,8 @@ try:
                     end_date = non_holiday_df["Date"].max()
                     start_date_str = start_date.strftime("%b %d")
                     end_date_str = end_date.strftime("%b %d, %Y")
-                    title = f"{resort} Rent Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
-                    st.subheader(title)
+                    # title = f"{resort} Rent Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+                    # st.subheader(title)
                     day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
                     fig = px.bar(
                         non_holiday_df,
@@ -1135,7 +1135,7 @@ try:
                         y="RentValue",
                         color="Room Type",
                         barmode="group",
-                        title=title,
+                     #  title=title,
                         labels={"RentValue": "Rent ($)", "Day": "Day of Week"},
                         height=600,
                         text="RentValue",  # Use RentValue column for text
