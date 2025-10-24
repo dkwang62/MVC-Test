@@ -505,6 +505,13 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
             is_holiday_date = any(h_start <= date <= h_end for h_start, h_end in holiday_ranges)
             holiday_name = holiday_names.get(date)
             is_holiday_start = entry.get("HolidayWeekStart", False)
+            # Diagnostic: Check points for Ko Olina room types
+            if resort == "Ko Olina Beach Club Hawaii":
+                studio_points = entry.get("AP Studio Mountain", 0)
+                one_br_points = entry.get("AP 1BR Mountain", 0)
+                two_br_points = entry.get("AP 2BR Mountain", 0)
+                if studio_points > one_br_points or one_br_points > two_br_points:
+                    st.warning(f"Unexpected points order on {date_str} for Ko Olina: Studio={studio_points}, 1BR={one_br_points}, 2BR={two_br_points}")
             for room in room_types:
                 internal_room = get_internal_room_key(room)
                 points = entry.get(room, 0)
@@ -559,6 +566,10 @@ def compare_room_types_renter(resort, room_types, checkin_date, num_nights, rate
         total_rent_row[room] = f"${total_rent_by_room[room]}"
     compare_data.append(total_rent_row)
     compare_df = pd.DataFrame(compare_data)
+    # Ensure room types are in the expected order for Ko Olina
+    if resort == "Ko Olina Beach Club Hawaii":
+        expected_order = ["AP Studio Mountain", "AP 1BR Mountain", "AP 2BR Mountain"]
+        room_types = [rt for rt in expected_order if rt in room_types] + [rt for rt in room_types if rt not in expected_order]
     compare_df_pivot = compare_df.pivot_table(
         index="Date",
         columns="Room Type",
