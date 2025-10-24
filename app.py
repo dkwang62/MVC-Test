@@ -1170,8 +1170,7 @@ try:
                             y="PointsValue",
                             color="Room Type",
                             barmode="group",
-                            # title=title,
-                            labels({"PointsValue": "Points", "Holiday": "Holiday Week"},
+                            labels={"PointsValue": "Points", "Holiday": "Holiday Week"},  # Fixed by adding missing parenthesis
                             height=600,
                             text="Points",
                             text_auto=True
@@ -1183,6 +1182,7 @@ try:
                             bargroupgap=0.1
                         )
                         st.plotly_chart(fig, use_container_width=True)
+
         # Display Gantt chart at the bottom of all content
         # st.subheader(f"{resort} Seasons and Holidays ({year_select})")
         st.plotly_chart(gantt_fig, use_container_width=True)
