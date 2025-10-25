@@ -1105,16 +1105,16 @@ try:
                         fig = px.bar(
                             non_holiday_df,
                             x="Day",
-                            y="Points",
+                            y="TotalCostValue",
                             color="Room Type",
                             barmode="group",
-                            labels={"Points": "Points", "Day": "Day of Week"},
+                            labels={"TotalCostValue": "Total Cost ($)", "Day": "Day of Week"},
                             height=600,
-                            text="Points",
+                            text="TotalCostValue",
                             text_auto=True,
                             category_orders={"Day": day_order}
                         )
-                        fig.update_traces(texttemplate="%{text}", textposition="auto")
+                        fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
                         fig.update_xaxes(
                             ticktext=day_order,
                             tickvals=[0, 1, 2, 3, 4, 5, 6],
@@ -1125,32 +1125,7 @@ try:
                             bargap=0.2,
                             bargroupgap=0.1
                         )
-                        st.plotly_chart(fig, use_container_width=True)
-                    if not holiday_df.empty:
-                        start_date = holiday_df["Start"].min()
-                        end_date = holiday_df["End"].max()
-                        start_date_str = start_date.strftime("%b %d")
-                        end_date_str = end_date.strftime("%b %d, %Y")
-                        title = f"{resort} Room Type Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
-                        st.subheader(title)
-                        fig = px.bar(
-                            holiday_df,
-                            x="Holiday",
-                            y="PointsValue",
-                            color="Room Type",
-                            barmode="group",
-                            labels={"PointsValue": "Points", "Holiday": "Holiday Week"},  # Fixed by adding missing parenthesis
-                            height=600,
-                            text="Points",
-                            text_auto=True
-                        )
-                        fig.update_traces(texttemplate="%{text}", textposition="auto")
-                        fig.update_layout(
-                            legend_title_text="Room Type",
-                            bargap=0.2,
-                            bargroupgap=0.1
-                        )
-                        st.plotly_chart(fig, use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True) 
 
         # Display Gantt chart at the bottom of all content
         # st.subheader(f"{resort} Seasons and Holidays ({year_select})")
