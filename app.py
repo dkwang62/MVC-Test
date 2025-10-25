@@ -616,76 +616,45 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
                 internal_room = get_internal_room_key(room)
                 points = entry.get(room, 0)
                 discounted_points = math.floor(points * discount_multiplier)
+                maintenance_cost = math.ceil(discounted_points * rate_per_point) if include_maintenance else 0
+                capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital) if include_capital else 0
+                depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point) if include_depreciation else 0
+                total_day_cost = maintenance_cost + capital_cost + depreciation_cost
                 if is_holiday_date:
                     if is_holiday_start:
                         if holiday_name not in holiday_totals[room]:
                             h_start = min(h for h, _ in holiday_ranges if holiday_names.get(date) == holiday_name)
                             h_end = max(e for _, e in holiday_ranges if holiday_names.get(date) == holiday_name)
                             holiday_totals[room][holiday_name] = {
-                                "points": discounted_points,
+                                "total_cost": total_day_cost,
                                 "start": h_start,
                                 "end": h_end
                             }
                         start_str = holiday_totals[room][holiday_name]["start"].strftime("%b %d")
-                        end_str = holiday_totals[room][holiday_name]["end"].strftime("%b %d, %Y")
+                        end_str = holiday_totals[room][holiday_name]["end"]..strftime("%b %d, %Y")
                         row = {
                             "Date": f"{holiday_name} ({start_str} - {end_str})",
                             "Room Type": room,
-                            "Points": discounted_points
+                            "Total Cost": f"${total_day_cost}" if total_day_cost > 0 else "$0"
                         }
-                        if display_mode == "costs":
-                            maintenance_cost = math.ceil(discounted_points * rate_per_point) if include_maintenance else 0
-                            capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital) if include_capital else 0
-                            depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point) if include_depreciation else 0
-                            total_holiday_cost = maintenance_cost + capital_cost + depreciation_cost
-                            if include_maintenance:
-                                row["Maintenance"] = f"${maintenance_cost}"
-                            if include_capital:
-                                row["Capital Cost"] = f"${capital_cost}"
-                            if include_depreciation:
-                                row["Depreciation"] = f"${depreciation_cost}"
-                            if total_holiday_cost > 0:
-                                row["Total Cost"] = f"${total_holiday_cost}"
                         compare_data.append(row)
                     continue
                 else:
                     row = {
                         "Date": date_str,
                         "Room Type": room,
-                        "Points": discounted_points
+                        "Total Cost": f"${total_day_cost}" if total_day_cost > 0 else "$0"
                     }
-                    if display_mode == "costs":
-                        maintenance_cost = math.ceil(discounted_points * rate_per_point) if include_maintenance else 0
-                        capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital) if include_capital else 0
-                        depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point) if include_depreciation else 0
-                        total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                        if include_maintenance:
-                            row["Maintenance"] = f"${maintenance_cost}"
-                        if include_capital:
-                            row["Capital Cost"] = f"${capital_cost}"
-                        if include_depreciation:
-                            row["Depreciation"] = f"${depreciation_cost}"
-                        if total_day_cost > 0:
-                            row["Total Cost"] = f"${total_day_cost}"
-                            total_cost_by_room[room] += total_day_cost
                     compare_data.append(row)
-                    total_points_by_room[room] += discounted_points
+                    total_cost_by_room[room] += total_day_cost
                 chart_row = {
                     "Date": date,
                     "DateStr": date_str,
                     "Day": day_of_week,
                     "Room Type": room,
-                    "Points": discounted_points,
+                    "TotalCostValue": total_day_cost,
                     "Holiday": entry.get("holiday_name", "No")
                 }
-                if display_mode == "costs":
-                    maintenance_cost = math.ceil(discounted_points * rate_per_point) if include_maintenance else 0
-                    capital_cost = math.ceil(discounted_points * capital_cost_per_point * cost_of_capital) if include_capital else 0
-                    depreciation_cost = math.ceil(discounted_points * depreciation_cost_per_point) if include_depreciation else 0
-                    total_day_cost = maintenance_cost + capital_cost + depreciation_cost
-                    if total_day_cost > 0:
-                        chart_row["Total Cost"] = f"${total_day_cost}"
-                        chart_row["TotalCostValue"] = total_day_cost
                 chart_data.append(chart_row)
         except Exception:
             continue
@@ -763,7 +732,7 @@ try:
         "Check-in Date",
         min_value=datetime(2025, 1, 3).date(),
         max_value=datetime(2026, 12, 31).date(),
-        value=datetime(2025, 6, 12).date()
+        value=datetime(2026, 6, 12).date()
     )
     num_nights = st.number_input(
         "Number of Nights",
