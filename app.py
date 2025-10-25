@@ -169,6 +169,7 @@ def generate_data(resort, date, cache=None):
     holiday_start_date = None
     holiday_end_date = None
     prev_year = str(int(year) - 1)
+    is_year_end_holiday = False  # Initialize to avoid undefined variable
     # Check for year-end/beginning holiday assumption
     if (date.month == 12 and date.day >= 26) or (date.month == 1 and date.day <= 1):
         holiday_start = datetime.strptime(f"{prev_year}-12-26", "%Y-%m-%d").date()
