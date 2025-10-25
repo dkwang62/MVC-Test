@@ -631,7 +631,7 @@ def compare_room_types_owner(resort, room_types, checkin_date, num_nights, disco
                                 "end": h_end
                             }
                         start_str = holiday_totals[room][holiday_name]["start"].strftime("%b %d")
-                        end_str = holiday_totals[room][holiday_name]["end"]..strftime("%b %d, %Y")
+                        end_str = holiday_totals[room][holiday_name]["end"].strftime("%b %d, %Y")
                         row = {
                             "Date": f"{holiday_name} ({start_str} - {end_str})",
                             "Room Type": room,
