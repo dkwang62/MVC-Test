@@ -59,18 +59,6 @@ def display_room(key: str) -> str:
     view = parts[-1] if len(parts) > 1 and parts[-1] in ROOM_VIEW_LEGEND else ""
     return f"{parts[0]} {ROOM_VIEW_LEGEND.get(view, view)}" if view else key
 
-def internal_room(display: str) -> str:
-    rev = {v: k for k, v in ROOM_VIEW_LEGEND.items()}
-    if display in rev:
-        return rev[display]
-    if display.startswith("AP "):
-        return {"AP Studio Mountain": "AP_Studio_MA",
-                "AP 1BR Mountain": "AP_1BR_MA",
-                "AP 2BR Mountain": "AP_2BR_MA",
-                "AP 2BR Ocean": "AP_2BR_MK"}[display]
-    base, *view = display.rsplit(maxsplit=1)
-    return f"{base} {rev.get(view[0], view[0])}" if view else display
-
 def resolve_global(year: str, key: str) -> list:
     return data.get("global_dates", {}).get(year, {}).get(key, [])
 
@@ -207,12 +195,13 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
     for i in range(nights):
         d = checkin + timedelta(days=i)
         entry, _ = generate_data(resort, d)
-        pts = entry.get(room, 0)
-        eff_pts, disc = apply_discount(pts, discount, d)
+        raw_pts = entry.get(room, 0)                    # FULL points
+        eff_pts, disc = apply_discount(raw_pts, discount, d)
         if disc:
             applied = True
             disc_days.append(fmt_date(d))
-        rent = math.ceil(pts * rate)
+        rent = math.ceil(raw_pts * rate)                # RENT BASED ON FULL POINTS
+        
         if entry.get("HolidayWeek"):
             if entry.get("HolidayWeekStart"):
                 cur_h = entry["holiday_name"]
@@ -238,7 +227,7 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
     rows, tot_pts, tot_cost = [], 0, 0
     totals = {"m": 0, "c": 0, "d": 0}
     cur_h, h_end = None, None
-    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep else 0  # ← FIXED: was inc_dep_dep
+    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep else 0
     for i in range(nights):
         d = checkin + timedelta(days=i)
         entry, _ = generate_data(resort, d)
@@ -307,12 +296,13 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
         h_name = next((n for s, e, n in holiday_ranges if s <= d <= e), None)
         is_h_start = entry.get("HolidayWeekStart")
         for room in rooms:
-            pts = entry.get(room, 0)
-            eff_pts, disc = apply_discount(pts, discount, d)
+            raw_pts = entry.get(room, 0)
+            eff_pts, disc = apply_discount(raw_pts, discount, d)
             if disc:
                 applied = True
                 disc_days.append(fmt_date(d))
-            rent = math.ceil(pts * rate)
+            rent = math.ceil(raw_pts * rate)  # FULL RENT
+            
             if is_holiday and is_h_start:
                 if h_name not in holiday_totals[room]:
                     h_start = min(s for s, _, n in holiday_ranges if n == h_name)
@@ -459,7 +449,7 @@ with st.expander("How " + ("Rent" if user_mode=="Renter" else "Cost") + " Is Cal
         - Default: **${default_rate:.2f}/point** for {checkin.year} stays (from data.json)
         - **Booked within 60 days**: 30% discount on points required (Presidential)
         - **Booked within 30 days**: 25% discount on points required (Executive)
-        - Rent = (Points × Discount) × Rate per Point
+        - **Rent = Full Points × Rate** (discount does NOT reduce rent)
         """)
     else:
         st.markdown("""
@@ -570,7 +560,7 @@ if st.button("Calculate"):
             disc_pct = 30 if discount_opt == "within_60_days" else 25
             st.success(f"Discount Applied: {disc_pct}% off points "
                        f"({len(disc_days)} day(s): {', '.join(disc_days)})")
-        st.success(f"Total Points: {pts:,} | Total Rent: ${rent:,}")
+        st.success(f"Total Points Required: {pts:,} | Total Rent: ${rent:,}")
         st.download_button("Download CSV", df.to_csv(index=False).encode(),
                            f"{resort}_{fmt_date(checkin_adj).replace(' ', '_')}_breakdown.csv", "text/csv")
     else:
@@ -586,7 +576,7 @@ if st.button("Calculate"):
             cols.append("Total Cost")
         st.subheader(f"{resort} Stay Breakdown")
         st.dataframe(df[cols], use_container_width=True)
-        st.success(f"Total Points: {pts:,} | Total Cost: ${cost:,}")
+        st.success(f"Total Points Used: {pts:,} | Total Cost: ${cost:,}")
         if inc_maint and m_cost: st.success(f"Maintenance: ${m_cost:,}")
         if inc_cap and c_cost: st.success(f"Capital Cost: ${c_cost:,}")
         if inc_dep and d_cost: st.success(f"Depreciation: ${d_cost:,}")
