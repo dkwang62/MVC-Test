@@ -190,16 +190,16 @@ def gantt_chart(resort: str, year: int):
     return fig
 
 # ----------------------------------------------------------------------
-# Discount helper
+# Discount helper — ALWAYS apply selected discount (for demo / planning)
 # ----------------------------------------------------------------------
 def apply_discount(points: int, discount: str | None, date: datetime.date) -> tuple[int, bool]:
     if not discount:
         return points, False
-    days_until = (date - datetime.now().date()).days
-    if discount == "within_60_days" and days_until <= 60:
-        return math.floor(points * 0.7), True
-    if discount == "within_30_days" and days_until <= 30:
-        return math.floor(points * 0.75), True
+    # Ignore real date — always apply discount if user selected it
+    if discount == "within_60_days":
+        return math.floor(points * 0.7), True   # 30% off
+    if discount == "within_30_days":
+        return math.floor(points * 0.75), True  # 25% off
     return points, False
 
 # ----------------------------------------------------------------------
@@ -611,12 +611,10 @@ if st.button("Calculate"):
         st.dataframe(df, use_container_width=True)
 
         if st.session_state.allow_renter_modifications and discount_opt:
-            if disc_ap:
-                st.info(f"{30 if discount_opt=='within_60_days' else 25}% discount applied to "
-                        f"{len(disc_days)} day(s): {', '.join(disc_days)}")
-            else:
-                st.warning(f"No discount applied – stay must be within "
-                           f"{60 if discount_opt=='within_60_days' else 30} days.")
+            if discount_opt:
+                disc_pct = 30 if discount_opt == "within_60_days" else 25
+                st.success(f"Discount Applied: {disc_pct}% off points "
+                           f"({len(disc_days)} day(s): {', '.join(disc_days) if disc_days else 'All days'})")
             st.info("**Note:** Points shown are discounted; rent uses full points.")
         st.success(f"Total Points: {pts}    Total Rent: ${rent}")
         st.download_button("Download CSV", df.to_csv(index=False).encode(),
