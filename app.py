@@ -118,9 +118,10 @@ def generate_data(resort: str, date: datetime.date):
     # Points
     if holiday:
         src = REF_POINTS.get(resort, {}).get("Holiday Week", {}).get(holiday, {})
-        pts = src.get(internal_room(k), 0) if is_h_start else 0
-        for k in src:
-            entry[display_room(k)] = pts if is_h_start else 0
+        # FIX: Loop first, then assign
+        for internal_key, pts in src.items():
+            display_key = display_room(internal_key)
+            entry[display_key] = pts if is_h_start else 0
     else:
         cat = None
         if season != "Holiday Week":
@@ -132,15 +133,18 @@ def generate_data(resort: str, date: datetime.date):
                        "Mon-Thu" if not is_fri_sat and "Mon-Thu" in avail else
                        "Sun-Thu" if "Sun-Thu" in avail else avail[0])
         src = REF_POINTS.get(resort, {}).get(season, {}).get(cat, {}) if cat else {}
-        for k, pts in src.items():
-            entry[display_room(k)] = pts
+        for internal_key, pts in src.items():
+            entry[display_room(internal_key)] = pts
 
     if holiday:
         entry.update(HolidayWeek=True, holiday_name=holiday,
                      holiday_start=h_start, holiday_end=h_end,
                      HolidayWeekStart=is_h_start)
 
-    disp_to_int = {display_room(k): k for k in src}
+    # Build disp_to_int from final src (after holiday/season resolution)
+    final_src = REF_POINTS.get(resort, {}).get("Holiday Week", {}).get(holiday, {}) if holiday else src
+    disp_to_int = {display_room(k): k for k in final_src}
+
     cache[ds] = (entry, disp_to_int)
     return entry, disp_to_int
 
