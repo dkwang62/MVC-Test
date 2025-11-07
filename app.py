@@ -238,7 +238,7 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
     rows, tot_pts, tot_cost = [], 0, 0
     totals = {"m": 0, "c": 0, "d": 0}
     cur_h, h_end = None, None
-    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep_dep else 0
+    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep else 0  # ← FIXED: was inc_dep_dep
     for i in range(nights):
         d = checkin + timedelta(days=i)
         entry, _ = generate_data(resort, d)
