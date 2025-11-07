@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
 
-
 # ----------------------------------------------------------------------
 # Custom date formatter: 12 Jan 2026
 # ----------------------------------------------------------------------
@@ -239,7 +238,7 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
     rows, tot_pts, tot_cost = [], 0, 0
     totals = {"m": 0, "c": 0, "d": 0}
     cur_h, h_end = None, None
-    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep else 0
+    dep_per_pt = (cap_per_pt - salvage) / life if inc_dep_dep else 0
     for i in range(nights):
         d = checkin + timedelta(days=i)
         entry, _ = generate_data(resort, d)
@@ -438,6 +437,20 @@ def adjust_date_range(resort, start, nights):
 user_mode = st.sidebar.selectbox("User Mode", ["Renter", "Owner"], index=0, key="mode")
 st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
 
+# DATE INPUT
+checkin = st.date_input(
+    "Check-in Date",
+    min_value=datetime(2025,1,3).date(),
+    max_value=datetime(2026,12,31).date(),
+    value=datetime(2026,6,12).date()
+)
+st.markdown(f"**Selected Check-in:** `{fmt_date(checkin)}`")
+nights = st.number_input("Number of Nights", 1, 30, 7)
+
+# SMART MAINTENANCE RATE FROM data.json
+maintenance_rates = data.get("maintenance_rates", {})
+default_rate = maintenance_rates.get(str(checkin.year), 0.86)
+
 with st.expander("How " + ("Rent" if user_mode=="Renter" else "Cost") + " Is Calculated"):
     if user_mode == "Renter":
         st.markdown(f"""
@@ -455,20 +468,6 @@ with st.expander("How " + ("Rent" if user_mode=="Renter" else "Cost") + " Is Cal
         - Depreciation = Points × [(Purchase Price – Salvage) ÷ Useful Life]
         - Total cost = Maintenance + Capital Cost + Depreciation
         """)
-
-# DATE INPUT
-checkin = st.date_input(
-    "Check-in Date",
-    min_value=datetime(2025,1,3).date(),
-    max_value=datetime(2026,12,31).date(),
-    value=datetime(2026,6,12).date()
-)
-st.markdown(f"**Selected Check-in:** `{fmt_date(checkin)}`")
-nights = st.number_input("Number of Nights", 1, 30, 7)
-
-# SMART MAINTENANCE RATE FROM data.json
-maintenance_rates = data.get("maintenance_rates", {})
-default_rate = maintenance_rates.get(str(checkin.year), 0.86)
 
 rate_per_point = default_rate
 discount_opt = None
