@@ -408,7 +408,7 @@ if (st.session_state.get("last_resort") != resort or
         st.session_state.get("last_year") != year):
     st.session_state.data_cache.clear()
     for k in ("room_types", "disp_to_int"):
-        st.session studios.pop(k, None)
+        st.session_state.pop(k, None)
     st.session_state.last_resort = resort
     st.session_state.last_year   = year
 
