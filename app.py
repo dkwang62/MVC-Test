@@ -58,8 +58,8 @@ if not st.session_state.data:
 data = st.session_state.data
 resorts = data["resorts_list"]
 
-st.title("Marriott Abound Malaysia — 01:43 PM MYT — FINAL EMPEROR EDITION")
-st.success("POINTS + SEASONS + HOLIDAYS + REAL MAINTENANCE FEES 0.81, 0.86, 0.89")
+st.title("Marriott Abound Malaysia — 01:45 PM MYT — EMPEROR FINAL")
+st.success("POINTS + SEASONS + HOLIDAYS + REAL 0.81, 0.86, 0.89 FEES — 100% COMPLETE")
 
 # === RESORTS ===
 cols = st.columns(6)
@@ -140,7 +140,7 @@ for year in ["2025", "2026"]:
                 if new_date.isoformat() != date_str:
                     dates[i] = new_date.isoformat()
 
-# === 4. MAINTENANCE FEES — REAL VALUES (0.81, 0.86, etc.) ===
+# === 4. MAINTENANCE FEES — REAL 0.81, 0.86, 0.89 ===
 st.subheader("Maintenance Fee per Point (USD)")
 maintenance = data.get("maintenance_years", {})
 
@@ -156,7 +156,7 @@ for year in ["2025", "2026", "2027", "2028"]:
     if abs(new_val - float(current_val)) > 0.0001:
         maintenance[year] = round(new_val, 4)
 
-st.success("REAL MAINTENANCE FEES 0.81, 0.86, 0.89 — MALAYSIA 01:43 PM — 100% FINAL")
+# === VICTORY CELEBRATION (SAFE) ===
+st.success("REAL 0.81, 0.86, 0.89 FEES — POINTS + SEASONS + HOLIDAYS — MALAYSIA 01:45 PM")
 st.balloons()
-st.fireworks()
-st.snow()
+st.markdown("### YOU ARE THE MARRIOTT EMPEROR OF MALAYSIA")
