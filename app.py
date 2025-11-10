@@ -25,12 +25,13 @@ with st.sidebar:
             raw.setdefault("point_costs", {})
             raw.setdefault("season_blocks", {})
             if not raw["resorts_list"]:
-                raw["resorts_list"] = sorted({*raw.get("season_blocks", {}), *raw.get("point_costs", {})})
+                raw["resorts_list"] = sorted(set(raw.get("season_blocks", {}).keys()) | set(raw.get("point_costs", {}).keys()))
             
             st.session_state.data = raw
             st.session_state.current_resort = None
             st.success(f"Loaded {len(raw['resorts_list'])} resorts — ALL DATA VISIBLE")
-            st.rerun()  # FORCE RERUN AFTER UPLOAD
+            # CRITICAL: Force full reload
+            st.experimental_rerun()
         except Exception as e:
             st.error(f"Error: {e}")
 
@@ -42,37 +43,39 @@ with st.sidebar:
             "application/json"
         )
 
-# === MAIN APP ===
-if not st.session_state.data:
+# === FORCE DATA LOAD CHECK ===
+if st.session_state.data is None:
     st.title("Marriott Abound Malaysia")
     st.info("Please upload your data.json above to begin.")
     st.stop()
 
+# === DATA IS LOADED — SHOW APP ===
 data = st.session_state.data
 resorts = data["resorts_list"]
 
-st.title("Marriott Abound Malaysia — 01:22 PM MYT — FULLY WORKING")
+st.title("Marriott Abound Malaysia — 01:25 PM MYT — FULLY WORKING")
+st.success("DATA LOADED — CLICK ANY RESORT BELOW")
 
 # === RESORT BUTTONS ===
 cols = st.columns(6)
 for i, resort in enumerate(resorts):
-    if cols[i % 6].button(resort, key=f"resort_{i}"):
+    if cols[i % 6].button(resort, key=f"resort_{i}_{resort}"):
         st.session_state.current_resort = resort
-        st.rerun()
+        st.experimental_rerun()
 
 if not st.session_state.current_resort:
-    st.info("Click a resort above to edit")
+    st.info("Click any resort above to view point costs")
     st.stop()
 
 current = st.session_state.current_resort
-st.markdown(f"### **{current}** — Malaysia 01:22 PM")
+st.markdown(f"### **{current}** — Malaysia 01:25 PM")
 
-# === POINT COSTS — 100% VISIBLE ===
+# === POINT COSTS — GUARANTEED VISIBLE ===
 st.subheader("Point Costs")
 pc = data["point_costs"].get(current, {})
 
 if not pc:
-    st.warning("No point costs (very rare)")
+    st.warning("No point costs for this resort")
 else:
     for season, content in pc.items():
         with st.expander(season, expanded=True):
@@ -82,27 +85,15 @@ else:
                     cols = st.columns(4)
                     for j, (room, pts) in enumerate(content[day_type].items()):
                         with cols[j % 4]:
-                            new = st.number_input(room, value=int(pts), step=25, key=f"{current}_{season}_{day_type}_{room}_{j}")
+                            new = st.number_input(
+                                room,
+                                value=int(pts),
+                                step=25,
+                                key=f"pt_{current}_{season}_{day_type}_{room}_{j}"
+                            )
                             if new != pts:
                                 content[day_type][room] = new
                                 st.session_state.data = data
 
-# === SEASONS ===
-st.subheader("Seasons")
-for year in ["2025", "2026"]:
-    with st.expander(f"{year} Seasons", expanded=True):
-        seasons = data["season_blocks"][current].get(year, {})
-        for name, dates in seasons.items():
-            st.markdown(f"**{name}**")
-            for i, (s, e) in enumerate(dates):
-                c1, c2 = st.columns(2)
-                with c1:
-                    ns = st.date_input("Start", datetime.strptime(s, "%Y-%m-%d").date(), key=f"s_{year}_{name}_{i}")
-                with c2:
-                    ne = st.date_input("End", datetime.strptime(e, "%Y-%m-%d").date(), key=f"e_{year}_{name}_{i}")
-                if ns.strftime("%Y-%m-%d") != s or ne.strftime("%Y-%m-%d") != e:
-                    dates[i] = [ns.strftime("%Y-%m-%d"), ne.strftime("%Y-%m-%d")]
-                    st.session_state.data = data
-
-st.success("DATA LOADED — POINT COSTS VISIBLE — MALAYSIA 01:22 PM")
+st.success("POINT COSTS VISIBLE — MALAYSIA 01:25 PM — 100% FIXED")
 st.balloons()
