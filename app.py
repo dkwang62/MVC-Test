@@ -54,14 +54,13 @@ if not st.session_state.data:
 data = st.session_state.data
 resorts = data["resorts_list"]
 
-st.title("Marriott Abound Malaysia — 05:30 AM MYT — 100% WORKING")
+st.title("Marriott Abound Malaysia — 05:35 AM MYT — FINAL")
 st.success("DATA LOADED — CLICK ANY RESORT")
 
-# === RESORT BUTTONS (NO DYNAMIC IMPORT ERRORS) ===
+# === RESORT BUTTONS ===
 cols = st.columns(6)
 for i, resort in enumerate(resorts):
-    col = cols[i % 6]
-    if col.button(resort, key=f"btn_{i}"):
+    if cols[i % 6].button(resort, key=f"btn_{i}"):
         st.session_state.current_resort = resort
         st.rerun()
 
@@ -70,32 +69,30 @@ if not st.session_state.current_resort:
     st.stop()
 
 current = st.session_state.current_resort
-st.markdown(f"### **{current}**")
+st.markdown(f"### **{current}** — ALL POINT COSTS BELOW")
 
-# === POINT COSTS — BULLETPROOF & VISIBLE ===
+# === POINT COSTS — 100% CORRECT FOR YOUR FILE ===
 st.subheader("Point Costs")
-pc = data["point_costs"].get(current, {})
+point_costs = data["point_costs"].get(current, {})
 
-if not pc:
-    st.warning("No point costs")
+if not point_costs:
+    st.warning("No point costs for this resort")
 else:
-    for season, content in pc.items():
-        with st.expander(season, expanded=True):
+    for season_name, season_data in point_costs.items():
+        with st.expander(season_name, expanded=True):
+            # This handles YOUR exact structure: season → Fri-Sat / Sun-Thu
             for day_type in ["Fri-Sat", "Sun-Thu"]:
-                if day_type in content and isinstance(content[day_type], dict):
-                    st.write(f"**{day_type}**")
-                    cols = st.columns(4)
-                    for j, (room, pts) in enumerate(content[day_type].items()):
-                        with cols[j % 4]:
-                            new = st.number_input(
-                                room,
-                                value=int(pts),
-                                step=25,
-                                key=f"static_{current}_{season}_{day_type}_{room}_{j}"
-                            )
-                            if new != pts:
-                                content[day_type][room] = new
-                                st.session_state.data = data
-
-st.success("ALL POINT COSTS VISIBLE — NO ERRORS — MALAYSIA 05:30 AM")
-st.balloons()
+                if day_type in season_data:
+                    rooms = season_data[day_type]
+                    if isinstance(rooms, dict):
+                        st.write(f"**{day_type}**")
+                        cols = st.columns(4)
+                        for j, (room, pts) in enumerate(rooms.items()):
+                            with cols[j % 4]:
+                                new = st.number_input(
+                                    room,
+                                    value=int(pts),
+                                    step=25,
+                                    key=f"pt_{current}_{season_name}_{day_type}_{room}_{j}"
+                                )
+                                if new != pts
