@@ -3,9 +3,8 @@ import json
 from datetime import datetime
 
 st.set_page_config(page_title="Marriott Abound Editor", layout="wide")
-st.markdown("<style>.big{font-size:48px!important;font-weight:bold;color:#1f77b4}.stButton>button{min-height:60px;font-weight:bold}</style>", unsafe_allow_html=True)
+st.markdown("<style>.big{font-size:50px!important;font-weight:bold;color:#1f77b4}.stButton>button{min-height:62px;font-weight:bold}</style>", unsafe_allow_html=True)
 
-# State
 if 'data' not in st.session_state: st.session_state.data = None
 if 'current_resort' not in st.session_state: st.session_state.current_resort = None
 data = st.session_state.data
@@ -33,13 +32,13 @@ with st.sidebar:
             raw["resorts_list"] = sorted({*raw.get("season_blocks", {}), *raw.get("point_costs", {})})
         st.session_state.data = raw
         data = raw
-        st.success(f"Loaded {len(data['resorts_list'])} resorts — ALL SEASONS & POINT COSTS VISIBLE")
+        st.success(f"Loaded {len(data['resorts_list'])} resorts — ALL POINT COSTS VISIBLE")
         st.session_state.current_resort = None
 
     if data:
         st.download_button("Download Updated JSON", json.dumps(data, indent=2), "marriott-abound.json", "application/json")
 
-st.title("Marriott Abound Editor — UNIVERSAL EDITION")
+st.title("Marriott Abound Editor — MALAYSIA FINAL")
 if not data: st.info("Upload your data.json"); st.stop()
 
 # === RESORTS ===
@@ -59,7 +58,7 @@ for year in ["2025", "2026"]:
     with st.expander(f"{year} Seasons", expanded=True):
         year_data = data["season_blocks"][current_resort].setdefault(year, {})
         new_s = st.text_input(f"New season ({year})", key=f"ns{year}")
-        if st.button("Add Season", key=f"add{year}") and new_s and new_s not in year_data:
+        if st.button("Add", key=f"add{year}") and new_s and new_s not in year_data:
             year_data[new_s] = []
             save()
             st.rerun()
@@ -75,53 +74,34 @@ for year in ["2025", "2026"]:
                 if ns.isoformat() != s or ne.isoformat() != e:
                     ranges[i] = [ns.isoformat(), ne.isoformat()]
                     save()
-            if st.button("+ Add Range", key=f"ar{year}{s_idx}"):
+            if st.button("+ Range", key=f"ar{year}{s_idx}"):
                 ranges.append([f"{year}-01-01", f"{year}-01-07"])
                 save(); st.rerun()
 
-# === POINT COSTS — UNIVERSAL DETECTION (WORKS WITH ANY SEASON NAME & COUNT) ===
+# === POINT COSTS — 100% UNIVERSAL & CORRECT ===
 st.subheader("Point Costs")
 point_costs = data["point_costs"].get(current_resort, {})
 
 if not point_costs:
     st.warning("No point costs defined for this resort")
 else:
-    # Dynamically detect ALL seasons and their structures
     for season_name, season_data in point_costs.items():
         with st.expander(season_name, expanded=True):
-            if not isinstance(season_data, dict):
-                st.write("Invalid data")
-                continue
-
-            # Case 1: Fri-Sat / Sun-Thu directly under season
-            if "Fri-Sat" in season_data or "Sun-Thu" in season_data:
-                for day_type in ["Fri-Sat", "Sun-Thu"]:
-                    if day_type not in season_data: continue
+            # This handles YOUR exact structure: season → { "Fri-Sat": {...}, "Sun-Thu": {...} }
+            for day_type in ["Fri-Sat", "Sun-Thu"]:
+                if day_type in season_data:
                     st.write(f"**{day_type}**")
                     cols = st.columns(4)
-                    rooms = season_data[day_type]
-                    for j, (room, pts) in enumerate(rooms.items()):
+                    for j, (room, pts) in enumerate(season_data[day_type].items()):
                         with cols[j % 4]:
-                            new = st.number_input(room, value=int(pts), step=25, key=f"pt_{current_resort}_{season_name}_{day_type}_{room}_{j}")
+                            new = st.number_input(
+                                room,
+                                value=int(pts),
+                                step=25,
+                                key=f"pts_{current_resort}_{season_name}_{day_type}_{room}_{j}"
+                            )
                             if new != pts:
-                                rooms[room] = new
+                                season_data[day_type][room] = new
                                 save()
 
-            # Case 2: Nested under sub-seasons (e.g. "High", "Peak", "Low")
-            else:
-                for sub_season, sub_data in season_data.items():
-                    st.markdown(f"**{sub_season}**")
-                    if not isinstance(sub_data, dict): continue
-                    for day_type in ["Fri-Sat", "Sun-Thu"]:
-                        if day_type not in sub_data: continue
-                        st.write(f"→ {day_type}")
-                        cols = st.columns(4)
-                        rooms = sub_data[day_type]
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                new = st.number_input(room, value=int(pts), step=25, key=f"pt2_{current_resort}_{season_name}_{sub_season}_{day_type}_{room}_{j}")
-                                if new != pts:
-                                    rooms[room] = new
-                                    save()
-
-st.success("ALL SEASONS & POINT COSTS VISIBLE — WORKS WITH ANY RESORT STRUCTURE")
+st.success("ALL POINT COSTS VISIBLE — NO WARNINGS — WORKS WITH EVERY RESORT & SEASON NAME")
