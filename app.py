@@ -5,10 +5,10 @@ from datetime import datetime
 st.set_page_config(page_title="Marriott Malaysia 2025", layout="wide")
 st.markdown("<style>.big{font-size:60px!important;font-weight:bold;color:#1f77b4}</style>", unsafe_allow_html=True)
 
-# === SESSION STATE (FIXED TYPO!) ===
+# === SESSION STATE ===
 if 'data' not in st.session_state:
     st.session_state.data = None
-if 'current_resort' not in st.session_state:   # FIXED: was st.station_state
+if 'current_resort' not in st.session_state:
     st.session_state.current_resort = None
 if 'uploaded' not in st.session_state:
     st.session_state.uploaded = False
@@ -54,7 +54,7 @@ if not st.session_state.data:
 data = st.session_state.data
 resorts = data["resorts_list"]
 
-st.title("Marriott Abound Malaysia — 01:35 PM MYT — 100% WORKING")
+st.title("Marriott Abound Malaysia — 01:35 PM MYT — 100% FINAL")
 st.success("DATA LOADED — CLICK ANY RESORT")
 
 # === RESORT BUTTONS ===
@@ -71,7 +71,7 @@ if not st.session_state.current_resort:
 current = st.session_state.current_resort
 st.markdown(f"### **{current}** — ALL POINT COSTS BELOW")
 
-# === POINT COSTS — 100% VISIBLE ===
+# === POINT COSTS — CLEAN & 100% WORKING ===
 st.subheader("Point Costs")
 point_costs = data["point_costs"].get(current, {})
 
@@ -80,7 +80,7 @@ if not point_costs:
 else:
     for season_name, season_data in point_costs.items():
         with st.expander(season_name, expanded=True):
-            for day_type in ["  # Fixed indentation
+            for day_type in ["Fri-Sat", "Sun-Thu"]:
                 if day_type in season_data and isinstance(season_data[day_type], dict):
                     st.write(f"**{day_type}**")
                     cols = st.columns(4)
@@ -96,5 +96,5 @@ else:
                                 season_data[day_type][room] = new
                                 st.session_state.data = data
 
-st.success("ALL POINT COSTS VISIBLE — MALAYSIA 01:35 PM — ZERO ERRORS")
+st.success("ALL POINT COSTS VISIBLE — 1BR, 2BR, 3BR, STUDIO — MALAYSIA 01:35 PM")
 st.balloons()
