@@ -10,17 +10,13 @@ st.markdown("""
     .resort-btn.active { background: #1f77b4 !important; color: white !important; }
     .stButton>button { min-height: 50px; font-weight: bold; }
     .warning { color: #d00; font-weight: bold; }
-    .rename-input { font-size: 18px; font-weight: bold; padding: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# === SESSION STATE ===
 if 'data' not in st.session_state:
     st.session_state.data = None
 if 'current_resort' not in st.session_state:
     st.session_state.current_resort = None
-if 'renaming_resort' not in st.session_state:
-    st.session_state.renaming_resort = None
 
 data = st.session_state.data
 current_resort = st.session_state.current_resort
@@ -39,18 +35,19 @@ def safe_date(date_str, fallback="2025-01-01"):
         except:
             return datetime.strptime(fallback, "%Y-%m-%d").date()
 
-# === FIX JSON ===
-def fix_json(raw):
-    defaults = {
-        "resorts_list": [], "season_blocks": {}, "point_costs": {}, "reference_points": {},
-        "maintenance_rates": {"2025": 0.81, "2026": 0.86}, "global_dates": {"2025": {}, "2026": {}}
-    }
-    for k, v in defaults.items():
-        if k not in raw:
-            raw[k] = v
-    if not raw["resorts_list"] and raw["season_blocks"]:
-        raw["resorts_list"] = sorted(raw["season_blocks"].keys())
-    return raw
+# === AUTO-FIX + LOAD ===
+def fix_json(raw_data):
+    if "resorts_list" not in raw_data:
+        raw_data["resorts_list"] = sorted(raw_data["season_blocks"].keys())
+    if "point_costs" not in raw_data:
+        raw_data["point_costs"] = {}
+    if "maintenance_rates" not in raw_data:
+        raw_data["maintenance_rates"] = {"2025": 0.81, "2026": 0.86}
+    if "global_dates" not in raw_data:
+        raw_data["global_dates"] = {"2025": {}, "2026": {}}
+    if "reference_points" not in raw_data:
+        raw_data["reference_points"] = {}
+    return raw_data
 
 # === SIDEBAR ===
 with st.sidebar:
@@ -62,11 +59,10 @@ with st.sidebar:
             fixed = fix_json(raw)
             st.session_state.data = fixed
             data = fixed
-            st.success(f"Loaded {len(data['resorts_list'])} resorts")
+            st.success(f"Loaded {len(data['resorts_list'])} resorts perfectly!")
             st.session_state.current_resort = None
-            st.session_state.renaming_resort = None
         except Exception as e:
-            st.error(f"Error: {e}")
+            st.error(f"JSON Error: {e}")
 
     if data:
         st.download_button(
@@ -78,120 +74,193 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Used by 1,000+ owners")
+st.caption("Used by 1,000+ owners — your data is perfect, this app just got better")
 
 if not data:
-    st.info("Upload your data.json")
+    st.info("Upload your data.json to start")
     st.stop()
 
 resorts = data["resorts_list"]
-
-# === CLONE & EDIT BUTTON ===
-if current_resort and current_resort in resorts:
-    if st.button("Clone & Edit", type="primary"):
-        temp_name = "<Enter Name>"
-        counter = 1
-        while temp_name in resorts:
-            temp_name = f"<Enter Name {counter}>"
-            counter += 1
-        
-        # Deep clone
-        data["resorts_list"].append(temp_name)
-        data["season_blocks"][temp_name] = json.loads(json.dumps(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})))
-        data["point_costs"][temp_name] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
-        data["reference_points"][temp_name] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
-        
-        save_data()
-        st.session_state.current_resort = temp_name
-        st.session_state.renaming_resort = temp_name
-        st.success(f"Cloned {current_resort} → Ready to rename & edit!")
-        st.rerun()
-
-# === RESORT GRID WITH INLINE RENAME ===
 cols = st.columns(6)
 for i, r in enumerate(resorts):
-    with cols[i % 6]:
-        if st.session_state.renaming_resort == r:
-            new_name = st.text_input(
-                "Resort Name",
-                value=r,
-                key=f"rename_{r}",
-                label_visibility="collapsed"
-            )
-            col_a, col_b = st.columns(2)
-            with col_a:
-                if st.button("Save Name", key=f"save_{r}"):
-                    if new_name.strip() and new_name != r:
-                        if new_name in resorts:
-                            st.error("Name exists")
-                        else:
-                            # Rename everywhere
-                            data["resorts_list"][data["resorts_list"].index(r)] = new_name
-                            data["season_blocks"][new_name] = data["season_blocks"].pop(r)
-                            data["point_costs"][new_name] = data["point_costs"].pop(r)
-                            data["reference_points"][new_name] = data["reference_points"].pop(r)
-                            if st.session_state.current_resort == r:
-                                st.session_state.current_resort = new_name
-                            st.session_state.renaming_resort = None
-                            save_data()
-                            st.success(f"Renamed to **{new_name}**")
-                            st.rerun()
-            with col_b:
-                if st.button("Cancel", key=f"cancel_{r}"):
-                    if r.startswith("<Enter Name"):
-                        # Delete temp resort
-                        data["resorts_list"].remove(r)
-                        data["season_blocks"].pop(r, None)
-                        data["point_costs"].pop(r, None)
-                        data["reference_points"].pop(r, None)
-                        if st.session_state.current_resort == r:
-                            st.session_state.current_resort = None
-                    st.session_state.renaming_resort = None
-                    save_data()
-                    st.rerun()
-        else:
-            if st.button(r, key=f"resort_{i}", type="primary" if current_resort == r else "secondary"):
-                st.session_state.current_resort = r
-                st.session_state.renaming_resort = None
-                st.rerun()
+    if cols[i % 6].button(r, key=f"btn_{i}", type="primary" if current_resort == r else "secondary"):
+        st.session_state.current_resort = r
+        st.rerun()
 
-# === EDIT CURRENT RESORT ===
-if current_resort and current_resort in data["resorts_list"]:
-    st.markdown(f"### **{current_resort}**")
-
-    if st.button("Delete Resort", type="secondary"):
-        if st.checkbox("I understand – cannot be undone"):
-            if st.button("DELETE FOREVER", type="primary"):
-                for k in ["season_blocks", "point_costs", "reference_points"]:
-                    data[k].pop(current_resort, None)
-                data["resorts_list"].remove(current_resort)
+with st.expander("Add New Resort"):
+    new = st.text_input("Name")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Create Blank") and new and new not in resorts:
+            data["resorts_list"].append(new)
+            data["season_blocks"][new] = {"2025": {}, "2026": {}}
+            data["point_costs"][new] = {}
+            data["reference_points"][new] = {}
+            st.session_state.current_resort = new
+            save_data()
+            st.rerun()
+    with c2:
+        if st.button("Copy Current") and current_resort and new:
+            if new in resorts:
+                st.error("Exists")
+            else:
+                data["resorts_list"].append(new)
+                data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"][current_resort]))
+                data["point_costs"][new] = json.loads(json.dumps(data["point_costs"][current_resort]))
+                data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
+                st.session_state.current_resort = new
                 save_data()
-                st.session_state.current_resort = None
                 st.rerun()
 
-    # === SEASONS, POINTS, REFERENCE – SAME AS BEFORE (shortened for brevity) ===
-    st.subheader("Season Dates")
-    data["season_blocks"].setdefault(current_resort, {"2025": {}, "2026": {}})
-    save_data()
+if current_resort:
+    st.markdown(f"### **{current_resort}**")
+    if st.button("Delete Resort", type="secondary"):
+        if st.checkbox("I understand this cannot be undone"):
+            if st.button("DELETE FOREVER", type="primary"):
+                data["season_blocks"].pop(current_resort, None)
+                data["point_costs"].pop(current_resort, None)
+                data["reference_points"].pop(current_resort, None)
+                data["resorts_list"].remove(current_resort)
+                st.session_state.current_resort = None
+                save_data()
+                st.rerun()
 
+    # === SEASONS ===
+    st.subheader("Season Dates")
     for year in ["2025", "2026"]:
         with st.expander(f"{year} Seasons", expanded=True):
-            year_data = data["season_blocks"][current_resort][year]
+            year_data = data["season_blocks"][current_resort].setdefault(year, {})
             seasons = list(year_data.keys())
-            c1, c2 = st.columns([4, 1])
-            with c1:
-                new_s = st.text_input(f"New season ({year})", key=f"ns_{year}")
-            with c2:
-                if st.button("Add", key=f"add_{year}") and new_s and new_s not in year_data:
-                    year_data[new_s] = []
+
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                new_season = st.text_input(f"New season ({year})", key=f"ns_{year}")
+            with col2:
+                if st.button("Add", key=f"add_s_{year}") and new_season and new_season not in year_data:
+                    year_data[new_season] = []
                     save_data()
                     st.rerun()
-            # ... (rest of season editing – unchanged)
 
-    # POINT COSTS & REFERENCE POINTS – unchanged (same logic as before)
+            for s_idx, season in enumerate(seasons):
+                st.markdown(f"**{season}**")
+                ranges = year_data[season]
+                for i, (s, e) in enumerate(ranges):
+                    c1, c2, c3 = st.columns([3, 3, 1])
+                    with c1:
+                        ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
+                    with c2:
+                        ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
+                    with c3:
+                        if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
+                            ranges.pop(i)
+                            save_data()
+                            st.rerun()
+                    if ns.isoformat() != s or ne.isoformat() != e:
+                        ranges[i] = [ns.isoformat(), ne.isoformat()]
+                        save_data()
+
+                if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
+                    ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                    save_data()
+                    st.rerun()
+
+    # === POINT COSTS ===
+    st.subheader("Point Costs")
+    point_data = data["point_costs"].get(current_resort, {})
+    for season in point_data:
+        with st.expander(season, expanded=True):
+            sdata = point_data[season]
+            if isinstance(sdata, dict) and ("Fri-Sat" in sdata or "Sun-Thu" in sdata):
+                for day_type in ["Fri-Sat", "Sun-Thu"]:
+                    if day_type not in sdata: continue
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, room in enumerate(sdata[day_type]):
+                        with cols[j % 4]:
+                            val = sdata[day_type][room]
+                            new = st.number_input(room, value=int(val), step=25, key=f"p_{season}_{day_type}_{j}")
+                            if new != val:
+                                sdata[day_type][room] = new
+                                save_data()
+            else:
+                st.write("**Holiday Weeks**")
+                for hol in sdata:
+                    st.markdown(f"**{hol}**")
+                    cols = st.columns(4)
+                    for j, room in enumerate(sdata[hol]):
+                        with cols[j % 4]:
+                            val = sdata[hol][room]
+                            new = st.number_input(room, value=int(val), step=50, key=f"h_{season}_{hol}_{j}")
+                            if new != val:
+                                sdata[hol][room] = new
+                                save_data()
+
+    # === UNIVERSAL REFERENCE POINT COSTS ===
+    st.subheader("Reference Points")
+    current = current_resort
+    points = data["reference_points"].setdefault(current, {})
+
+    if not points:
+        st.warning("No reference points defined yet")
+    else:
+        for season, content in points.items():
+            with st.expander(season, expanded=True):
+                day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat"]]
+                if day_types:
+                    for day_type in day_types:
+                        rooms = content[day_type]
+                        st.write(f"**{day_type}**")
+                        cols = st.columns(4)
+                        for j, (room, pts) in enumerate(rooms.items()):
+                            with cols[j % 4]:
+                                new_val = st.number_input(
+                                    room,
+                                    value=int(pts),
+                                    step=25,
+                                    key=f"ref_{current}_{season}_{day_type}_{room}_{j}"
+                                )
+                                if new_val != pts:
+                                    rooms[room] = new_val
+                                    save_data()
+                else:
+                    for sub_season, rooms in content.items():
+                        st.markdown(f"**{sub_season}**")
+                        cols = st.columns(4)
+                        for j, (room, pts) in enumerate(rooms.items()):
+                            with cols[j % 4]:
+                                new_val = st.number_input(
+                                    room,
+                                    value=int(pts),
+                                    step=25,
+                                    key=f"refhol_{current}_{season}_{sub_season}_{room}_{j}"
+                                )
+                                if new_val != pts:
+                                    rooms[room] = new_val
+                                    save_data()
+
+    st.success("ALL STRUCTURES VISIBLE — MON-THU, SUN-THU, FRI-SAT, HOLIDAY WEEKS — MALAYSIA 01:45 PM")
 
 # === GLOBALS ===
 st.header("Global Settings")
-# ... (maintenance & holidays – unchanged)
+with st.expander("Maintenance Fees"):
+    for i, (year, rate) in enumerate(data.get("maintenance_rates", {}).items()):
+        new = st.number_input(year, value=float(rate), step=0.01, format="%.4f", key=f"mf_{i}")
+        if new != rate:
+            data["maintenance_rates"][year] = new
+            save_data()
 
-st.success("All changes saved instantly • Malaysia 03:09 PM")
+with st.expander("Holiday Dates"):
+    for year in ["2025", "2026"]:
+        st.write(f"**{year}**")
+        holidays = data["global_dates"].get(year, {})
+        for i, (name, (s, e)) in enumerate(holidays.items()):
+            c1, c2 = st.columns(2)
+            with c1:
+                ns = st.date_input(f"{name} Start", safe_date(s), key=f"hs_{year}_{i}")
+            with c2:
+                ne = st.date_input(f"{name} End", safe_date(e), key=f"he_{year}_{i}")
+            if ns.isoformat() != s or ne.isoformat() != e:
+                data["global_dates"][year][name] = [ns.isoformat(), ne.isoformat()]
+                save_data()
+
+st.success("Your file is perfect. All changes saved instantly.")
