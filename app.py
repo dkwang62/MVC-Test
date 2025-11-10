@@ -59,7 +59,7 @@ with st.sidebar:
             fixed = fix_json(raw)
             st.session_state.data = fixed
             data = fixed
-            st.success(f"Loaded {len(data['resorts_list'])} resorts perfectly!")
+            st.success(f"Loaded {len(data['resorts_list'])} resorts")
             st.session_state.current_resort = None
         except Exception as e:
             st.error(f"JSON Error: {e}")
@@ -74,7 +74,7 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Used by 1,000+ owners — your data is perfect, this app just got better")
+st.caption("Used by 1,000+ owners")
 
 if not data:
     st.info("Upload your data.json to start")
@@ -164,89 +164,79 @@ if current_resort:
                     save_data()
                     st.rerun()
 
-    # === UNIVERSAL POINT COSTS – SUPPORTS KO OLINA (Fri-Sat/Sun/Mon-Thu) + ALL OTHERS ===
+    # === UNIVERSAL POINT COSTS – KO OLINA + ALL RESORTS ===
     st.subheader("Point Costs")
     point_data = data["point_costs"].get(current_resort, {})
 
-    if not point_data:
-        st.info("No point costs defined yet")
-    else:
-        for season, content in point_data.items():
-            with st.expander(season, expanded=True):
-                # Detect if this is Holiday-style (dict of sub-holidays)
-                if any(isinstance(v, dict) and "AP_Studio" in " ".join(v.keys()) for v in content.values()):
-                    # Holiday Weeks
-                    for holiday_name, rooms in content.items():
-                        st.markdown(f"**{holiday_name}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                new_val = st.number_input(
-                                    room, value=int(pts), step=50,
-                                    key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}"
-                                )
-                                if new_val != pts:
-                                    rooms[room] = new_val
-                                    save_data()
-                else:
-                    # Regular seasons with day types
-                    day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
-                    available_days = [d for d in day_types if d in content]
+    for season, content in point_data.items():
+        with st.expander(season, expanded=True):
+            # Holiday Weeks
+            if any(isinstance(v, dict) and any("AP_" in k for k in v.keys()) for v in content.values()):
+                for holiday_name, rooms in content.items():
+                    st.markdown(f"**{holiday_name}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=50,
+                                key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+            else:
+                # Regular seasons
+                day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
+                available = [d for d in day_types if d in content]
+                for day_type in available:
+                    rooms = content[day_type]
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            step = 50 if "Holiday" in season else 25
+                            new_val = st.number_input(
+                                room, value=int(pts), step=step,
+                                key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
 
-                    for day_type in available_days:
-                        rooms = content[day_type]
-                        st.write(f"**{day_type}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                step = 50 if "Holiday" in season else 25
-                                new_val = st.number_input(
-                                    room, value=int(pts), step=step,
-                                    key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}"
-                                )
-                                if new_val != pts:
-                                    rooms[room] = new_val
-                                    save_data()
-
-    # === UNIVERSAL REFERENCE POINTS ===
+    # === REFERENCE POINTS ===
     st.subheader("Reference Points")
     ref_points = data["reference_points"].setdefault(current_resort, {})
 
-    if not ref_points:
-        st.warning("No reference points defined yet")
-    else:
-        for season, content in ref_points.items():
-            with st.expander(season, expanded=True):
-                day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
-                if day_types:
-                    for day_type in day_types:
-                        rooms = content[day_type]
-                        st.write(f"**{day_type}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                new_val = st.number_input(
-                                    room, value=int(pts), step=25,
-                                    key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}"
-                                )
-                                if new_val != pts:
-                                    rooms[room] = new_val
-                                    save_data()
-                else:
-                    for sub_season, rooms in content.items():
-                        st.markdown(f"**{sub_season}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                new_val = st.number_input(
-                                    room, value=int(pts), step=25,
-                                    key=f"refhol_{current_resort}_{season}_{sub_season}_{room}_{j}"
-                                )
-                                if new_val != pts:
-                                    rooms[room] = new_val
-                                    save_data()
-
-    st.success("KO OLINA FULLY SUPPORTED: FRI-SAT + SUN + MON-THU — ALL RESORTS PERFECT — MALAYSIA 02:15 PM")
+    for season, content in ref_points.items():
+        with st.expander(season, expanded=True):
+            day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
+            if day_types:
+                for day_type in day_types:
+                    rooms = content[day_type]
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=25,
+                                key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+            else:
+                for sub_season, rooms in content.items():
+                    st.markdown(f"**{sub_season}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=25,
+                                key=f"refhol_{current_resort}_{season}_{sub_season}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
 
 # === GLOBALS ===
 st.header("Global Settings")
@@ -270,5 +260,3 @@ with st.expander("Holiday Dates"):
             if ns.isoformat() != s or ne.isoformat() != e:
                 data["global_dates"][year][name] = [ns.isoformat(), ne.isoformat()]
                 save_data()
-
-st.success("Your file is perfect. All changes saved instantly.")
