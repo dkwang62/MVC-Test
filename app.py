@@ -91,7 +91,7 @@ for i, r in enumerate(resorts):
 
 with st.expander("Add New Resort"):
     new = st.text_input("Name")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("Create Blank") and new and new not in resorts:
             data["resorts_list"].append(new)
@@ -102,18 +102,27 @@ with st.expander("Add New Resort"):
             save_data()
             st.rerun()
     with c2:
-        if st.button("Copy Current") and current_resort and new:
-            if new in resorts:
-                st.error("Exists")
-            else:
-                data["resorts_list"].append(new)
-                src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
-                data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
-                data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
-                data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
-                st.session_state.current_resort = new
-                save_data()
-                st.rerun()
+        if st.button("Copy Current") and current_resort and new and new not in resorts:
+            data["resorts_list"].append(new)
+            src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
+            data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
+            data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
+            data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
+            save_data()
+            st.success(f"Copied to {new}")
+    with c3:
+        if st.button("**Clone & Edit**", type="primary") and current_resort and new and new not in resorts:
+            # Full deep copy
+            data["resorts_list"].append(new)
+            src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
+            data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
+            data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
+            data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
+            # Switch to new resort instantly
+            st.session_state.current_resort = new
+            save_data()
+            st.success(f"Cloned & switched to **{new}** – start editing!")
+            st.rerun()
 
 if current_resort:
     st.markdown(f"### **{current_resort}**")
@@ -128,9 +137,8 @@ if current_resort:
                 save_data()
                 st.rerun()
 
-    # === SEASONS – NOW 100% SAFE FOR NEW RESORTS ===
+    # === SEASONS ===
     st.subheader("Season Dates")
-    # Ensure season_blocks exists for this resort
     if current_resort not in data["season_blocks"]:
         data["season_blocks"][current_resort] = {"2025": {}, "2026": {}}
         save_data()
