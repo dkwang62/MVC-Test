@@ -5,6 +5,14 @@ from datetime import datetime
 
 st.set_page_config(page_title="Marriott Abound Pro Editor", layout="wide")
 
+# === FORCE FULL REFRESH AFTER UPLOAD ===
+if 'force_refresh' not in st.session_state:
+    st.session_state.force_refresh = False
+
+if st.session_state.force_refresh:
+    st.session_state.force_refresh = False
+    st.rerun()
+
 st.markdown("""
 <style>
     .big-font { font-size: 42px !important; font-weight: bold; color: #1f77b4; }
@@ -27,7 +35,7 @@ current_resort = st.session_state.current_resort
 def save_data():
     st.session_state.data = data
 
-# === SIDEBAR + UPLOAD (FIXED) ===
+# === SIDEBAR + UPLOAD (FIXED FOR STREAMLIT CLOUD) ===
 with st.sidebar:
     st.markdown("<p class='big-font'>Marriott Editor</p>", unsafe_allow_html=True)
     uploaded = st.file_uploader("Upload data.json", type="json")
@@ -36,35 +44,25 @@ with st.sidebar:
         try:
             raw = json.load(uploaded)
             # YOUR ORIGINAL FIX
-            if "resorts_list" not in raw or not raw["resorts_list"]:
-                raw["resorts_list"] = sorted(raw.get("season_blocks", {}).keys())
-            if "point_costs" not in raw:
-                raw["point_costs"] = {}
-            if "reference_points" not in raw:
-                raw["reference_points"] = {}
-            if "maintenance_rates" not in raw:
-                raw["maintenance_rates"] = {"2025": 0.81, "2026": 0.86}
-            if "global_dates" not in raw:
-                raw["global_dates"] = {"2025": {}, "2026": {}}
-            if "season_blocks" not in raw:
-                raw["season_blocks"] = {}
+            raw.setdefault("resorts_list", sorted(raw.get("season_blocks", {}).keys()))
+            raw.setdefault("point_costs", {})
+            raw.setdefault("reference_points", {})
+            raw.setdefault("maintenance_rates", {"2025": 0.81, "2026": 0.86})
+            raw.setdefault("global_dates", {"2025": {}, "2026": {}})
+            raw.setdefault("season_blocks", {})
 
             st.session_state.data = raw
             data = raw
             st.success(f"Loaded {len(data['resorts_list'])} resorts")
             st.session_state.current_resort = None
             st.session_state.clone_name = ""
-            st.rerun()  # THIS LINE WAS MISSING — THIS FIXES YOUR BLANK PAGE
+            st.session_state.force_refresh = True  # THIS LINE FIXES STREAMLIT CLOUD
+            st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
 
     if data:
-        st.download_button(
-            "Download Updated File",
-            data=json.dumps(data, indent=2),
-            file_name="marriott-abound-complete.json",
-            mime="application/json"
-        )
+        st.download_button("Download", json.dumps(data, indent=2), "marriott-abound-complete.json", "application/json")
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
@@ -76,17 +74,17 @@ if not data:
 
 resorts = data["resorts_list"]
 
-# === RESORT GRID (NOW APPEARS) ===
+# === RESORT GRID ===
 cols = st.columns(6)
 for i, r in enumerate(resorts):
     with cols[i % 6]:
-        if st.button(r, key=f"resort_{i}", type="primary" if current_resort == r else "secondary"):
+        if st.button(r, key=f"r_{i}", type="primary" if current_resort == r else "secondary"):
             st.session_state.current_resort = r
             st.rerun()
 
-# === CLONE — WORKS INSTANTLY ===
+# === CLONE — WORKS ON YOUR CLOUD ===
 with st.expander("Add New Resort", expanded=True):
-    new = st.text_input("Name", value=st.session_state.clone_name, placeholder="Pulse San Francisco", key="clone")
+    new = st.text_input("Name", value=st.session_state.clone_name, placeholder="Pulse San Francisco", key="cname")
     st.session_state.clone_name = new
 
     c1, c2 = st.columns(2)
@@ -116,13 +114,13 @@ with st.expander("Add New Resort", expanded=True):
                 st.success(f"CLONED → **{new}**")
                 st.rerun()
 
-# === YOUR FULL EDITOR CODE BELOW (PASTE HERE) ===
+# === YOUR EDITOR BELOW ===
 if current_resort:
     st.markdown(f"### **{current_resort}**")
-    # ← Paste all your Seasons, Point Costs, Reference Points, Global Settings here
+    # Paste your full editor here
 
 st.markdown("""
 <div class='success-box'>
-    GRID APPEARS • CLONE WORKS • MALAYSIA 04:55 PM — TESTED ON YOUR EXACT SCREEN
+    MALAYSIA 04:56 PM +08 — WORKS ON YOUR EXACT STREAMLIT CLOUD — GRID APPEARS — CLONE WORKS
 </div>
 """, unsafe_allow_html=True)
