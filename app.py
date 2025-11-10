@@ -38,7 +38,7 @@ def safe_date(date_str, fallback="2025-01-01"):
 # === AUTO-FIX + LOAD ===
 def fix_json(raw_data):
     if "resorts_list" not in raw_data:
-        raw_data["resorts_list"] = sorted(raw_data["season_blocks"].keys())
+        raw_data["resorts_list"] = sorted(raw_data.get("season_blocks", {}).keys())
     if "point_costs" not in raw_data:
         raw_data["point_costs"] = {}
     if "maintenance_rates" not in raw_data:
@@ -47,6 +47,8 @@ def fix_json(raw_data):
         raw_data["global_dates"] = {"2025": {}, "2026": {}}
     if "reference_points" not in raw_data:
         raw_data["reference_points"] = {}
+    if "season_blocks" not in raw_data:
+        raw_data["season_blocks"] = {}
     return raw_data
 
 # === SIDEBAR ===
@@ -105,8 +107,9 @@ with st.expander("Add New Resort"):
                 st.error("Exists")
             else:
                 data["resorts_list"].append(new)
-                data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"][current_resort]))
-                data["point_costs"][new] = json.loads(json.dumps(data["point_costs"][current_resort]))
+                src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
+                data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
+                data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
                 data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
                 st.session_state.current_resort = new
                 save_data()
@@ -125,8 +128,13 @@ if current_resort:
                 save_data()
                 st.rerun()
 
-    # === SEASONS ===
+    # === SEASONS – NOW 100% SAFE FOR NEW RESORTS ===
     st.subheader("Season Dates")
+    # Ensure season_blocks exists for this resort
+    if current_resort not in data["season_blocks"]:
+        data["season_blocks"][current_resort] = {"2025": {}, "2026": {}}
+        save_data()
+
     for year in ["2025", "2026"]:
         with st.expander(f"{year} Seasons", expanded=True):
             year_data = data["season_blocks"][current_resort].setdefault(year, {})
@@ -164,13 +172,12 @@ if current_resort:
                     save_data()
                     st.rerun()
 
-    # === UNIVERSAL POINT COSTS – KO OLINA + ALL RESORTS ===
+    # === POINT COSTS ===
     st.subheader("Point Costs")
-    point_data = data["point_costs"].get(current_resort, {})
+    point_data = data["point_costs"].setdefault(current_resort, {})
 
     for season, content in point_data.items():
         with st.expander(season, expanded=True):
-            # Holiday Weeks
             if any(isinstance(v, dict) and any("AP_" in k for k in v.keys()) for v in content.values()):
                 for holiday_name, rooms in content.items():
                     st.markdown(f"**{holiday_name}**")
@@ -185,7 +192,6 @@ if current_resort:
                                 rooms[room] = new_val
                                 save_data()
             else:
-                # Regular seasons
                 day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
                 available = [d for d in day_types if d in content]
                 for day_type in available:
@@ -241,7 +247,9 @@ if current_resort:
 # === GLOBALS ===
 st.header("Global Settings")
 with st.expander("Maintenance Fees"):
-    for i, (year, rate) in enumerate(data.get("maintenance_rates", {}).items()):
+    rates = data.get("maintenance_rates", {})
+    for i, year in enumerate(sorted(rates.keys())):
+        rate = rates[year]
         new = st.number_input(year, value=float(rate), step=0.01, format="%.4f", key=f"mf_{i}")
         if new != rate:
             data["maintenance_rates"][year] = new
@@ -250,8 +258,9 @@ with st.expander("Maintenance Fees"):
 with st.expander("Holiday Dates"):
     for year in ["2025", "2026"]:
         st.write(f"**{year}**")
-        holidays = data["global_dates"].get(year, {})
-        for i, (name, (s, e)) in enumerate(holidays.items()):
+        holidays = data["global_dates"].setdefault(year, {})
+        for i, name in enumerate(list(holidays.keys())):
+            s, e = holidays[name]
             c1, c2 = st.columns(2)
             with c1:
                 ns = st.date_input(f"{name} Start", safe_date(s), key=f"hs_{year}_{i}")
