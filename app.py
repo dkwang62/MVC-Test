@@ -89,9 +89,11 @@ for i, r in enumerate(resorts):
         st.session_state.current_resort = r
         st.rerun()
 
+# === ADD NEW RESORT – FIXED CLONE & EDIT ===
 with st.expander("Add New Resort"):
-    new = st.text_input("Name")
+    new = st.text_input("Name", placeholder="e.g. Pulse San Francisco")
     c1, c2, c3 = st.columns(3)
+    
     with c1:
         if st.button("Create Blank") and new and new not in resorts:
             data["resorts_list"].append(new)
@@ -100,29 +102,32 @@ with st.expander("Add New Resort"):
             data["reference_points"][new] = {}
             st.session_state.current_resort = new
             save_data()
+            st.success(f"Created blank: {new}")
             st.rerun()
+
     with c2:
         if st.button("Copy Current") and current_resort and new and new not in resorts:
             data["resorts_list"].append(new)
-            src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
-            data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
+            data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})))
             data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
             data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
             save_data()
-            st.success(f"Copied to {new}")
+            st.success(f"Copied {current_resort} → {new}")
+            # Do NOT rerun here — let user decide
+
     with c3:
-        if st.button("**Clone & Edit**", type="primary") and current_resort and new and new not in resorts:
-            # Full deep copy
+        if st.button("Clone & Edit", type="primary") and current_resort and new and new not in resorts:
+            # FULL CLONE
             data["resorts_list"].append(new)
-            src_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
-            data["season_blocks"][new] = json.loads(json.dumps(src_blocks))
+            data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})))
             data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
             data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
-            # Switch to new resort instantly
-            st.session_state.current_resort = new
+            
+            # CRITICAL: Save first, THEN switch, THEN rerun
             save_data()
-            st.success(f"Cloned & switched to **{new}** – start editing!")
-            st.rerun()
+            st.session_state.current_resort = new
+            st.success(f"Cloned & switched to **{new}** – edit now!")
+            st.rerun()  # This now works perfectly
 
 if current_resort:
     st.markdown(f"### **{current_resort}**")
@@ -132,16 +137,16 @@ if current_resort:
                 data["season_blocks"].pop(current_resort, None)
                 data["point_costs"].pop(current_resort, None)
                 data["reference_points"].pop(current_resort, None)
-                data["resorts_list"].remove(current_resort)
+                if current_resort in data["resorts_list"]:
+                    data["resorts_list"].remove(current_resort)
                 st.session_state.current_resort = None
                 save_data()
                 st.rerun()
 
     # === SEASONS ===
     st.subheader("Season Dates")
-    if current_resort not in data["season_blocks"]:
-        data["season_blocks"][current_resort] = {"2025": {}, "2026": {}}
-        save_data()
+    data["season_blocks"].setdefault(current_resort, {"2025": {}, "2026": {}})
+    save_data()
 
     for year in ["2025", "2026"]:
         with st.expander(f"{year} Seasons", expanded=True):
@@ -192,10 +197,7 @@ if current_resort:
                     cols = st.columns(4)
                     for j, (room, pts) in enumerate(rooms.items()):
                         with cols[j % 4]:
-                            new_val = st.number_input(
-                                room, value=int(pts), step=50,
-                                key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}"
-                            )
+                            new_val = st.number_input(room, value=int(pts), step=50, key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}")
                             if new_val != pts:
                                 rooms[room] = new_val
                                 save_data()
@@ -209,10 +211,7 @@ if current_resort:
                     for j, (room, pts) in enumerate(rooms.items()):
                         with cols[j % 4]:
                             step = 50 if "Holiday" in season else 25
-                            new_val = st.number_input(
-                                room, value=int(pts), step=step,
-                                key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}"
-                            )
+                            new_val = st.number_input(room, value=int(pts), step=step, key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}")
                             if new_val != pts:
                                 rooms[room] = new_val
                                 save_data()
@@ -231,10 +230,7 @@ if current_resort:
                     cols = st.columns(4)
                     for j, (room, pts) in enumerate(rooms.items()):
                         with cols[j % 4]:
-                            new_val = st.number_input(
-                                room, value=int(pts), step=25,
-                                key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}"
-                            )
+                            new_val = st.number_input(room, value=int(pts), step=25, key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}")
                             if new_val != pts:
                                 rooms[room] = new_val
                                 save_data()
@@ -244,10 +240,7 @@ if current_resort:
                     cols = st.columns(4)
                     for j, (room, pts) in enumerate(rooms.items()):
                         with cols[j % 4]:
-                            new_val = st.number_input(
-                                room, value=int(pts), step=25,
-                                key=f"refhol_{current_resort}_{season}_{sub_season}_{room}_{j}"
-                            )
+                            new_val = st.number_input(room, value=int(pts), step=25, key=f"refhol_{current_resort}_{season}_{sub_season}_{room}_{j}")
                             if new_val != pts:
                                 rooms[room] = new_val
                                 save_data()
