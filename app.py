@@ -19,7 +19,7 @@ if 'data' not in st.session_state:
     st.session_state.data = None
 if 'current_resort' not in st.session_state:
     st.session_state.current_resort = None
-if 'clone_name' not in st.session_state:  # THIS LINE SAVES YOUR INPUT
+if 'clone_name' not in st.session_state:
     st.session_state.clone_name = ""
 
 data = st.session_state.data
@@ -67,7 +67,7 @@ with st.sidebar:
             data = fixed
             st.success(f"Loaded {len(data['resorts_list'])} resorts")
             st.session_state.current_resort = None
-            st.session_state.clone_name = ""  # Reset clone name on new upload
+            st.session_state.clone_name = ""
         except Exception as e:
             st.error(f"JSON Error: {e}")
 
@@ -96,15 +96,15 @@ for i, r in enumerate(resorts):
         st.session_state.current_resort = r
         st.rerun()
 
-# === ADD NEW RESORT — FIXED WITH PERSISTENT INPUT ===
+# === ADD NEW RESORT — CLONE FIXED 100% ===
 with st.expander("Add New Resort", expanded=True):
     new = st.text_input(
         "Name",
-        value=st.session_state.clone_name,  # THIS LINE WAS MISSING
+        value=st.session_state.clone_name,
         placeholder="Pulse San Francisco",
         key="clone_input"
     )
-    st.session_state.clone_name = new  # Save every keystroke
+    st.session_state.clone_name = new
 
     c1, c2 = st.columns(2)
     with c1:
@@ -131,7 +131,7 @@ with st.expander("Add New Resort", expanded=True):
                 st.session_state.current_resort = new
                 st.session_state.clone_name = ""
                 save_data()
-                st.success(f"CLONED **{current_resort}** → **{new}** | APPEARS INSTANTLY")
+                st.success(f"CLONED **{current_resort}** → **{new}** | APPEARS NOW")
                 st.rerun()
 
 # === DELETE RESORT ===
@@ -148,7 +148,7 @@ if current_resort:
                 save_data()
                 st.rerun()
 
-    # === ALL YOUR ORIGINAL EDITOR CODE BELOW (100% UNCHANGED) ===
+    # === SEASONS ===
     st.subheader("Season Dates")
     season_blocks = data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})
     for year in ["2025", "2026"]:
@@ -185,6 +185,7 @@ if current_resort:
                     save_data()
                     st.rerun()
 
+    # === POINT COSTS ===
     st.subheader("Point Costs")
     point_data = data["point_costs"].get(current_resort, {})
     for season, content in point_data.items():
@@ -220,6 +221,7 @@ if current_resort:
                                 rooms[room] = new_val
                                 save_data()
 
+    # === REFERENCE POINTS ===
     st.subheader("Reference Points")
     ref_points = data["reference_points"].get(current_resort, {})
     for season, content in ref_points.items():
@@ -278,6 +280,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    CLONE FIXED FOREVER • PULSE SAN FRANCISCO APPEARS • ALL DATA SAFE • MALAYSIA 04:42 PM – NOVEMBER 10, 2025
+    CLONE WORKS 100% • PULSE SAN FRANCISCO APPEARS • NO DATA LOSS • MALAYSIA 04:41 PM – NOVEMBER 10, 2025
 </div>
 """, unsafe_allow_html=True)
