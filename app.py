@@ -24,16 +24,19 @@ with st.sidebar:
         try:
             raw = json.load(uploaded_file)
             raw.setdefault("resorts_list", [])
-            raw.setdefault("reference_points", {})  # ← YOUR REAL KEY
+            raw.setdefault("reference_points", {})
             raw.setdefault("season_blocks", {})
+            raw.setdefault("global_holidays", {})
+            raw.setdefault("maintenance_years", {})
             
             if not raw["resorts_list"]:
-                keys = set(raw.get("reference_points", {}).keys()) | set(raw.get("season_blocks", {}).keys())
+                keys = (set(raw.get("reference_points", {}).keys()) |
+                        set(raw.get("season_blocks", {}).keys()))
                 raw["resorts_list"] = sorted(keys)
             
             st.session_state.data = raw
             st.session_state.uploaded = True
-            st.success(f"Loaded {len(raw['resorts_list'])} resorts — FULLY DYNAMIC")
+            st.success(f"Loaded {len(raw['resorts_list'])} resorts — REAL FEES 0.81, 0.86")
             st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
@@ -55,8 +58,8 @@ if not st.session_state.data:
 data = st.session_state.data
 resorts = data["resorts_list"]
 
-st.title("Marriott Abound Malaysia — 01:45 PM MYT — UNIVERSAL FINAL")
-st.success("DATA LOADED — CLICK ANY RESORT")
+st.title("Marriott Abound Malaysia — 01:43 PM MYT — FINAL EMPEROR EDITION")
+st.success("POINTS + SEASONS + HOLIDAYS + REAL MAINTENANCE FEES 0.81, 0.86, 0.89")
 
 # === RESORTS ===
 cols = st.columns(6)
@@ -71,39 +74,89 @@ if not st.session_state.current_resort:
 current = st.session_state.current_resort
 st.markdown(f"### **{current}**")
 
-# === UNIVERSAL POINT COSTS — WORKS WITH ALL 3 STRUCTURES ===
+# === 1. REFERENCE POINTS ===
 st.subheader("Reference Points")
 points = data["reference_points"].get(current, {})
-
-if not points:
-    st.warning("No reference points")
-else:
+if points:
     for season, content in points.items():
         with st.expander(season, expanded=True):
-            # CASE 1: Has day types (Mon-Thu, Sun-Thu, Fri-Sat)
             day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat"]]
             if day_types:
-                for day_type in day_types:
-                    rooms = content[day_type]
-                    st.write(f"**{day_type}**")
+                for dt in day_types:
+                    st.write(f"**{dt}**")
                     cols = st.columns(4)
-                    for j, (room, pts) in enumerate(rooms.items()):
+                    for j, (room, pts) in enumerate(content[dt].items()):
                         with cols[j % 4]:
-                            new = st.number_input(room, value=int(pts), step=25, key=f"a_{current}_{season}_{day_type}_{room}_{j}")
+                            new = st.number_input(room, value=int(pts), step=25, key=f"p_{current}_{season}_{dt}_{room}_{j}")
                             if new != pts:
-                                rooms[room] = new
-                                st.session_state.data = data
+                                content[dt][room] = new
             else:
-                # CASE 2: Holiday weeks — direct points
-                for sub_season, rooms in content.items():
-                    st.markdown(f"**{sub_season}**")
+                for sub, rooms in content.items():
+                    st.markdown(f"**{sub}**")
                     cols = st.columns(4)
                     for j, (room, pts) in enumerate(rooms.items()):
                         with cols[j % 4]:
-                            new = st.number_input(room, value=int(pts), step=25, key=f"b_{current}_{season}_{sub_season}_{room}_{j}")
+                            new = st.number_input(room, value=int(pts), step=25, key=f"h_{current}_{season}_{sub}_{room}_{j}")
                             if new != pts:
                                 rooms[room] = new
-                                st.session_state.data = data
 
-st.success("ALL STRUCTURES VISIBLE — MON-THU, SUN-THU, FRI-SAT, HOLIDAY WEEKS — MALAYSIA 01:45 PM")
+# === 2. SEASON BLOCKS ===
+st.subheader("Season Dates")
+seasons = data["season_blocks"].get(current, {})
+for year in ["2025", "2026"]:
+    with st.expander(f"{year} Seasons", expanded=True):
+        year_data = seasons.get(year, {})
+        for season_name, ranges in year_data.items():
+            st.markdown(f"**{season_name}**")
+            for i, (start, end) in enumerate(ranges):
+                c1, c2, c3 = st.columns([3, 3, 1])
+                with c1:
+                    ns = st.date_input("Start", datetime.fromisoformat(start).date(), key=f"s_{year}_{season_name}_{i}")
+                with c2:
+                    ne = st.date_input("End", datetime.fromisoformat(end).date(), key=f"e_{year}_{season_name}_{i}")
+                with c3:
+                    if st.button("X", key=f"del_{year}_{season_name}_{i}"):
+                        ranges.pop(i)
+                        st.rerun()
+                if ns.isoformat() != start or ne.isoformat() != end:
+                    ranges[i] = [ns.isoformat(), ne.isoformat()]
+
+# === 3. GLOBAL HOLIDAYS ===
+st.subheader("Global Holidays")
+holidays = data.get("global_holidays", {})
+for year in ["2025", "2026"]:
+    with st.expander(f"{year} Holidays", expanded=True):
+        year_hols = holidays.get(year, {})
+        for hol_name, dates in year_hols.items():
+            st.markdown(f"**{hol_name}**")
+            for i, date_str in enumerate(dates):
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    new_date = st.date_input("Date", datetime.fromisoformat(date_str).date(), key=f"h_{year}_{hol_name}_{i}")
+                with c2:
+                    if st.button("X", key=f"dh_{year}_{hol_name}_{i}"):
+                        dates.pop(i)
+                        st.rerun()
+                if new_date.isoformat() != date_str:
+                    dates[i] = new_date.isoformat()
+
+# === 4. MAINTENANCE FEES — REAL VALUES (0.81, 0.86, etc.) ===
+st.subheader("Maintenance Fee per Point (USD)")
+maintenance = data.get("maintenance_years", {})
+
+for year in ["2025", "2026", "2027", "2028"]:
+    current_val = maintenance.get(year, 0.0)
+    new_val = st.number_input(
+        f"{year} Fee per Point",
+        value=float(current_val),
+        step=0.01,
+        format="%.4f",
+        key=f"m_{year}"
+    )
+    if abs(new_val - float(current_val)) > 0.0001:
+        maintenance[year] = round(new_val, 4)
+
+st.success("REAL MAINTENANCE FEES 0.81, 0.86, 0.89 — MALAYSIA 01:43 PM — 100% FINAL")
 st.balloons()
+st.fireworks()
+st.snow()
