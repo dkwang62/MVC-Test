@@ -17,6 +17,8 @@ if 'data' not in st.session_state:
     st.session_state.data = None
 if 'current_resort' not in st.session_state:
     st.session_state.current_resort = None
+if 'show_clone_modal' not in st.session_state:
+    st.session_state.show_clone_modal = False
 
 data = st.session_state.data
 current_resort = st.session_state.current_resort
@@ -89,45 +91,61 @@ for i, r in enumerate(resorts):
         st.session_state.current_resort = r
         st.rerun()
 
-# === ADD NEW RESORT – FIXED CLONE & EDIT ===
-with st.expander("Add New Resort"):
-    new = st.text_input("Name", placeholder="e.g. Pulse San Francisco")
-    c1, c2, c3 = st.columns(3)
-    
-    with c1:
-        if st.button("Create Blank") and new and new not in resorts:
-            data["resorts_list"].append(new)
-            data["season_blocks"][new] = {"2025": {}, "2026": {}}
-            data["point_costs"][new] = {}
-            data["reference_points"][new] = {}
-            st.session_state.current_resort = new
-            save_data()
-            st.success(f"Created blank: {new}")
+# === CLONE & EDIT MODAL ===
+def show_clone_modal():
+    st.session_state.show_clone_modal = True
+
+def hide_clone_modal():
+    st.session_state.show_clone_modal = False
+
+if st.button("Clone & Edit", type="primary"):
+    show_clone_modal()
+
+if st.session_state.show_clone_modal:
+    with st.form("clone_form"):
+        st.markdown("### Clone Resort")
+        source = st.selectbox("Select resort to clone", options=resorts)
+        new_name = st.text_input("New resort name", placeholder="e.g. Pulse San Francisco")
+        col1, col2 = st.columns(2)
+        with col1:
+            proceed = st.form_submit_button("Proceed", type="primary")
+        with col2:
+            cancel = st.form_submit_button("Cancel")
+
+        if cancel:
+            hide_clone_modal()
             st.rerun()
 
-    with c2:
-        if st.button("Copy Current") and current_resort and new and new not in resorts:
-            data["resorts_list"].append(new)
-            data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})))
-            data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
-            data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
-            save_data()
-            st.success(f"Copied {current_resort} → {new}")
-            # Do NOT rerun here — let user decide
+        if proceed:
+            if not new_name.strip():
+                st.error("Please enter a new resort name")
+            elif new_name in resorts:
+                st.error("Resort already exists")
+            else:
+                # FULL DEEP CLONE
+                data["resorts_list"].append(new_name)
+                data["season_blocks"][new_name] = json.loads(json.dumps(data["season_blocks"].get(source, {"2025": {}, "2026": {}})))
+                data["point_costs"][new_name] = json.loads(json.dumps(data["point_costs"].get(source, {})))
+                data["reference_points"][new_name] = json.loads(json.dumps(data["reference_points"].get(source, {})))
+                
+                save_data()
+                st.session_state.current_resort = new_name
+                hide_clone_modal()
+                st.success(f"Cloned '{source}' → **{new_name}** – now editing!")
+                st.rerun()
 
-    with c3:
-        if st.button("Clone & Edit", type="primary") and current_resort and new and new not in resorts:
-            # FULL CLONE
-            data["resorts_list"].append(new)
-            data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}})))
-            data["point_costs"][new] = json.loads(json.dumps(data["point_costs"].get(current_resort, {})))
-            data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
-            
-            # CRITICAL: Save first, THEN switch, THEN rerun
-            save_data()
-            st.session_state.current_resort = new
-            st.success(f"Cloned & switched to **{new}** – edit now!")
-            st.rerun()  # This now works perfectly
+# === CREATE BLANK RESORT ===
+with st.expander("Add New Resort"):
+    new_blank = st.text_input("Create blank resort", key="blank_name")
+    if st.button("Create Blank") and new_blank and new_blank not in resorts:
+        data["resorts_list"].append(new_blank)
+        data["season_blocks"][new_blank] = {"2025": {}, "2026": {}}
+        data["point_costs"][new_blank] = {}
+        data["reference_points"][new_blank] = {}
+        st.session_state.current_resort = new_blank
+        save_data()
+        st.success(f"Created blank: {new_blank}")
+        st.rerun()
 
 if current_resort:
     st.markdown(f"### **{current_resort}**")
