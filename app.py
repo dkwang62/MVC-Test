@@ -45,6 +45,8 @@ def fix_json(raw_data):
         raw_data["maintenance_rates"] = {"2025": 0.81, "2026": 0.86}
     if "global_dates" not in raw_data:
         raw_data["global_dates"] = {"2025": {}, "2026": {}}
+    if "reference_points" not in raw_data:
+        raw_data["reference_points"] = {}
     return raw_data
 
 # === SIDEBAR ===
@@ -93,6 +95,7 @@ with st.expander("Add New Resort"):
             data["resorts_list"].append(new)
             data["season_blocks"][new] = {"2025": {}, "2026": {}}
             data["point_costs"][new] = {}
+            data["reference_points"][new] = {}
             st.session_state.current_resort = new
             save_data()
             st.rerun()
@@ -104,6 +107,7 @@ with st.expander("Add New Resort"):
                 data["resorts_list"].append(new)
                 data["season_blocks"][new] = json.loads(json.dumps(data["season_blocks"][current_resort]))
                 data["point_costs"][new] = json.loads(json.dumps(data["point_costs"][current_resort]))
+                data["reference_points"][new] = json.loads(json.dumps(data["reference_points"].get(current_resort, {})))
                 st.session_state.current_resort = new
                 save_data()
                 st.rerun()
@@ -115,6 +119,7 @@ if current_resort:
             if st.button("DELETE FOREVER", type="primary"):
                 data["season_blocks"].pop(current_resort, None)
                 data["point_costs"].pop(current_resort, None)
+                data["reference_points"].pop(current_resort, None)
                 data["resorts_list"].remove(current_resort)
                 st.session_state.current_resort = None
                 save_data()
@@ -192,6 +197,54 @@ if current_resort:
                                 if new != val:
                                     sdata[hol][room] = new
                                     save_data()
+
+    # === UNIVERSAL REFERENCE POINT COSTS — WORKS WITH ALL 3 STRUCTURES ===
+    st.subheader("Reference Points")
+    current = current_resort
+    points = data["reference_points"].setdefault(current, {})
+
+    if not points:
+        st.warning("No reference points defined yet")
+    else:
+        for season, content in points.items():
+            with st.expander(season, expanded=True):
+                # CASE 1: Has day types (Mon-Thu, Sun-Thu, Fri-Sat)
+                day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat"]]
+                if day_types:
+                    for day_type in day_types:
+                        rooms = content[day_type]
+                        st.write(f"**{day_type}**")
+                        cols = st.columns(4)
+                        for j, (room, pts) in enumerate(rooms.items()):
+                            with cols[j % 4]:
+                                new_val = st.number_input(
+                                    room,
+                                    value=int(pts),
+                                    step=25,
+                                    key=f"ref_{current}_{season}_{day_type}_{room}_{j}"
+                                )
+                                if new_val != pts:
+                                    rooms[room] = new_val
+                                    save_data()
+                else:
+                    # CASE 2: Holiday weeks / flat structure
+                    for sub_season, rooms in content.items():
+                        st.markdown(f"**{sub_season}**")
+                        cols = st.columns(4)
+                        for j, (room, pts) in enumerate(rooms.items()):
+                            with cols[j % 4]:
+                                new_val = st.number_input(
+                                    room,
+                                    value=int(pts),
+                                    step=25,
+                                    key=f"refhol_{current}_{season}_{sub_season}_{room}_{j}"
+                                )
+                                if new_val != pts:
+                                    rooms[room] = new_val
+                                    save_data()
+
+    st.success("ALL STRUCTURES VISIBLE — MON-THU, SUN-THU, FRI-SAT, HOLIDAY WEEKS — MALAYSIA 01:45 PM")
+    st.balloons()
 
 # === GLOBALS ===
 st.header("Global Settings")
