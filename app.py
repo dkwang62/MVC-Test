@@ -167,38 +167,35 @@ if current_resort:
     # === POINT COSTS ===
     st.subheader("Point Costs")
     point_data = data["point_costs"].get(current_resort, {})
-    if not point_data:
-        st.info("No point costs yet — add seasons first")
-    else:
-        for season in point_data:
-            with st.expander(season, expanded=True):
-                sdata = point_data[season]
-                if isinstance(sdata, dict) and ("Fri-Sat" in sdata or "Sun-Thu" in sdata):
-                    for day_type in ["Fri-Sat", "Sun-Thu"]:
-                        if day_type not in sdata: continue
-                        st.write(f"**{day_type}**")
-                        cols = st.columns(4)
-                        for j, room in enumerate(sdata[day_type]):
-                            with cols[j % 4]:
-                                val = sdata[day_type][room]
-                                new = st.number_input(room, value=int(val), step=25, key=f"p_{season}_{day_type}_{j}")
-                                if new != val:
-                                    sdata[day_type][room] = new
-                                    save_data()
-                else:
-                    st.write("**Holiday Weeks**")
-                    for hol in sdata:
-                        st.markdown(f"**{hol}**")
-                        cols = st.columns(4)
-                        for j, room in enumerate(sdata[hol]):
-                            with cols[j % 4]:
-                                val = sdata[hol][room]
-                                new = st.number_input(room, value=int(val), step=50, key=f"h_{season}_{hol}_{j}")
-                                if new != val:
-                                    sdata[hol][room] = new
-                                    save_data()
+    for season in point_data:
+        with st.expander(season, expanded=True):
+            sdata = point_data[season]
+            if isinstance(sdata, dict) and ("Fri-Sat" in sdata or "Sun-Thu" in sdata):
+                for day_type in ["Fri-Sat", "Sun-Thu"]:
+                    if day_type not in sdata: continue
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, room in enumerate(sdata[day_type]):
+                        with cols[j % 4]:
+                            val = sdata[day_type][room]
+                            new = st.number_input(room, value=int(val), step=25, key=f"p_{season}_{day_type}_{j}")
+                            if new != val:
+                                sdata[day_type][room] = new
+                                save_data()
+            else:
+                st.write("**Holiday Weeks**")
+                for hol in sdata:
+                    st.markdown(f"**{hol}**")
+                    cols = st.columns(4)
+                    for j, room in enumerate(sdata[hol]):
+                        with cols[j % 4]:
+                            val = sdata[hol][room]
+                            new = st.number_input(room, value=int(val), step=50, key=f"h_{season}_{hol}_{j}")
+                            if new != val:
+                                sdata[hol][room] = new
+                                save_data()
 
-    # === UNIVERSAL REFERENCE POINT COSTS — WORKS WITH ALL 3 STRUCTURES ===
+    # === UNIVERSAL REFERENCE POINT COSTS ===
     st.subheader("Reference Points")
     current = current_resort
     points = data["reference_points"].setdefault(current, {})
@@ -208,7 +205,6 @@ if current_resort:
     else:
         for season, content in points.items():
             with st.expander(season, expanded=True):
-                # CASE 1: Has day types (Mon-Thu, Sun-Thu, Fri-Sat)
                 day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat"]]
                 if day_types:
                     for day_type in day_types:
@@ -227,7 +223,6 @@ if current_resort:
                                     rooms[room] = new_val
                                     save_data()
                 else:
-                    # CASE 2: Holiday weeks / flat structure
                     for sub_season, rooms in content.items():
                         st.markdown(f"**{sub_season}**")
                         cols = st.columns(4)
@@ -244,7 +239,6 @@ if current_resort:
                                     save_data()
 
     st.success("ALL STRUCTURES VISIBLE — MON-THU, SUN-THU, FRI-SAT, HOLIDAY WEEKS — MALAYSIA 01:45 PM")
-    st.balloons()
 
 # === GLOBALS ===
 st.header("Global Settings")
