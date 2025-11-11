@@ -75,7 +75,7 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Global Dates: 2025 & 2026 | Resort Points: Same for Both Years")
+st.caption("Holidays: One Point Value for the Entire Week")
 
 if not data: st.info("Upload your data.json to start"); st.stop()
 
@@ -142,33 +142,20 @@ if current_resort:
 
     if st.session_state.delete_confirm: st.stop()
 
-    # === RESORT-SPECIFIC HOLIDAY SELECTOR (CROSS-YEAR SYNC) ===
-    st.subheader("Select Holidays for This Resort (Same Points in 2025 & 2026)")
+    # === RESORT-SPECIFIC HOLIDAY SELECTOR ===
+    st.subheader("Select Holidays (One Point Value for Entire Week)")
     global_holidays = data.get("global_dates", {})
-    
-    # Unique holiday names across both years
-    holiday_names = set()
-    for year in ["2025", "2026"]:
-        for name in global_holidays.get(year, {}):
-            holiday_names.add(name)
-    holiday_names = sorted(holiday_names)
+    holiday_names = sorted({name for year in ["2025", "2026"] for name in global_holidays.get(year, {})})
 
-    # Current selected (check point_costs)
-    current_selected = set()
-    point_costs = data["point_costs"].get(current_resort, {})
-    for name in holiday_names:
-        if name in point_costs:
-            current_selected.add(name)
+    current_selected = {name for name in holiday_names if name in data["point_costs"].get(current_resort, {})}
 
-    # Multiselect: one checkbox per holiday
     selected_holidays = st.multiselect(
-        "Choose which holidays apply (same points in both years)",
+        "Choose holidays (same points in 2025 & 2026)",
         options=holiday_names,
         default=list(current_selected),
         key=f"holiday_select_{current_resort}"
     )
 
-    # Sync: add/remove from point_costs & reference_points
     if set(selected_holidays) != current_selected:
         selected_set = set(selected_holidays)
         current_set = current_selected
@@ -180,24 +167,24 @@ if current_resort:
 
         # Add new
         for name in selected_set - current_set:
+            # point_costs: flat dict (room → points)
             data["point_costs"][current_resort][name] = {}
-            data["reference_points"][current_resort][name] = {
-                "Mon-Thu": {}, "Fri-Sat": {}, "Sun": {}, "Sun-Thu": {}
-            }
+            # reference_points: same flat structure
+            data["reference_points"][current_resort][name] = {}
+
             all_rooms = set()
             for section in [data["point_costs"].get(current_resort, {}), data["reference_points"].get(current_resort, {})]:
                 for season_data in section.values():
-                    for day_data in season_data.values():
-                        if isinstance(day_data, dict):
-                            all_rooms.update(day_data.keys())
+                    if isinstance(season_data, dict):
+                        all_rooms.update(season_data.keys())
+
             default_point = 1000
             for room in all_rooms:
                 data["point_costs"][current_resort][name][room] = default_point
-                for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
-                    data["reference_points"][current_resort][name][day_type][room] = default_point
+                data["reference_points"][current_resort][name][room] = default_point
 
         save_data()
-        st.success("Holiday selection updated for 2025 & 2026!")
+        st.success("Holiday selection updated!")
         st.rerun()
 
     # === POINT COSTS ===
@@ -207,14 +194,24 @@ if current_resort:
         with st.expander(season, expanded=True):
             is_holiday = season in selected_holidays
             if is_holiday:
+                # Holiday: ONE point value per room
+                st.markdown("**Entire Week (7 Nights)**")
                 cols = st.columns(4)
                 for j, (room, pts) in enumerate(content.items()):
                     with cols[j % 4]:
-                        new_val = st.number_input(room, value=int(pts), step=50, key=f"hol_{current_resort}_{season}_{room}_{j}")
+                        new_val = st.number_input(
+                            room,
+                            value=int(pts),
+                            step=50,
+                            key=f"hol_flat_{current_resort}_{season}_{room}_{j}"
+                        )
                         if new_val != pts:
                             content[room] = new_val
+                            # Sync to reference_points
+                            data["reference_points"][current_resort][season][room] = new_val
                             save_data()
             else:
+                # Regular season
                 day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
                 available = [d for d in day_types if d in content]
                 for day_type in available:
@@ -229,25 +226,28 @@ if current_resort:
                                 rooms[room] = new_val
                                 save_data()
 
-    # === REFERENCE POINTS ===
+    # === REFERENCE POINTS (HOLIDAYS: FLAT) ===
     st.subheader("Reference Points")
     ref_points = data["reference_points"].setdefault(current_resort, {})
     for season, content in ref_points.items():
         with st.expander(season, expanded=True):
             is_holiday = season in selected_holidays
             if is_holiday:
-                day_types = ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]
-                for day_type in day_types:
-                    if day_type in content:
-                        rooms = content[day_type]
-                        st.write(f"**{day_type}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                new_val = st.number_input(room, value=int(pts), step=25, key=f"ref_hol_{current_resort}_{season}_{day_type}_{room}_{j}")
-                                if new_val != pts:
-                                    rooms[room] = new_val
-                                    save_data()
+                st.markdown("**Entire Week (7 Nights)**")
+                cols = st.columns(4)
+                for j, (room, pts) in enumerate(content.items()):
+                    with cols[j % 4]:
+                        new_val = st.number_input(
+                            room,
+                            value=int(pts),
+                            step=25,
+                            key=f"ref_hol_flat_{current_resort}_{season}_{room}_{j}"
+                        )
+                        if new_val != pts:
+                            content[room] = new_val
+                            # Sync to point_costs
+                            data["point_costs"][current_resort][season][room] = new_val
+                            save_data()
             else:
                 day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
                 if day_types:
@@ -287,6 +287,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 1:08 PM +08 • FINAL CODE • GLOBAL: 2025 & 2026 DATES • RESORT: SAME POINTS BOTH YEARS
+    SINGAPORE 1:16 PM +08 • HOLIDAYS: ONE POINT VALUE FOR 7 NIGHTS • CLEAN & FINAL
 </div>
 """, unsafe_allow_html=True)
