@@ -68,14 +68,14 @@ def fix_json(raw):
     raw.setdefault("maintenance_rates", {"2025": 0.81, "2026": 0.86})
     raw.setdefault("global_dates", {"2025": {}, "2026": {}})
     raw.setdefault("holiday_weeks", {})
-    raw.setdefault("room_type_orders", {}) # CHANGED: Room order is now per resort
+    raw.setdefault("room_type_orders", {}) 
     
     for r in raw["resorts_list"]:
         raw["season_blocks"].setdefault(r, {"2025": {}, "2026": {}})
         raw["point_costs"].setdefault(r, {})
         raw["reference_points"].setdefault(r, {})
         raw["holiday_weeks"].setdefault(r, {"2025": {}, "2026": {}})
-        raw["room_type_orders"].setdefault(r, []) # Initialize the list per resort
+        raw["room_type_orders"].setdefault(r, []) 
         for y in ("2025", "2026"):
             sb = raw["season_blocks"][r].setdefault(y, {})
             for s, rngs in list(sb.items()):
@@ -103,7 +103,8 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error: {e}")
     if st.session_state.data:
-        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "marriott-abound-complete.json", "application/json")
+        # CHANGED: Download filename is now data.json
+        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
 
 # === MAIN UI ===
 st.title("Marriott Data Editor")
@@ -135,7 +136,7 @@ with st.expander("Add New Resort", expanded=True):
             data["point_costs"][new] = {}
             data["reference_points"][new] = {}
             data["holiday_weeks"][new] = {"2025": {}, "2026": {}}
-            data["room_type_orders"][new] = [] # NEW: Initialize new resort order
+            data["room_type_orders"][new] = [] 
             st.session_state.current_resort = new
             save_data()
             st.rerun()
@@ -149,7 +150,7 @@ with st.expander("Add New Resort", expanded=True):
                 data["point_costs"][new] = copy.deepcopy(data["point_costs"].get(current_resort, {}))
                 data["reference_points"][new] = copy.deepcopy(data["reference_points"].get(current_resort, {}))
                 data["holiday_weeks"][new] = copy.deepcopy(data["holiday_weeks"].get(current_resort, {"2025": {}, "2026": {}}))
-                data["room_type_orders"][new] = copy.deepcopy(data["room_type_orders"].get(current_resort, [])) # NEW: Copy room order
+                data["room_type_orders"][new] = copy.deepcopy(data["room_type_orders"].get(current_resort, []))
                 st.session_state.current_resort = new
                 save_data()
                 st.success(f"CLONED → **{new}**")
@@ -173,7 +174,7 @@ if current_resort:
                     for b in ["season_blocks", "point_costs", "reference_points", "holiday_weeks"]:
                         data[b].pop(current_resort, None)
                     data["resorts_list"].remove(current_resort)
-                    data["room_type_orders"].pop(current_resort, None) # NEW: Remove resort room order
+                    data["room_type_orders"].pop(current_resort, None)
                     st.session_state.current_resort = None
                     st.session_state.delete_confirm = False
                     save_data()
@@ -272,7 +273,6 @@ if current_resort:
         new_rooms_to_add = [r for r in current_rooms if r not in existing_rooms_set]
         resort_room_order.extend(new_rooms_to_add)
         # Remove any rooms from the order list that no longer exist in the data
-        # Use a list comprehension to update the list in place
         data["room_type_orders"][current_resort] = [r for r in resort_room_order if r in current_rooms]
 
     # Re-fetch the potentially updated order list
@@ -438,7 +438,7 @@ if current_resort:
                 }
                 
                 new_holiday_data = {}
-                for room in resort_rooms:
+                for room in room_order: # Use the resort's room order
                     new_holiday_data[room] = default_pts_per_room.get(room, 1500)
                 
                 if not new_holiday_data: 
@@ -498,29 +498,31 @@ if current_resort:
                 
                 ranges = year_data[season]
                 
-                # Using st.expander for the date ranges is cleaner
-                with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"):
-                    for i, (s, e) in enumerate(ranges):
-                        c1, c2, c3 = st.columns([3, 3, 1])
-                        with c1:
-                            ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
-                        with c2:
-                            ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
-                        with c3:
-                            if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
-                                ranges.pop(i)
+                # FIXED: Wrap expander in container to avoid Streamlit TypeError after column layout
+                with st.container():
+                    # Using st.expander for the date ranges is cleaner
+                    with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
+                        for i, (s, e) in enumerate(ranges):
+                            c1, c2, c3 = st.columns([3, 3, 1])
+                            with c1:
+                                ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
+                            with c2:
+                                ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
+                            with c3:
+                                if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
+                                    ranges.pop(i)
+                                    save_data()
+                                    st.rerun()
+                            
+                            # FIX: Compare date object ISO string against stored string value
+                            if ns.isoformat() != s or ne.isoformat() != e:
+                                ranges[i] = [ns.isoformat(), ne.isoformat()]
                                 save_data()
-                                st.rerun()
-                        
-                        # FIX: Compare date object ISO string against stored string value
-                        if ns.isoformat() != s or ne.isoformat() != e:
-                            ranges[i] = [ns.isoformat(), ne.isoformat()]
-                            save_data()
 
-                    if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
-                        ranges.append([f"{year}-01-01", f"{year}-01-07"])
-                        save_data()
-                        st.rerun()
+                        if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
+                            ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                            save_data()
+                            st.rerun()
 
     
     st.subheader("Reference Points")
@@ -663,6 +665,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 7:15 PM +08 • FINAL CODE • ROOM TYPE REORDERING IS NOW PER RESORT
+    SINGAPORE 7:18 PM +08 • FINAL CODE • TYPE ERROR FIXED & FILENAME CHANGED
 </div>
 """, unsafe_allow_html=True)
