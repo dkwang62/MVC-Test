@@ -43,10 +43,12 @@ def fix_json(raw):
     raw.setdefault("reference_points", {})
     raw.setdefault("maintenance_rates", {"2025": 0.81, "2026": 0.86})
     raw.setdefault("global_dates", {"2025": {}, "2026": {}})
+    raw.setdefault("holiday_weeks", {}) # <--- NEW: Initialize holiday_weeks
     for r in raw["resorts_list"]:
         raw["season_blocks"].setdefault(r, {"2025": {}, "2026": {}})
         raw["point_costs"].setdefault(r, {})
         raw["reference_points"].setdefault(r, {})
+        raw["holiday_weeks"].setdefault(r, {"2025": {}, "2026": {}}) # <--- NEW: Initialize years for each resort
         for y in ("2025", "2026"):
             sb = raw["season_blocks"][r].setdefault(y, {})
             for s, rngs in list(sb.items()):
@@ -105,6 +107,7 @@ with st.expander("Add New Resort", expanded=True):
             data["season_blocks"][new] = {"2025": {}, "2026": {}}
             data["point_costs"][new] = {}
             data["reference_points"][new] = {}
+            data["holiday_weeks"][new] = {"2025": {}, "2026": {}} # Initialize new resort's holiday weeks
             st.session_state.current_resort = new
             save_data()
             st.rerun()
@@ -117,6 +120,7 @@ with st.expander("Add New Resort", expanded=True):
                 data["season_blocks"][new] = copy.deepcopy(data["season_blocks"].get(current_resort, {"2025": {}, "2026": {}}))
                 data["point_costs"][new] = copy.deepcopy(data["point_costs"].get(current_resort, {}))
                 data["reference_points"][new] = copy.deepcopy(data["reference_points"].get(current_resort, {}))
+                data["holiday_weeks"][new] = copy.deepcopy(data["holiday_weeks"].get(current_resort, {"2025": {}, "2026": {}})) # Copy holiday weeks
                 st.session_state.current_resort = new
                 save_data()
                 st.success(f"CLONED → **{new}**")
@@ -137,7 +141,7 @@ if current_resort:
         with c1:
             if st.checkbox("I understand — this cannot be undone", key="delete_confirm_check"):
                 if st.button("DELETE FOREVER", key="delete_resort_final", type="primary"):
-                    for b in ["season_blocks", "point_costs", "reference_points"]:
+                    for b in ["season_blocks", "point_costs", "reference_points", "holiday_weeks"]: # Added holiday_weeks
                         data[b].pop(current_resort, None)
                     data["resorts_list"].remove(current_resort)
                     st.session_state.current_resort = None
@@ -263,7 +267,7 @@ if current_resort:
             st.success(f"Deleted **{del_room}**")
             st.rerun()
 
-# --- Holiday Week Management Section (Corrected to only use reference_points) ---
+# --- Holiday Week Management Section (Corrected to synchronize holiday_weeks) ---
     st.subheader("Manage Individual Holiday Weeks")
     st.caption("Add or remove specific holiday weeks (e.g., Presidents Day) from this resort's **Reference Points**.")
 
@@ -274,7 +278,6 @@ if current_resort:
     ref_points_data.setdefault(HOLIDAY_SEASON_KEY, {})
     
     # 1. Get all possible holidays from global_dates (combined 2025 and 2026)
-    # FIX: Ensure all_global_holidays remains a set for the set difference operation
     all_global_holidays = set(data["global_dates"].get("2025", {}).keys()).union(data["global_dates"].get("2026", {}).keys())
     all_global_holidays = {h for h in all_global_holidays if h} # Remove empty strings, keep as set
 
@@ -310,6 +313,10 @@ if current_resort:
                 # Remove from reference_points (SYNCHRONIZATION)
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
                 
+                # NEW: Remove from holiday_weeks for both years
+                data["holiday_weeks"].get(current_resort, {}).get("2025", {}).pop(del_holiday, None)
+                data["holiday_weeks"].get(current_resort, {}).get("2026", {}).pop(del_holiday, None)
+                
                 save_data()
                 st.success(f"Removed holiday **{del_holiday}**.")
                 st.rerun()
@@ -318,7 +325,7 @@ if current_resort:
         with c2:
             st.markdown("##### Add Holiday Week")
             
-            # CORRECTED: Perform set difference using the two sets
+            # Perform set difference using the two sets
             available_to_add = sorted(list(all_global_holidays - current_active_holidays_set))
             
             add_holiday = st.selectbox("Select Holiday to Add", [""] + available_to_add, key="add_holiday_select")
@@ -340,8 +347,12 @@ if current_resort:
                 if not new_holiday_data: # Fallback if no rooms are defined yet
                      new_holiday_data = default_pts_per_room
                 
-                # Add to reference_points (SYNCHRONIZATION)
+                # Add to reference_points (SYNCHRONIZATION - for points data)
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+
+                # NEW: Add to holiday_weeks for both years (for global date mapping)
+                data["holiday_weeks"].setdefault(current_resort, {}).setdefault("2025", {})[add_holiday] = f"global:{add_holiday}"
+                data["holiday_weeks"].setdefault(current_resort, {}).setdefault("2026", {})[add_holiday] = f"global:{add_holiday}"
 
                 save_data()
                 st.success(f"Added holiday **{add_holiday}**.")
@@ -499,6 +510,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 2:24 PM +08 • FINAL CODE • TYPE ERROR RESOLVED
+    SINGAPORE 3:02 PM +08 • FINAL CODE • HOLIDAY WEEKS SYNCHRONIZATION ADDED
 </div>
 """, unsafe_allow_html=True)
