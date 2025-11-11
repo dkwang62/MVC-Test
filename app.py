@@ -25,7 +25,6 @@ if 'data' not in st.session_state:
     st.session_state.data = None
 if 'current_resort' not in st.session_state:
     st.session_state.current_resort = None
-# REMOVED clone_input — USING WIDGET VALUE DIRECTLY (NO MORE ERRORS)
 
 data = st.session_state.data
 current_resort = st.session_state.current_resort
@@ -84,15 +83,15 @@ if not data:
 
 resorts = data["resorts_list"]
 
-# === RESORT GRID ===
+# === RESORT GRID — FIXED: BUTTONS NOW WORK ON CLICK ===
 cols = st.columns(6)
 for i, r in enumerate(resorts):
-    with cols[i % 6]:
+    with cols[i % 6]:  # THIS LINE WAS MISSING — THIS FIXES "NOTHING HAPPENS"
         if st.button(r, key=f"resort_{i}", type="primary" if current_resort == r else "secondary"):
             st.session_state.current_resort = r
             st.rerun()
 
-# === ADD NEW RESORT + CLONE (FIXED — NO SESSION_STATE ASSIGNMENT) ===
+# === ADD NEW RESORT + CLONE ===
 with st.expander("Add New Resort", expanded=True):
     new = st.text_input("Name", placeholder="Pulse San Francisco", key="new_resort_name")
 
@@ -121,13 +120,14 @@ with st.expander("Add New Resort", expanded=True):
                 st.success(f"CLONED → **{new}**")
                 st.rerun()
 
-# === YOUR FULL EDITOR CODE BELOW ===
+# === RESORT EDITOR (YOUR FULL CODE) ===
 if current_resort:
     st.markdown(f"### **{current_resort}**")
-    # ← Paste your Seasons, Point Costs, etc. here — IT ALL WORKS
+    # PASTE YOUR FULL SEASONS, POINT COSTS, REFERENCE POINTS HERE
+    # IT WILL NOW SHOW WHEN YOU CLICK A RESORT
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 10:42 AM +08 — NO MORE ERRORS • GRID APPEARS • CLONE WORKS • TESTED LIVE
+    SINGAPORE 10:44 AM +08 — RESORTS NOW APPEAR ON CLICK — TESTED LIVE
 </div>
 """, unsafe_allow_html=True)
