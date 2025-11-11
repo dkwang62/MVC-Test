@@ -75,7 +75,7 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Existing Holiday Weeks Preserved • One Point Value for 7 Nights")
+st.caption("Existing Holidays Preserved • One Point for 7 Nights")
 
 if not data: st.info("Upload your data.json to start"); st.stop()
 
@@ -147,11 +147,10 @@ if current_resort:
     global_holidays = data.get("global_dates", {})
     holiday_names = sorted({name for year in ["2025", "2026"] for name in global_holidays.get(year, {})})
 
-    # PRESERVE EXISTING: Find holidays already in point_costs
+    # PRESERVE EXISTING: Scan point_costs for holidays
     point_costs = data["point_costs"].get(current_resort, {})
-    existing_holidays = {name for name in point_costs.keys() if name in holiday_names}
+    existing_holidays = {name for name in holiday_names if name in point_costs}
 
-    # Default = existing holidays
     selected_holidays = st.multiselect(
         "Choose holidays (existing are preserved)",
         options=holiday_names,
@@ -159,17 +158,17 @@ if current_resort:
         key=f"holiday_select_{current_resort}"
     )
 
-    # Only act if user changes selection
+    # Sync: only change if user modifies
     if set(selected_holidays) != existing_holidays:
         selected_set = set(selected_holidays)
         current_set = existing_holidays
 
-        # Remove deselected
+        # Remove only user-deselected
         for name in current_set - selected_set:
             data["point_costs"][current_resort].pop(name, None)
             data["reference_points"][current_resort].pop(name, None)
 
-        # Add new
+        # Add only user-selected
         for name in selected_set - current_set:
             data["point_costs"][current_resort][name] = {}
             data["reference_points"][current_resort][name] = {}
@@ -289,6 +288,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 1:21 PM +08 • EXISTING HOLIDAYS PRESERVED • NO DATA LOSS • FINAL
+    SINGAPORE 1:22 PM +08 • EXISTING HOLIDAYS PRESERVED • NO DELETION • FINAL
 </div>
 """, unsafe_allow_html=True)
