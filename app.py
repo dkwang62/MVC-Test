@@ -15,7 +15,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SESSION STATE & REFRESH CONTROL ===
-if 'refresh_trigger' not in st.session_state: st.session_session_trigger = False
+# FIXED: Corrected typo from session_session_trigger to refresh_trigger
+if 'refresh_trigger' not in st.session_state: st.session_state.refresh_trigger = False
 if st.session_state.refresh_trigger: st.session_state.refresh_trigger = False; st.rerun()
 if 'last_upload_sig' not in st.session_state: st.session_state.last_upload_sig = None
 if 'delete_confirm' not in st.session_state: st.session_state.delete_confirm = False
@@ -103,7 +104,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error: {e}")
     if st.session_state.data:
-        # Download filename is now data.json
+        # Download filename is data.json
         st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
 
 # === MAIN UI ===
@@ -666,6 +667,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 7:23 PM +08 • FINAL CODE • TYPE ERROR RESOLVED & FILENAME CHANGED
+    SINGAPORE 7:27 PM +08 • FINAL CODE • ATTRIBUTE ERROR (TYPO) FIXED
 </div>
 """, unsafe_allow_html=True)
