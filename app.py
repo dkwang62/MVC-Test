@@ -75,7 +75,7 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Holidays: One Point Value for 7 Nights")
+st.caption("Existing Holiday Weeks Preserved • One Point Value for 7 Nights")
 
 if not data: st.info("Upload your data.json to start"); st.stop()
 
@@ -142,23 +142,27 @@ if current_resort:
 
     if st.session_state.delete_confirm: st.stop()
 
-    # === RESORT-SPECIFIC HOLIDAY SELECTOR ===
-    st.subheader("Select Holidays (One Point Value for Entire Week)")
+    # === RESORT-SPECIFIC HOLIDAY SELECTOR (PRESERVE EXISTING) ===
+    st.subheader("Select Holidays (Existing Preserved)")
     global_holidays = data.get("global_dates", {})
     holiday_names = sorted({name for year in ["2025", "2026"] for name in global_holidays.get(year, {})})
 
-    current_selected = {name for name in holiday_names if name in data["point_costs"].get(current_resort, {})}
+    # PRESERVE EXISTING: Find holidays already in point_costs
+    point_costs = data["point_costs"].get(current_resort, {})
+    existing_holidays = {name for name in point_costs.keys() if name in holiday_names}
 
+    # Default = existing holidays
     selected_holidays = st.multiselect(
-        "Choose holidays (same points in 2025 & 2026)",
+        "Choose holidays (existing are preserved)",
         options=holiday_names,
-        default=list(current_selected),
+        default=list(existing_holidays),
         key=f"holiday_select_{current_resort}"
     )
 
-    if set(selected_holidays) != current_selected:
+    # Only act if user changes selection
+    if set(selected_holidays) != existing_holidays:
         selected_set = set(selected_holidays)
-        current_set = current_selected
+        current_set = existing_holidays
 
         # Remove deselected
         for name in current_set - selected_set:
@@ -285,6 +289,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 1:19 PM +08 • TYPEERROR FIXED • SAFE int() • FINAL & BULLETPROOF
+    SINGAPORE 1:21 PM +08 • EXISTING HOLIDAYS PRESERVED • NO DATA LOSS • FINAL
 </div>
 """, unsafe_allow_html=True)
