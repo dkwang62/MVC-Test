@@ -389,43 +389,6 @@ if current_resort:
                     save_data()
                     st.rerun()
 
-    st.subheader("Point Costs")
-    point_data = data["point_costs"].get(current_resort, {})
-    for season, content in point_data.items():
-        with st.expander(season, expanded=True):
-            is_holiday_season = all(isinstance(v, dict) for v in content.values())
-            
-            if is_holiday_season:
-                for holiday_name, rooms in content.items():
-                    st.markdown(f"**{holiday_name}**")
-                    cols = st.columns(4)
-                    for j, (room, pts) in enumerate(rooms.items()):
-                        with cols[j % 4]:
-                            # FIX: Explicitly cast pts to int for comparison to avoid loop if pts is a string
-                            current_pts_int = int(pts) 
-                            new_val = st.number_input(room, value=current_pts_int, step=50, key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}")
-                            
-                            if new_val != current_pts_int:
-                                rooms[room] = int(new_val) # Store as int
-                                save_data()
-            else:
-                day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
-                available = [d for d in day_types if d in content]
-                for day_type in available:
-                    rooms = content[day_type]
-                    st.write(f"**{day_type}**")
-                    cols = st.columns(4)
-                    for j, (room, pts) in enumerate(rooms.items()):
-                        with cols[j % 4]:
-                            step = 50 if "Holiday" in season else 25
-                            # FIX: Explicitly cast pts to int for comparison
-                            current_pts_int = int(pts)
-                            new_val = st.number_input(room, value=current_pts_int, step=step, key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}")
-                            
-                            if new_val != current_pts_int:
-                                rooms[room] = int(new_val) # Store as int
-                                save_data()
-
     st.subheader("Reference Points")
     ref_points = data["reference_points"].setdefault(current_resort, {})
     for season, content in ref_points.items():
