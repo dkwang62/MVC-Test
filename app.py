@@ -75,7 +75,7 @@ with st.sidebar:
 
 # === MAIN ===
 st.title("Marriott Abound Pro Editor")
-st.caption("Existing Holidays Preserved • One Point for 7 Nights")
+st.caption("Add Global Holidays • Preserve Existing • Full Control")
 
 if not data: st.info("Upload your data.json to start"); st.stop()
 
@@ -142,70 +142,102 @@ if current_resort:
 
     if st.session_state.delete_confirm: st.stop()
 
-    # === RESORT-SPECIFIC HOLIDAY SELECTOR (PRESERVE EXISTING) ===
-    st.subheader("Select Holidays (Existing Preserved)")
+    # === ADD GLOBAL HOLIDAYS ===
+    st.subheader("Add Global Holidays")
     global_holidays = data.get("global_dates", {})
-    holiday_names = sorted({name for year in ["2025", "2026"] for name in global_holidays.get(year, {})})
+    all_global_names = {name for year in ["2025", "2026"] for name in global_holidays.get(year, {})}
+    current_holidays = set(data["point_costs"].get(current_resort, {}).keys())
 
-    # PRESERVE EXISTING: Scan point_costs for holidays
-    point_costs = data["point_costs"].get(current_resort, {})
-    existing_holidays = {name for name in holiday_names if name in point_costs}
+    if st.button("Add All Global Holidays", type="primary"):
+        added = 0
+        for name in all_global_names:
+            if name not in current_holidays:
+                # Add to point_costs & reference_points
+                data["point_costs"][current_resort][name] = {}
+                data["reference_points"][current_resort][name] = {}
 
-    selected_holidays = st.multiselect(
-        "Choose holidays (existing are preserved)",
-        options=holiday_names,
-        default=list(existing_holidays),
-        key=f"holiday_select_{current_resort}"
-    )
+                # Copy room types from any existing season
+                all_rooms = set()
+                for section in [data["point_costs"].get(current_resort, {}), data["reference_points"].get(current_resort, {})]:
+                    for season_data in section.values():
+                        if isinstance(season_data, dict):
+                            all_rooms.update(season_data.keys())
 
-    # Sync: only change if user modifies
-    if set(selected_holidays) != existing_holidays:
-        selected_set = set(selected_holidays)
-        current_set = existing_holidays
-
-        # Remove only user-deselected
-        for name in current_set - selected_set:
-            data["point_costs"][current_resort].pop(name, None)
-            data["reference_points"][current_resort].pop(name, None)
-
-        # Add only user-selected
-        for name in selected_set - current_set:
-            data["point_costs"][current_resort][name] = {}
-            data["reference_points"][current_resort][name] = {}
-
-            all_rooms = set()
-            for section in [data["point_costs"].get(current_resort, {}), data["reference_points"].get(current_resort, {})]:
-                for season_data in section.values():
-                    if isinstance(season_data, dict):
-                        all_rooms.update(season_data.keys())
-
-            default_point = 1000
-            for room in all_rooms:
-                data["point_costs"][current_resort][name][room] = default_point
-                data["reference_points"][current_resort][name][room] = default_point
-
+                default_point = 1000
+                for room in all_rooms:
+                    data["point_costs"][current_resort][name][room] = default_point
+                    data["reference_points"][current_resort][name][room] = default_point
+                added += 1
         save_data()
-        st.success("Holiday selection updated!")
+        if added:
+            st.success(f"Added {added} global holiday(s)!")
+        else:
+            st.info("All global holidays already added.")
         st.rerun()
 
-    # === POINT COSTS ===
+    # === RENAME / ADD / DELETE SEASONS (UNCHANGED) ===
+    st.subheader("Rename Seasons")
+    seasons_used = set()
+    for y in ["2025", "2026"]:
+        seasons_used.update(data["season_blocks"][current_resort].get(y, {}).keys())
+    seasons_used.update(data["point_costs"].get(current_resort, {}).keys())
+    seasons_used.update(data["reference_points"].get(current_resort, {}).keys())
+    seasons_used = sorted(seasons_used)
+    for old_name in seasons_used:
+        c1, c2 = st.columns([3, 1])
+        with c1:
+            new_name = st.text_input(f"Rename **{old_name}** →", value=old_name, key=f"rename_season_{old_name}")
+        with c2:
+            if st.button("Apply", key=f"apply_rename_{old_name}") and new_name != old_name and new_name:
+                for y in ["2025", "2026"]:
+                    if old_name in data["season_blocks"][current_resort].get(y, {}):
+                        data["season_blocks"][current_resort][y][new_name] = data["season_blocks"][current_resort][y].pop(old_name)
+                if old_name in data["point_costs"].get(current_resort, {}):
+                    data["point_costs"][current_resort][new_name] = data["point_costs"][current_resort].pop(old_name)
+                if old_name in data["reference_points"].get(current_resort, {}):
+                    data["reference_points"][current_resort][new_name] = data["reference_points"][current_resort].pop(old_name)
+                save_data()
+                st.success(f"Renamed **{old_name}** → **{new_name}**")
+                st.rerun()
+
+    st.subheader("Add / Delete Season")
+    new_season = st.text_input("New Season Name", key="new_season_input")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Add Season", key="add_season_btn") and new_season:
+            for y in ["2025", "2026"]:
+                data["season_blocks"][current_resort].setdefault(y, {})[new_season] = []
+            data["reference_points"].setdefault(current_resort, {})[new_season] = {}
+            save_data()
+            st.success(f"Added **{new_season}**")
+            st.rerun()
+    with c2:
+        del_season = st.selectbox("Delete Season", [""] + seasons_used, key="del_season_select")
+        if st.button("Delete Season", key="delete_season_btn") and del_season:
+            for y in ["2025", "2026"]:
+                data["season_blocks"][current_resort].get(y, {}).pop(del_season, None)
+            data["point_costs"].get(current_resort, {}).pop(del_season, None)
+            data["reference_points"].get(current_resort, {}).pop(del_season, None)
+            save_data()
+            st.success(f"Deleted **{del_season}**")
+            st.rerun()
+
+    # === POINT COSTS (FLAT HOLIDAYS) ===
     st.subheader("Point Costs")
     point_data = data["point_costs"].get(current_resort, {})
     for season, content in point_data.items():
         with st.expander(season, expanded=True):
-            is_holiday = season in selected_holidays
+            is_holiday = any(
+                isinstance(v, dict) and all(isinstance(k, str) and "AP_" not in k for k in v.keys())
+                for v in content.values()
+            )
             if is_holiday:
                 st.markdown("**Entire Week (7 Nights)**")
                 cols = st.columns(4)
                 for j, (room, pts) in enumerate(content.items()):
                     with cols[j % 4]:
                         safe_val = int(pts) if pts is not None and str(pts).strip() else 1000
-                        new_val = st.number_input(
-                            room,
-                            value=safe_val,
-                            step=50,
-                            key=f"hol_flat_{current_resort}_{season}_{room}_{j}"
-                        )
+                        new_val = st.number_input(room, value=safe_val, step=50, key=f"hol_{current_resort}_{season}_{room}_{j}")
                         if new_val != safe_val:
                             content[room] = new_val
                             data["reference_points"][current_resort][season][room] = new_val
@@ -231,37 +263,34 @@ if current_resort:
     ref_points = data["reference_points"].setdefault(current_resort, {})
     for season, content in ref_points.items():
         with st.expander(season, expanded=True):
-            is_holiday = season in selected_holidays
+            is_holiday = season in point_data and any(
+                isinstance(v, dict) and all(isinstance(k, str) and "AP_" not in k for k in v.keys())
+                for v in point_data[season].values()
+            )
             if is_holiday:
                 st.markdown("**Entire Week (7 Nights)**")
                 cols = st.columns(4)
                 for j, (room, pts) in enumerate(content.items()):
                     with cols[j % 4]:
                         safe_val = int(pts) if pts is not None and str(pts).strip() else 1000
-                        new_val = st.number_input(
-                            room,
-                            value=safe_val,
-                            step=25,
-                            key=f"ref_hol_flat_{current_resort}_{season}_{room}_{j}"
-                        )
+                        new_val = st.number_input(room, value=safe_val, step=25, key=f"ref_hol_{current_resort}_{season}_{room}_{j}")
                         if new_val != safe_val:
                             content[room] = new_val
                             data["point_costs"][current_resort][season][room] = new_val
                             save_data()
             else:
                 day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
-                if day_types:
-                    for day_type in day_types:
-                        rooms = content[day_type]
-                        st.write(f"**{day_type}**")
-                        cols = st.columns(4)
-                        for j, (room, pts) in enumerate(rooms.items()):
-                            with cols[j % 4]:
-                                safe_val = int(pts) if pts is not None and str(pts).strip() else 100
-                                new_val = st.number_input(room, value=safe_val, step=25, key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}")
-                                if new_val != safe_val:
-                                    rooms[room] = new_val
-                                    save_data()
+                for day_type in day_types:
+                    rooms = content[day_type]
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            safe_val = int(pts) if pts is not None and str(pts).strip() else 100
+                            new_val = st.number_input(room, value=safe_val, step=25, key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}")
+                            if new_val != safe_val:
+                                rooms[room] = new_val
+                                save_data()
 
 # === GLOBAL SETTINGS ===
 st.header("Global Settings")
@@ -276,18 +305,19 @@ with st.expander("Holiday Dates"):
     for year in ["2025", "2026"]:
         st.write(f"**{year}**")
         holidays = data["global_dates"].get(year, {})
-        for i, (name, (s, e)) in enumerate(holidays.items()):
+        for i, (name, val) in enumerate(holidays.items()):
+            s, e = (val + [None, None])[:2] if isinstance(val, list) else (None, None)
             c1, c2 = st.columns(2)
             with c1:
                 ns = st.date_input(f"{name} Start", safe_date(s), key=f"hs_{year}_{i}")
             with c2:
                 ne = st.date_input(f"{name} End", safe_date(e), key=f"he_{year}_{i}")
-            if ns.isoformat() != s or ne.isoformat() != e:
+            if ns.isoformat() != safe_date(s).isoformat() or ne.isoformat() != safe_date(e).isoformat():
                 data["global_dates"][year][name] = [ns.isoformat(), ne.isoformat()]
                 save_data()
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 1:22 PM +08 • EXISTING HOLIDAYS PRESERVED • NO DELETION • FINAL
+    SINGAPORE 1:33 PM +08 • ADD GLOBAL HOLIDAYS • PRESERVE EXISTING • FINAL
 </div>
 """, unsafe_allow_html=True)
