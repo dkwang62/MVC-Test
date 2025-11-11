@@ -79,7 +79,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error: {e}")
     if st.session_state.data:
-        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "marriott-abound-complete.json", "application/json")
+        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
 
 # === MAIN UI ===
 st.title("Marriott Data Editor")
