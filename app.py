@@ -159,7 +159,7 @@ if current_resort:
     if st.session_state.delete_confirm:
         st.stop()
 
-    # === RENAME SEASONS ===
+    # === RENAME SEASONS (Holiday Week Excluded) ===
     st.subheader("Rename Seasons (Applies to All Years & Sections)")
     seasons_used = set()
     for y in ["2025", "2026"]:
@@ -167,8 +167,15 @@ if current_resort:
     seasons_used.update(data["point_costs"].get(current_resort, {}).keys())
     seasons_used.update(data["reference_points"].get(current_resort, {}).keys())
     seasons_used = sorted(seasons_used)
+    
+    HOLIDAY_KEY_TO_EXCLUDE = "Holiday Week" # Season to skip for renaming
 
     for old_name in seasons_used:
+        # --- Skip the 'Holiday Week' season from the renaming UI ---
+        if old_name == HOLIDAY_KEY_TO_EXCLUDE:
+            continue
+        # -----------------------------------------------------------
+        
         c1, c2 = st.columns([3, 1])
         with c1:
             new_name = st.text_input(f"Rename **{old_name}** →", value=old_name, key=f"rename_season_{old_name}")
@@ -241,14 +248,16 @@ if current_resort:
     with c1:
         if st.button("Add Room Type", key="add_room_btn") and new_room_name:
             default_points = {"Mon-Thu": 100, "Fri-Sat": 200, "Sun": 150, "Sun-Thu": 120}
-            for season in data["reference_points"].get(current_resort, {}):
-                for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
-                    if day_type in data["reference_points"][current_resort][season]:
-                         data["reference_points"][current_resort][season][day_type].setdefault(new_room_name, default_points[day_type])
-                    else: 
-                         for sub_season_data in data["reference_points"][current_resort][season].values():
-                              if isinstance(sub_season_data, dict):
-                                   sub_season_data.setdefault(new_room_name, default_points["Mon-Thu"]) 
+            for section in [data["reference_points"].get(current_resort, {}), data["point_costs"].get(current_resort, {})]:
+                for season in section:
+                    for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
+                        if day_type in section[season]:
+                             section[season][day_type].setdefault(new_room_name, default_points[day_type])
+                        else: 
+                             # Handle cases where day_type is not directly a key (e.g., Holiday Week sub-seasons)
+                             for sub_season_data in section[season].values():
+                                  if isinstance(sub_season_data, dict):
+                                       sub_season_data.setdefault(new_room_name, default_points["Mon-Thu"]) 
             save_data()
             st.success(f"Added **{new_room_name}**")
             st.rerun()
@@ -310,6 +319,9 @@ if current_resort:
                 data["holiday_weeks"].get(current_resort, {}).get("2025", {}).pop(del_holiday, None)
                 data["holiday_weeks"].get(current_resort, {}).get("2026", {}).pop(del_holiday, None)
                 
+                # Synchronization: Remove from point_costs if present (keeping this to maintain data integrity)
+                data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
+                
                 save_data()
                 st.success(f"Removed holiday **{del_holiday}**.")
                 st.rerun()
@@ -340,6 +352,9 @@ if current_resort:
                 
                 # Synchronization: Add to reference_points
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+                
+                # Synchronization: Add to point_costs (keeping this to maintain data integrity, even if not used)
+                data["point_costs"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
 
                 # Synchronization: Add to holiday_weeks
                 data["holiday_weeks"].setdefault(current_resort, {}).setdefault("2025", {})[add_holiday] = f"global:{add_holiday}"
@@ -383,11 +398,13 @@ if current_resort:
                     if ns.isoformat() != s or ne.isoformat() != e:
                         ranges[i] = [ns.isoformat(), ne.isoformat()]
                         save_data()
-
+                        
                 if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
                     ranges.append([f"{year}-01-01", f"{year}-01-07"])
                     save_data()
                     st.rerun()
+    
+    # --- The "Point Costs" UI section has been removed here. ---
 
     st.subheader("Reference Points")
     ref_points = data["reference_points"].setdefault(current_resort, {})
@@ -483,6 +500,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 3:15 PM +08 • FINAL CODE • INFINITE LOOP FIX IMPLEMENTED
+    SINGAPORE 5:09 PM +08 • FINAL CODE • INFINITE LOOP FIX IMPLEMENTED
 </div>
 """, unsafe_allow_html=True)
