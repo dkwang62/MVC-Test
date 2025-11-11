@@ -15,7 +15,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SESSION STATE & REFRESH CONTROL ===
-# FIXED: Corrected typo from session_session_trigger to refresh_trigger
 if 'refresh_trigger' not in st.session_state: st.session_state.refresh_trigger = False
 if st.session_state.refresh_trigger: st.session_state.refresh_trigger = False; st.rerun()
 if 'last_upload_sig' not in st.session_state: st.session_state.last_upload_sig = None
@@ -499,32 +498,32 @@ if current_resort:
                 
                 ranges = year_data[season]
                 
-                # FIXED: Inserted st.write("") to force a layout context break after the columns, resolving the TypeError.
-                st.write("") 
-                
-                # Using st.expander for the date ranges is cleaner
-                with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
-                    for i, (s, e) in enumerate(ranges):
-                        c1, c2, c3 = st.columns([3, 3, 1])
-                        with c1:
-                            ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
-                        with c2:
-                            ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
-                        with c3:
-                            if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
-                                ranges.pop(i)
+                # ROBUST FIX: Use st.container() to enforce the Expander starts in a new, clean context 
+                # and resolve the persistent Streamlit TypeError after st.columns.
+                with st.container(): 
+                    # Using st.expander for the date ranges is cleaner
+                    with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
+                        for i, (s, e) in enumerate(ranges):
+                            c1, c2, c3 = st.columns([3, 3, 1])
+                            with c1:
+                                ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
+                            with c2:
+                                ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
+                            with c3:
+                                if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
+                                    ranges.pop(i)
+                                    save_data()
+                                    st.rerun()
+                            
+                            # FIX: Compare date object ISO string against stored string value
+                            if ns.isoformat() != s or ne.isoformat() != e:
+                                ranges[i] = [ns.isoformat(), ne.isoformat()]
                                 save_data()
-                                st.rerun()
-                        
-                        # FIX: Compare date object ISO string against stored string value
-                        if ns.isoformat() != s or ne.isoformat() != e:
-                            ranges[i] = [ns.isoformat(), ne.isoformat()]
-                            save_data()
 
-                    if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
-                        ranges.append([f"{year}-01-01", f"{year}-01-07"])
-                        save_data()
-                        st.rerun()
+                        if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
+                            ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                            save_data()
+                            st.rerun()
 
     
     st.subheader("Reference Points")
@@ -667,6 +666,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 7:27 PM +08 • FINAL CODE • ATTRIBUTE ERROR (TYPO) FIXED
+    SINGAPORE 7:30 PM +08 • FINAL CODE • TYPE ERROR (LAYOUT CONTEXT) FIXED
 </div>
 """, unsafe_allow_html=True)
