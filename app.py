@@ -73,12 +73,13 @@ with st.sidebar:
                 data = fixed
                 st.session_state.current_resort = None
                 st.session_state.last_upload_sig = sig
+                # Removed st.session_state.refresh_trigger = True; relying on setting current_resort to None
                 st.success(f"Loaded {len(fixed['resorts_list'])} resorts")
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
     if st.session_state.data:
-        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "marriott-abound-complete.json", "application/json")
+        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
 
 # === MAIN UI ===
 st.title("Marriott Data Editor")
@@ -158,7 +159,7 @@ if current_resort:
     if st.session_state.delete_confirm:
         st.stop()
 
-    # === RENAME SEASONS ===
+    # === RENAME SEASONS (Holiday Week Excluded) ===
     st.subheader("Rename Seasons (Applies to All Years & Sections)")
     seasons_used = set()
     for y in ["2025", "2026"]:
@@ -166,8 +167,15 @@ if current_resort:
     seasons_used.update(data["point_costs"].get(current_resort, {}).keys())
     seasons_used.update(data["reference_points"].get(current_resort, {}).keys())
     seasons_used = sorted(seasons_used)
+    
+    HOLIDAY_KEY_TO_EXCLUDE = "Holiday Week" # Season to skip for renaming
 
     for old_name in seasons_used:
+        # --- Skip the 'Holiday Week' season from the renaming UI ---
+        if old_name == HOLIDAY_KEY_TO_EXCLUDE:
+            continue
+        # -----------------------------------------------------------
+        
         c1, c2 = st.columns([3, 1])
         with c1:
             new_name = st.text_input(f"Rename **{old_name}** →", value=old_name, key=f"rename_season_{old_name}")
@@ -240,14 +248,16 @@ if current_resort:
     with c1:
         if st.button("Add Room Type", key="add_room_btn") and new_room_name:
             default_points = {"Mon-Thu": 100, "Fri-Sat": 200, "Sun": 150, "Sun-Thu": 120}
-            for season in data["reference_points"].get(current_resort, {}):
-                for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
-                    if day_type in data["reference_points"][current_resort][season]:
-                         data["reference_points"][current_resort][season][day_type].setdefault(new_room_name, default_points[day_type])
-                    else: 
-                         for sub_season_data in data["reference_points"][current_resort][season].values():
-                              if isinstance(sub_season_data, dict):
-                                   sub_season_data.setdefault(new_room_name, default_points["Mon-Thu"]) 
+            for section in [data["reference_points"].get(current_resort, {}), data["point_costs"].get(current_resort, {})]:
+                for season in section:
+                    for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
+                        if day_type in section[season]:
+                             section[season][day_type].setdefault(new_room_name, default_points[day_type])
+                        else: 
+                             # Handle cases where day_type is not directly a key (e.g., Holiday Week sub-seasons)
+                             for sub_season_data in section[season].values():
+                                  if isinstance(sub_season_data, dict):
+                                       sub_season_data.setdefault(new_room_name, default_points["Mon-Thu"]) 
             save_data()
             st.success(f"Added **{new_room_name}**")
             st.rerun()
@@ -283,7 +293,7 @@ if current_resort:
     resort_rooms = set()
     for season_data in data["reference_points"].get(current_resort, {}).values():
         for day_or_room in season_data.values():
-            if isinstance(day_or_oroom, dict):
+            if isinstance(day_or_room, dict):
                 resort_rooms.update(day_or_room.keys())
     resort_rooms = sorted(resort_rooms)
 
@@ -308,6 +318,9 @@ if current_resort:
                 # Synchronization: Remove from holiday_weeks
                 data["holiday_weeks"].get(current_resort, {}).get("2025", {}).pop(del_holiday, None)
                 data["holiday_weeks"].get(current_resort, {}).get("2026", {}).pop(del_holiday, None)
+                
+                # Synchronization: Remove from point_costs if present (keeping this to maintain data integrity)
+                data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
                 
                 save_data()
                 st.success(f"Removed holiday **{del_holiday}**.")
@@ -339,6 +352,9 @@ if current_resort:
                 
                 # Synchronization: Add to reference_points
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+                
+                # Synchronization: Add to point_costs (keeping this to maintain data integrity, even if not used)
+                data["point_costs"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
 
                 # Synchronization: Add to holiday_weeks
                 data["holiday_weeks"].setdefault(current_resort, {}).setdefault("2025", {})[add_holiday] = f"global:{add_holiday}"
@@ -349,14 +365,12 @@ if current_resort:
                 st.rerun()
 # --- End Holiday Week Management Section ---
 
-    # === SEASON DATES (REVERTED TO STABLE CODE) ===
+    # === SEASON DATES & POINT COSTS (ORIGINAL) ===
     st.subheader("Season Dates")
     for year in ["2025", "2026"]:
         with st.expander(f"{year} Seasons", expanded=True):
             year_data = data["season_blocks"][current_resort].setdefault(year, {})
             seasons = list(year_data.keys())
-            
-            # Add New Season UI
             col1, col2 = st.columns([4, 1])
             with col1:
                 new_s = st.text_input(f"New season ({year})", key=f"ns_{year}")
@@ -365,73 +379,32 @@ if current_resort:
                     year_data[new_s] = []
                     save_data()
                     st.rerun()
-            
-            # Loop for Season Date Editing (STABLE LAYOUT)
             for s_idx, season in enumerate(seasons):
-                st.markdown(f"**{season}**") # Renders the season name
-                
+                st.markdown(f"**{season}**")
                 ranges = year_data[season]
-                
-                # This simple structure avoids the previous TypeError:
-                with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
-                    for i, (s, e) in enumerate(ranges):
-                        c1, c2, c3 = st.columns([3, 3, 1])
-                        with c1:
-                            ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
-                        with c2:
-                            ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
-                        with c3:
-                            if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
-                                ranges.pop(i)
-                                save_data()
-                                st.rerun()
-                        
-                        if ns.isoformat() != s or ne.isoformat() != e:
-                            ranges[i] = [ns.isoformat(), ne.isoformat()]
+                for i, (s, e) in enumerate(ranges):
+                    c1, c2, c3 = st.columns([3, 3, 1])
+                    with c1:
+                        ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
+                    with c2:
+                        ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
+                    with c3:
+                        if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
+                            ranges.pop(i)
                             save_data()
-
-                    if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
-                        ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                            st.rerun()
+                    
+                    # FIX: Compare date object ISO string against stored string value
+                    if ns.isoformat() != s or ne.isoformat() != e:
+                        ranges[i] = [ns.isoformat(), ne.isoformat()]
                         save_data()
-                        st.rerun()
-    # === END SEASON DATES REVERSION ===
-
-    st.subheader("Point Costs")
-    point_data = data["point_costs"].get(current_resort, {})
-    for season, content in point_data.items():
-        with st.expander(season, expanded=True):
-            is_holiday_season = all(isinstance(v, dict) for v in content.values())
-            
-            if is_holiday_season:
-                for holiday_name, rooms in content.items():
-                    st.markdown(f"**{holiday_name}**")
-                    cols = st.columns(4)
-                    for j, (room, pts) in enumerate(rooms.items()):
-                        with cols[j % 4]:
-                            # FIX: Explicitly cast pts to int for comparison to avoid loop if pts is a string
-                            current_pts_int = int(pts) 
-                            new_val = st.number_input(room, value=current_pts_int, step=50, key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}")
-                            
-                            if new_val != current_pts_int:
-                                rooms[room] = int(new_val) # Store as int
-                                save_data()
-            else:
-                day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
-                available = [d for d in day_types if d in content]
-                for day_type in available:
-                    rooms = content[day_type]
-                    st.write(f"**{day_type}**")
-                    cols = st.columns(4)
-                    for j, (room, pts) in enumerate(rooms.items()):
-                        with cols[j % 4]:
-                            step = 50 if "Holiday" in season else 25
-                            # FIX: Explicitly cast pts to int for comparison
-                            current_pts_int = int(pts)
-                            new_val = st.number_input(room, value=current_pts_int, step=step, key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}")
-                            
-                            if new_val != current_pts_int:
-                                rooms[room] = int(new_val) # Store as int
-                                save_data()
+                        
+                if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
+                    ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                    save_data()
+                    st.rerun()
+    
+    # --- The "Point Costs" UI section has been removed here. ---
 
     st.subheader("Reference Points")
     ref_points = data["reference_points"].setdefault(current_resort, {})
@@ -527,6 +500,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 9:08 PM +08 • FINAL CODE • SEASON REORDER REMOVED FOR STABILITY
+    SINGAPORE 5:09 PM +08 • FINAL CODE • INFINITE LOOP FIX IMPLEMENTED
 </div>
 """, unsafe_allow_html=True)
