@@ -3,7 +3,7 @@ import json
 import copy
 from datetime import datetime
 
-st.set_page_config(page_title="Marriott Abound Pro Editor", layout="wide")
+st.set_page_config(page_title="Marriott Data Editor", layout="wide")
 
 st.markdown("""
 <style>
@@ -82,7 +82,7 @@ with st.sidebar:
         st.download_button("Download", json.dumps(st.session_state.data, indent=2), "marriott-abound-complete.json", "application/json")
 
 # === MAIN UI ===
-st.title("Marriott Abound Pro Editor")
+st.title("Marriott Data Editor")
 st.caption("Rename • Add • Delete • Sync — All in One Place")
 
 if not data:
