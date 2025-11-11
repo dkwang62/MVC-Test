@@ -15,7 +15,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SESSION STATE & REFRESH CONTROL ===
-if 'refresh_trigger' not in st.session_state: st.session_state.refresh_trigger = False
+if 'refresh_trigger' not in st.session_state: st.session_session_trigger = False
 if st.session_state.refresh_trigger: st.session_state.refresh_trigger = False; st.rerun()
 if 'last_upload_sig' not in st.session_state: st.session_state.last_upload_sig = None
 if 'delete_confirm' not in st.session_state: st.session_state.delete_confirm = False
@@ -103,7 +103,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Error: {e}")
     if st.session_state.data:
-        # CHANGED: Download filename is now data.json
+        # Download filename is now data.json
         st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
 
 # === MAIN UI ===
@@ -498,31 +498,32 @@ if current_resort:
                 
                 ranges = year_data[season]
                 
-                # FIXED: Wrap expander in container to avoid Streamlit TypeError after column layout
-                with st.container():
-                    # Using st.expander for the date ranges is cleaner
-                    with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
-                        for i, (s, e) in enumerate(ranges):
-                            c1, c2, c3 = st.columns([3, 3, 1])
-                            with c1:
-                                ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
-                            with c2:
-                                ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
-                            with c3:
-                                if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
-                                    ranges.pop(i)
-                                    save_data()
-                                    st.rerun()
-                            
-                            # FIX: Compare date object ISO string against stored string value
-                            if ns.isoformat() != s or ne.isoformat() != e:
-                                ranges[i] = [ns.isoformat(), ne.isoformat()]
+                # FIXED: Inserted st.write("") to force a layout context break after the columns, resolving the TypeError.
+                st.write("") 
+                
+                # Using st.expander for the date ranges is cleaner
+                with st.expander("Edit Date Ranges", expanded=True, key=f"range_exp_{year}_{s_idx}"): 
+                    for i, (s, e) in enumerate(ranges):
+                        c1, c2, c3 = st.columns([3, 3, 1])
+                        with c1:
+                            ns = st.date_input("Start", safe_date(s), key=f"ds_{year}_{s_idx}_{i}")
+                        with c2:
+                            ne = st.date_input("End", safe_date(e), key=f"de_{year}_{s_idx}_{i}")
+                        with c3:
+                            if st.button("X", key=f"dx_{year}_{s_idx}_{i}"):
+                                ranges.pop(i)
                                 save_data()
-
-                        if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
-                            ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                                st.rerun()
+                        
+                        # FIX: Compare date object ISO string against stored string value
+                        if ns.isoformat() != s or ne.isoformat() != e:
+                            ranges[i] = [ns.isoformat(), ne.isoformat()]
                             save_data()
-                            st.rerun()
+
+                    if st.button("+ Add Range", key=f"ar_{year}_{s_idx}"):
+                        ranges.append([f"{year}-01-01", f"{year}-01-07"])
+                        save_data()
+                        st.rerun()
 
     
     st.subheader("Reference Points")
@@ -665,6 +666,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 7:18 PM +08 • FINAL CODE • TYPE ERROR FIXED & FILENAME CHANGED
+    SINGAPORE 7:23 PM +08 • FINAL CODE • TYPE ERROR RESOLVED & FILENAME CHANGED
 </div>
 """, unsafe_allow_html=True)
