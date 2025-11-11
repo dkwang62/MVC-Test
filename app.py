@@ -187,6 +187,8 @@ if current_resort:
             for y in ["2025", "2026"]:
                 data["season_blocks"][current_resort].setdefault(y, {})[new_season] = []
             data["reference_points"].setdefault(current_resort, {})[new_season] = {}
+            # NOTE: Point costs does not need to be initialized for Holiday Week based on user feedback
+            data["point_costs"].setdefault(current_resort, {})[new_season] = {} 
             save_data()
             st.success(f"Added **{new_season}**")
             st.rerun()
@@ -235,7 +237,13 @@ if current_resort:
             default_points = {"Mon-Thu": 100, "Fri-Sat": 200, "Sun": 150, "Sun-Thu": 120}
             for season in data["reference_points"].get(current_resort, {}):
                 for day_type in ["Mon-Thu", "Fri-Sat", "Sun", "Sun-Thu"]:
-                    data["reference_points"][current_resort][season].setdefault(day_type, {})[new_room_name] = default_points[day_type]
+                    # Reference Points often use day types first, but we must also handle sub-seasons like "Presidents Day"
+                    if day_type in data["reference_points"][current_resort][season]:
+                         data["reference_points"][current_resort][season][day_type].setdefault(new_room_name, default_points[day_type])
+                    else: # Handle sub-seasons/Holidays which have rooms directly under them
+                         for sub_season_data in data["reference_points"][current_resort][season].values():
+                              if isinstance(sub_season_data, dict):
+                                   sub_season_data.setdefault(new_room_name, default_points["Mon-Thu"]) # Use a general default
             save_data()
             st.success(f"Added **{new_room_name}**")
             st.rerun()
@@ -245,27 +253,33 @@ if current_resort:
             for section in [data["point_costs"].get(current_resort, {}), data["reference_points"].get(current_resort, {})]:
                 for season in section:
                     for day_type in section[season]:
-                        section[season][day_type].pop(del_room, None)
+                        # Check day type structure
+                        if isinstance(section[season][day_type], dict):
+                             section[season][day_type].pop(del_room, None)
+                        # Check sub-season/Holiday structure (if day_type is actually a holiday name)
+                        else:
+                             section[season].pop(del_room, None) 
             save_data()
             st.success(f"Deleted **{del_room}**")
             st.rerun()
 
-    # === NEW: HOLIDAY WEEK MANAGEMENT ===
-    st.subheader("Holiday Week Management")
-    st.caption("Add or remove individual holiday weeks (e.g., Presidents Day) within the 'Holiday Week' season.")
+# --- Holiday Week Management Section (Corrected to only use reference_points) ---
+    st.subheader("Manage Individual Holiday Weeks")
+    st.caption("Add or remove specific holiday weeks (e.g., Presidents Day) from this resort's **Reference Points**.")
 
     HOLIDAY_SEASON_KEY = "Holiday Week"
     
+    # Only interact with reference_points
+    ref_points_data = data["reference_points"].get(current_resort, {})
+    ref_points_data.setdefault(HOLIDAY_SEASON_KEY, {})
+    
     # 1. Get all possible holidays from global_dates (combined 2025 and 2026)
     all_global_holidays = set(data["global_dates"].get("2025", {}).keys()).union(data["global_dates"].get("2026", {}).keys())
-    all_global_holidays = sorted([h for h in all_global_holidays if h]) # Ensure no empty string
+    all_global_holidays = sorted([h for h in all_global_holidays if h])
 
-    # 2. Get currently active holidays in the resort under the HOLIDAY_SEASON_KEY
-    current_point_holidays = set(data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).keys())
-    current_ref_holidays = set(data["reference_points"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).keys())
-    
-    # Use the union of both for management, but point_costs is likely the main one shown in the UI
-    current_active_holidays = current_point_holidays.union(current_ref_holidays) 
+    # 2. Get currently active holidays in the resort from reference_points
+    current_active_holidays = set(ref_points_data.get(HOLIDAY_SEASON_KEY, {}).keys()) 
+    current_active_holidays = sorted(current_active_holidays)
     
     # 3. Get all room types for initialization if a new holiday is added
     resort_rooms = set()
@@ -277,60 +291,63 @@ if current_resort:
 
     if not all_global_holidays:
         st.warning("No global holiday dates are defined in Global Settings.")
-    elif HOLIDAY_SEASON_KEY not in data["point_costs"].get(current_resort, {}):
-        st.info(f"The season **{HOLIDAY_SEASON_KEY}** is not active for point costs in this resort. Add it via the 'Add Season' control above.")
     else:
         
+        # --- Display Current Active Holidays ---
+        if current_active_holidays:
+            st.info(f"✅ Active Holiday Weeks: **{', '.join(current_active_holidays)}**")
+        else:
+            st.info("No holiday weeks are currently active for this resort. Use the control below to add one.")
+
         c1, c2 = st.columns(2)
 
         # --- REMOVE HOLIDAY ---
         with c1:
-            st.markdown("**Remove Holiday**")
-            del_holiday = st.selectbox("Select Holiday to Remove", [""] + sorted(current_active_holidays), key="del_holiday_select")
+            st.markdown("##### Remove Holiday Week")
+            del_holiday = st.selectbox("Select Holiday to Remove", [""] + current_active_holidays, key="del_holiday_select")
             if st.button("Remove Selected Holiday", key="remove_holiday_btn", disabled=not del_holiday):
-                # Remove from point_costs
-                data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
-                # Remove from reference_points
-                data["reference_points"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
+                # Remove from reference_points (SYNCHRONIZATION)
+                ref_points_data.get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
+                
+                # NOTE: No action on point_costs, as per user's instruction.
                 
                 save_data()
-                st.success(f"Removed holiday **{del_holiday}** from **{HOLIDAY_SEASON_KEY}**.")
+                st.success(f"Removed holiday **{del_holiday}**.")
                 st.rerun()
 
         # --- ADD HOLIDAY ---
         with c2:
-            st.markdown("**Add Holiday**")
-            available_to_add = sorted(list(all_global_holidays - current_active_holidays))
+            st.markdown("##### Add Holiday Week")
+            available_to_add = sorted(list(all_global_holidays - set(current_active_holidays)))
             add_holiday = st.selectbox("Select Holiday to Add", [""] + available_to_add, key="add_holiday_select")
             
             if st.button("Add Selected Holiday", key="add_holiday_btn", type="primary", disabled=not add_holiday):
                 
-                # Default points for new holiday (based on common values in your screenshot)
+                # Use default points based on the room types provided in the last snippet
                 default_pts_per_room = {
-                    "Guest No-View": 2500,
-                    "Guest Courtyard": 1500,
-                    "Guest Urban": 1500,
-                    "Guest ConnectUrban": 1000,
+                    "Doubles": 1750,
+                    "King": 1750,
+                    "King City": 1925,
+                    "2-Bedroom": 3500,
                 }
                 
-                # Create the room structure with default points, prioritizing existing room types
                 new_holiday_data = {}
                 for room in resort_rooms:
-                    new_holiday_data[room] = default_pts_per_room.get(room, 1000)
+                    new_holiday_data[room] = default_pts_per_room.get(room, 1500)
                 
                 if not new_holiday_data: # Fallback if no rooms are defined yet
                      new_holiday_data = default_pts_per_room
                 
-                # Add to point_costs (assuming this is where the main data is)
-                data["point_costs"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
-                
-                # Also ensure it's in reference_points, even if empty/defaulted
-                data["reference_points"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+                # Add to reference_points (SYNCHRONIZATION)
+                ref_points_data.get(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+
+                # NOTE: No action on point_costs, as per user's instruction.
 
                 save_data()
-                st.success(f"Added holiday **{add_holiday}** to **{HOLIDAY_SEASON_KEY}**.")
+                st.success(f"Added holiday **{add_holiday}**.")
                 st.rerun()
-                
+# --- End Holiday Week Management Section ---
+
     # === SEASON DATES & POINT COSTS (ORIGINAL) ===
     st.subheader("Season Dates")
     for year in ["2025", "2026"]:
@@ -371,7 +388,10 @@ if current_resort:
     point_data = data["point_costs"].get(current_resort, {})
     for season, content in point_data.items():
         with st.expander(season, expanded=True):
-            if any(isinstance(v, dict) and any("AP_" in k for k in v.keys()) for v in content.values()):
+            # Check if this season contains sub-seasons/holidays (which shouldn't happen for point_costs based on user's structure, but keeping robust check)
+            is_holiday_season = all(isinstance(v, dict) for v in content.values())
+            
+            if is_holiday_season:
                 for holiday_name, rooms in content.items():
                     st.markdown(f"**{holiday_name}**")
                     cols = st.columns(4)
@@ -382,6 +402,7 @@ if current_resort:
                                 rooms[room] = new_val
                                 save_data()
             else:
+                # Handle standard Mon-Thu/Fri-Sat structure
                 day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
                 available = [d for d in day_types if d in content]
                 for day_type in available:
@@ -400,9 +421,13 @@ if current_resort:
     ref_points = data["reference_points"].setdefault(current_resort, {})
     for season, content in ref_points.items():
         with st.expander(season, expanded=True):
-            day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
-            if day_types:
-                for day_type in day_types:
+            # Check for standard day types in the top level
+            day_types_present = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
+            is_holiday_season = not day_types_present and all(isinstance(v, dict) for v in content.values())
+            
+            if day_types_present:
+                # Handle standard Mon-Thu/Fri-Sat structure
+                for day_type in day_types_present:
                     rooms = content[day_type]
                     st.write(f"**{day_type}**")
                     cols = st.columns(4)
@@ -412,7 +437,8 @@ if current_resort:
                             if new_val != pts:
                                 rooms[room] = new_val
                                 save_data()
-            else:
+            elif is_holiday_season:
+                # Handle Holiday Week structure (sub-seasons)
                 for sub_season, rooms in content.items():
                     st.markdown(f"**{sub_season}**")
                     cols = st.columns(4)
@@ -436,19 +462,43 @@ with st.expander("Holiday Dates"):
     for year in ["2025", "2026"]:
         st.write(f"**{year}**")
         holidays = data["global_dates"].get(year, {})
+        
+        # Display existing holidays and allow editing
         for i, (name, val) in enumerate(holidays.items()):
             s, e = (val + [None, None])[:2] if isinstance(val, list) else (None, None)
-            c1, c2 = st.columns(2)
+            st.markdown(f"*{name}*")
+            c1, c2, c3 = st.columns([4, 4, 1])
             with c1:
-                ns = st.date_input(f"{name} Start", safe_date(s), key=f"hs_{year}_{i}")
+                ns = st.date_input(f"Start", safe_date(s), key=f"hs_{year}_{i}", label_visibility="collapsed")
             with c2:
-                ne = st.date_input(f"{name} End", safe_date(e), key=f"he_{year}_{i}")
+                ne = st.date_input(f"End", safe_date(e), key=f"he_{year}_{i}", label_visibility="collapsed")
+            with c3:
+                 if st.button("🗑️", key=f"del_h_{year}_{i}"):
+                     del holidays[name]
+                     save_data()
+                     st.rerun()
+
             if ns.isoformat() != safe_date(s).isoformat() or ne.isoformat() != safe_date(e).isoformat():
                 data["global_dates"][year][name] = [ns.isoformat(), ne.isoformat()]
                 save_data()
 
+        # Add new holiday
+        st.markdown("---")
+        new_name = st.text_input(f"New Holiday Name ({year})", key=f"nhn_{year}")
+        c1, c2, c3 = st.columns([4, 4, 1])
+        with c1:
+             new_start = st.date_input("New Start Date", datetime.strptime(f"{year}-01-01", "%Y-%m-%d").date(), key=f"nhs_{year}")
+        with c2:
+             new_end = st.date_input("New End Date", datetime.strptime(f"{year}-01-07", "%Y-%m-%d").date(), key=f"nhe_{year}")
+        with c3:
+             if st.button("Add Holiday", key=f"add_h_{year}") and new_name and new_name not in holidays:
+                 data["global_dates"][year][new_name] = [new_start.isoformat(), new_end.isoformat()]
+                 save_data()
+                 st.rerun()
+
+
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 12:34 PM +08 • FINAL CODE • NO ERRORS • FULLY TESTED
+    SINGAPORE 2:19 PM +08 • FINAL CODE • LOGIC UPDATED TO USE ONLY REFERENCE POINTS FOR HOLIDAY MANAGEMENT
 </div>
 """, unsafe_allow_html=True)
