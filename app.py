@@ -250,6 +250,87 @@ if current_resort:
             st.success(f"Deleted **{del_room}**")
             st.rerun()
 
+    # === NEW: HOLIDAY WEEK MANAGEMENT ===
+    st.subheader("Holiday Week Management")
+    st.caption("Add or remove individual holiday weeks (e.g., Presidents Day) within the 'Holiday Week' season.")
+
+    HOLIDAY_SEASON_KEY = "Holiday Week"
+    
+    # 1. Get all possible holidays from global_dates (combined 2025 and 2026)
+    all_global_holidays = set(data["global_dates"].get("2025", {}).keys()).union(data["global_dates"].get("2026", {}).keys())
+    all_global_holidays = sorted([h for h in all_global_holidays if h]) # Ensure no empty string
+
+    # 2. Get currently active holidays in the resort under the HOLIDAY_SEASON_KEY
+    current_point_holidays = set(data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).keys())
+    current_ref_holidays = set(data["reference_points"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).keys())
+    
+    # Use the union of both for management, but point_costs is likely the main one shown in the UI
+    current_active_holidays = current_point_holidays.union(current_ref_holidays) 
+    
+    # 3. Get all room types for initialization if a new holiday is added
+    resort_rooms = set()
+    for season_data in data["reference_points"].get(current_resort, {}).values():
+        for day_or_room in season_data.values():
+            if isinstance(day_or_room, dict):
+                resort_rooms.update(day_or_room.keys())
+    resort_rooms = sorted(resort_rooms)
+
+    if not all_global_holidays:
+        st.warning("No global holiday dates are defined in Global Settings.")
+    elif HOLIDAY_SEASON_KEY not in data["point_costs"].get(current_resort, {}):
+        st.info(f"The season **{HOLIDAY_SEASON_KEY}** is not active for point costs in this resort. Add it via the 'Add Season' control above.")
+    else:
+        
+        c1, c2 = st.columns(2)
+
+        # --- REMOVE HOLIDAY ---
+        with c1:
+            st.markdown("**Remove Holiday**")
+            del_holiday = st.selectbox("Select Holiday to Remove", [""] + sorted(current_active_holidays), key="del_holiday_select")
+            if st.button("Remove Selected Holiday", key="remove_holiday_btn", disabled=not del_holiday):
+                # Remove from point_costs
+                data["point_costs"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
+                # Remove from reference_points
+                data["reference_points"].get(current_resort, {}).get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
+                
+                save_data()
+                st.success(f"Removed holiday **{del_holiday}** from **{HOLIDAY_SEASON_KEY}**.")
+                st.rerun()
+
+        # --- ADD HOLIDAY ---
+        with c2:
+            st.markdown("**Add Holiday**")
+            available_to_add = sorted(list(all_global_holidays - current_active_holidays))
+            add_holiday = st.selectbox("Select Holiday to Add", [""] + available_to_add, key="add_holiday_select")
+            
+            if st.button("Add Selected Holiday", key="add_holiday_btn", type="primary", disabled=not add_holiday):
+                
+                # Default points for new holiday (based on common values in your screenshot)
+                default_pts_per_room = {
+                    "Guest No-View": 2500,
+                    "Guest Courtyard": 1500,
+                    "Guest Urban": 1500,
+                    "Guest ConnectUrban": 1000,
+                }
+                
+                # Create the room structure with default points, prioritizing existing room types
+                new_holiday_data = {}
+                for room in resort_rooms:
+                    new_holiday_data[room] = default_pts_per_room.get(room, 1000)
+                
+                if not new_holiday_data: # Fallback if no rooms are defined yet
+                     new_holiday_data = default_pts_per_room
+                
+                # Add to point_costs (assuming this is where the main data is)
+                data["point_costs"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+                
+                # Also ensure it's in reference_points, even if empty/defaulted
+                data["reference_points"].get(current_resort, {}).setdefault(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
+
+                save_data()
+                st.success(f"Added holiday **{add_holiday}** to **{HOLIDAY_SEASON_KEY}**.")
+                st.rerun()
+                
     # === SEASON DATES & POINT COSTS (ORIGINAL) ===
     st.subheader("Season Dates")
     for year in ["2025", "2026"]:
