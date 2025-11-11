@@ -274,12 +274,13 @@ if current_resort:
     ref_points_data.setdefault(HOLIDAY_SEASON_KEY, {})
     
     # 1. Get all possible holidays from global_dates (combined 2025 and 2026)
+    # FIX: Ensure all_global_holidays remains a set for the set difference operation
     all_global_holidays = set(data["global_dates"].get("2025", {}).keys()).union(data["global_dates"].get("2026", {}).keys())
-    all_global_holidays = sorted([h for h in all_global_holidays if h])
+    all_global_holidays = {h for h in all_global_holidays if h} # Remove empty strings, keep as set
 
     # 2. Get currently active holidays in the resort from reference_points
-    current_active_holidays = set(ref_points_data.get(HOLIDAY_SEASON_KEY, {}).keys()) 
-    current_active_holidays = sorted(current_active_holidays)
+    current_active_holidays_set = set(ref_points_data.get(HOLIDAY_SEASON_KEY, {}).keys()) 
+    current_active_holidays_sorted = sorted(current_active_holidays_set)
     
     # 3. Get all room types for initialization if a new holiday is added
     resort_rooms = set()
@@ -294,8 +295,8 @@ if current_resort:
     else:
         
         # --- Display Current Active Holidays ---
-        if current_active_holidays:
-            st.info(f"✅ Active Holiday Weeks: **{', '.join(current_active_holidays)}**")
+        if current_active_holidays_sorted:
+            st.info(f"✅ Active Holiday Weeks: **{', '.join(current_active_holidays_sorted)}**")
         else:
             st.info("No holiday weeks are currently active for this resort. Use the control below to add one.")
 
@@ -304,12 +305,10 @@ if current_resort:
         # --- REMOVE HOLIDAY ---
         with c1:
             st.markdown("##### Remove Holiday Week")
-            del_holiday = st.selectbox("Select Holiday to Remove", [""] + current_active_holidays, key="del_holiday_select")
+            del_holiday = st.selectbox("Select Holiday to Remove", [""] + current_active_holidays_sorted, key="del_holiday_select")
             if st.button("Remove Selected Holiday", key="remove_holiday_btn", disabled=not del_holiday):
                 # Remove from reference_points (SYNCHRONIZATION)
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {}).pop(del_holiday, None)
-                
-                # NOTE: No action on point_costs, as per user's instruction.
                 
                 save_data()
                 st.success(f"Removed holiday **{del_holiday}**.")
@@ -318,7 +317,10 @@ if current_resort:
         # --- ADD HOLIDAY ---
         with c2:
             st.markdown("##### Add Holiday Week")
-            available_to_add = sorted(list(all_global_holidays - set(current_active_holidays)))
+            
+            # CORRECTED: Perform set difference using the two sets
+            available_to_add = sorted(list(all_global_holidays - current_active_holidays_set))
+            
             add_holiday = st.selectbox("Select Holiday to Add", [""] + available_to_add, key="add_holiday_select")
             
             if st.button("Add Selected Holiday", key="add_holiday_btn", type="primary", disabled=not add_holiday):
@@ -340,8 +342,6 @@ if current_resort:
                 
                 # Add to reference_points (SYNCHRONIZATION)
                 ref_points_data.get(HOLIDAY_SEASON_KEY, {})[add_holiday] = copy.deepcopy(new_holiday_data)
-
-                # NOTE: No action on point_costs, as per user's instruction.
 
                 save_data()
                 st.success(f"Added holiday **{add_holiday}**.")
@@ -499,6 +499,6 @@ with st.expander("Holiday Dates"):
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 2:19 PM +08 • FINAL CODE • LOGIC UPDATED TO USE ONLY REFERENCE POINTS FOR HOLIDAY MANAGEMENT
+    SINGAPORE 2:24 PM +08 • FINAL CODE • TYPE ERROR RESOLVED
 </div>
 """, unsafe_allow_html=True)
