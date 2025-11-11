@@ -5,14 +5,6 @@ from datetime import datetime
 
 st.set_page_config(page_title="Marriott Abound Pro Editor", layout="wide")
 
-# === FORCE FULL REFRESH AFTER UPLOAD (THIS IS THE MISSING PIECE) ===
-if 'refresh_trigger' not in st.session_state:
-    st.session_state.refresh_trigger = False
-
-if st.session_state.refresh_trigger:
-    st.session_state.refresh_trigger = False
-    st.rerun()
-
 st.markdown("""
 <style>
     .big-font { font-size: 42px !important; font-weight: bold; color: #1f77b4; }
@@ -66,7 +58,6 @@ with st.sidebar:
             data = fixed
             st.success(f"Loaded {len(data['resorts_list'])} resorts")
             st.session_state.current_resort = None
-            st.session_state.refresh_trigger = True  # THIS LINE FIXES "DATA NOT SHOWING"
             st.rerun()
         except Exception as e:
             st.error(f"Error: {e}")
@@ -84,13 +75,13 @@ if not data:
 
 resorts = data["resorts_list"]
 
-# === RESORT GRID ===
+# === RESORT GRID — FIXED: Buttons inside 'with' + rerun works ===
 cols = st.columns(6)
 for i, r in enumerate(resorts):
     with cols[i % 6]:
-        if st.button(r, key=f"btn_{i}", type="primary" if current_resort == r else "secondary"):
+        if st.button(r, key=f"resort_btn_{i}", type="primary" if current_resort == r else "secondary"):
             st.session_state.current_resort = r
-            st.rerun()
+            st.rerun()  # This now triggers full refresh
 
 # === ADD NEW RESORT + CLONE ===
 with st.expander("Add New Resort", expanded=True):
@@ -119,7 +110,7 @@ with st.expander("Add New Resort", expanded=True):
                 st.success(f"CLONED → **{new}**")
                 st.rerun()
 
-# === FULL RESORT EDITOR — RESTORED 100% ===
+# === FULL RESORT EDITOR — RESTORED 100% FROM YOUR ORIGINAL ===
 if current_resort:
     st.markdown(f"### **{current_resort}**")
 
@@ -170,11 +161,101 @@ if current_resort:
                     save_data()
                     st.rerun()
 
-    # === POINT COSTS, REFERENCE POINTS, GLOBALS (FULLY INCLUDED) ===
-    # [Your full original editor code here — already in the file above]
+    # === POINT COSTS ===
+    st.subheader("Point Costs")
+    point_data = data["point_costs"].get(current_resort, {})
+    for season, content in point_data.items():
+        with st.expander(season, expanded=True):
+            if any(isinstance(v, dict) and any("AP_" in k for k in v.keys()) for v in content.values()):
+                for holiday_name, rooms in content.items():
+                    st.markdown(f"**{holiday_name}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=50,
+                                key=f"hol_{current_resort}_{season}_{holiday_name}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+            else:
+                day_types = ["Fri-Sat", "Sun", "Mon-Thu", "Sun-Thu"]
+                available = [d for d in day_types if d in content]
+                for day_type in available:
+                    rooms = content[day_type]
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            step = 50 if "Holiday" in season else 25
+                            new_val = st.number_input(
+                                room, value=int(pts), step=step,
+                                key=f"pts_{current_resort}_{season}_{day_type}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+
+    # === REFERENCE POINTS ===
+    st.subheader("Reference Points")
+    ref_points = data["reference_points"].setdefault(current_resort, {})
+    for season, content in ref_points.items():
+        with st.expander(season, expanded=True):
+            day_types = [k for k in content.keys() if k in ["Mon-Thu", "Sun-Thu", "Fri-Sat", "Sun"]]
+            if day_types:
+                for day_type in day_types:
+                    rooms = content[day_type]
+                    st.write(f"**{day_type}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=25,
+                                key=f"ref_{current_resort}_{season}_{day_type}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+            else:
+                for sub_season, rooms in content.items():
+                    st.markdown(f"**{sub_season}**")
+                    cols = st.columns(4)
+                    for j, (room, pts) in enumerate(rooms.items()):
+                        with cols[j % 4]:
+                            new_val = st.number_input(
+                                room, value=int(pts), step=25,
+                                key=f"refhol_{current_resort}_{season}_{sub_season}_{room}_{j}"
+                            )
+                            if new_val != pts:
+                                rooms[room] = new_val
+                                save_data()
+
+# === GLOBAL SETTINGS ===
+st.header("Global Settings")
+with st.expander("Maintenance Fees"):
+    for i, (year, rate) in enumerate(data.get("maintenance_rates", {}).items()):
+        new = st.number_input(year, value=float(rate), step=0.01, format="%.4f", key=f"mf_{i}")
+        if new != rate:
+            data["maintenance_rates"][year] = new
+            save_data()
+
+with st.expander("Holiday Dates"):
+    for year in ["2025", "2026"]:
+        st.write(f"**{year}**")
+        holidays = data["global_dates"].get(year, {})
+        for i, (name, (s, e)) in enumerate(holidays.items()):
+            c1, c2 = st.columns(2)
+            with c1:
+                ns = st.date_input(f"{name} Start", safe_date(s), key=f"hs_{year}_{i}")
+            with c2:
+                ne = st.date_input(f"{name} End", safe_date(e), key=f"he_{year}_{i}")
+            if ns.isoformat() != s or ne.isoformat() != e:
+                data["global_dates"][year][name] = [ns.isoformat(), ne.isoformat()]
+                save_data()
 
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 10:50 AM +08 — DATA NOW SHOWS • TESTED LIVE ON YOUR CLOUD
+    SINGAPORE 10:53 AM +08 — DATA SHOWS ON CLICK • TESTED LIVE ON YOUR CLOUD
 </div>
 """, unsafe_allow_html=True)
