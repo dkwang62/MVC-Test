@@ -901,8 +901,8 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
         if not has_data and season in data["reference_points"].get(resort, {}):
             issues.append(f"Season '{season}' has reference points but no date ranges")
     
-    # Check room consistency
-    all_rooms = get_all_room_types(data, resort)
+    # Check room consistency - FIXED set operations
+    all_rooms = set(get_all_room_types(data, resort))
     for season in data["reference_points"].get(resort, {}):
         if season == HOLIDAY_SEASON_KEY:
             continue
@@ -911,7 +911,7 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
                 season_rooms = set(data["reference_points"][resort][season][day_type].keys())
                 missing = all_rooms - season_rooms
                 if missing:
-                    issues.append(f"Season '{season}' missing rooms in {day_type}: {', '.join(missing)}")
+                    issues.append(f"Season '{season}' missing rooms in {day_type}: {', '.join(sorted(missing))}")
     
     return issues
 
