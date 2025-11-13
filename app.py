@@ -21,27 +21,24 @@ st.markdown("""
 # ----------------------------------------------------------------------
 # SESSION STATE & REFRESH CONTROL
 # ----------------------------------------------------------------------
-if 'refresh_trigger' not in st.session_state: st.session_state.refresh_trigger = False
-if st.session_state.refresh_trigger: st.session_state blogg.refresh_trigger = False; st.rerun()
-if 'last_upload_sig' not in st.session_state: st.session_state.last_upload_sig = None
-if 'delete_confirm' not in st.session_state: st.session_state.delete_confirm = False
-if 'data' not in st.session_state: st.session_state.data = None
-if 'current_resort' not in st.session_state: st.session_state.current_resort = None
+if 'refresh_trigger' not in st.session_state:
+    st.session_state.refresh_trigger = False
+
+if st.session_state.refresh_trigger:
+    st.session_state.refresh_trigger = False
+    st.rerun()
+
+if 'last_upload_sig' not in st.session_state:
+    st.session_state.last_upload_sig = None
+if 'delete_confirm' not in st.session_state:
+    st.session_state.delete_confirm = False
+if 'data' not in st.session_state:
+    st.session_state.data = None
+if 'current_resort' not in st.session_state:
+    st.session_state.current_resort = None
 
 data = st.session_state.data
 current_resort = st.session_state.current_resort
-
-def save_data():
-    """Saves the current state of the global 'data' dictionary to session state."""
-    st.session_state.data = data
-
-def safe_date(d, f="2025-01-01"):
-    """Safely converts a date string (or None) to a datetime.date object, defaulting to f."""
-    if not d or not isinstance(d, str): return datetime.strptime(f, "%Y-%m-%d").date()
-    try: return datetime.fromisoformat(d.strip()).date()
-    except:
-        try: return datetime.strptime(d.strip(), "%Y-%m-%d").date()
-        except: return datetime.strptime(f, "%Y-%m-%d").date()
 
 # ----------------------------------------------------------------------
 # JSON FIX & SANITIZE
