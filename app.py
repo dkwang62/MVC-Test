@@ -56,7 +56,9 @@ def initialize_session_state():
         'editing_season': None,
         'editing_room': None,
         'change_history': [],
-        'last_save_time': None
+        'last_save_time': None,
+        'room_rename_old': None,
+        'room_rename_new': None
     }
     
     for key, value in defaults.items():
@@ -480,6 +482,95 @@ def delete_room_type(data: Dict, resort: str, room: str):
     
     save_data(data)
     st.success(f"✅ Deleted **{room}**")
+    st.rerun()
+
+# ----------------------------------------------------------------------
+# CHANGE ROOM NAME FUNCTIONALITY
+# ----------------------------------------------------------------------
+def handle_room_name_change(data: Dict, resort: str):
+    """Handle changing room names across all seasons and categories."""
+    st.subheader("✏️ Change Room Name")
+    st.caption("Change a room name everywhere it appears in this resort")
+    
+    rooms = get_all_room_types(data, resort)
+    
+    if not rooms:
+        st.info("No room types found. Add room types first.")
+        return
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        old_room_name = st.selectbox(
+            "Select Room to Rename",
+            [""] + rooms,
+            key="change_room_old_select"
+        )
+    
+    with col2:
+        new_room_name = st.text_input(
+            "New Room Name",
+            placeholder="Enter new room name",
+            key="change_room_new_input"
+        )
+    
+    if old_room_name and new_room_name:
+        new_room_name_clean = new_room_name.strip()
+        
+        # Validation
+        if not new_room_name_clean:
+            st.error("New room name cannot be empty")
+            return
+            
+        if new_room_name_clean == old_room_name:
+            st.error("New room name must be different from old name")
+            return
+            
+        if any(r.lower() == new_room_name_clean.lower() for r in rooms if r != old_room_name):
+            st.error("❌ Room name already exists")
+            return
+        
+        # Show preview and confirmation
+        st.info(f"**Preview:** Change **{old_room_name}** → **{new_room_name_clean}**")
+        st.warning("This will change the room name in ALL seasons, day types, and categories.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Confirm Change", type="primary", key="confirm_room_name_change"):
+                change_room_name_global(data, resort, old_room_name, new_room_name_clean)
+        with col2:
+            if st.button("❌ Cancel", key="cancel_room_name_change"):
+                st.session_state.room_rename_old = None
+                st.session_state.room_rename_new = None
+                st.rerun()
+
+def change_room_name_global(data: Dict, resort: str, old_name: str, new_name: str):
+    """Change room name across all data structures in the resort."""
+    # Update reference points
+    for season in data["reference_points"].get(resort, {}):
+        for day_type in data["reference_points"][resort][season]:
+            if isinstance(data["reference_points"][resort][season][day_type], dict):
+                if old_name in data["reference_points"][resort][season][day_type]:
+                    data["reference_points"][resort][season][day_type][new_name] = data["reference_points"][resort][season][day_type].pop(old_name)
+    
+    # Update point costs
+    for season in data["point_costs"].get(resort, {}):
+        for day_type in data["point_costs"][resort][season]:
+            if isinstance(data["point_costs"][resort][season][day_type], dict):
+                if old_name in data["point_costs"][resort][season][day_type]:
+                    data["point_costs"][resort][season][day_type][new_name] = data["point_costs"][resort][season][day_type].pop(old_name)
+    
+    # Update holiday weeks (if room names are used there)
+    for year in YEARS:
+        holiday_data = data["holiday_weeks"].get(resort, {}).get(year, {})
+        for holiday_name, holiday_info in holiday_data.items():
+            if isinstance(holiday_info, dict) and old_name in holiday_info:
+                holiday_info[new_name] = holiday_info.pop(old_name)
+    
+    save_data(data)
+    st.success(f"✅ Changed **{old_name}** → **{new_name}** everywhere")
+    st.session_state.room_rename_old = None
+    st.session_state.room_rename_new = None
     st.rerun()
 
 # ----------------------------------------------------------------------
@@ -1069,6 +1160,9 @@ def main():
         handle_room_renaming(data, current_resort)
         handle_room_operations(data, current_resort)
         
+        # NEW: Change room name functionality
+        handle_room_name_change(data, current_resort)
+        
         # Holiday management
         handle_holiday_management(data, current_resort)
         
@@ -1087,7 +1181,7 @@ def main():
     # Footer
     st.markdown("""
     <div class='success-box'>
-        SINGAPORE 5:09 PM +08 • ALL ISSUES FIXED • WITH VALIDATION
+        SINGAPORE 5:09 PM +08 • ALL ISSUES FIXED • WITH ROOM NAME CHANGE
     </div>
     """, unsafe_allow_html=True)
 
