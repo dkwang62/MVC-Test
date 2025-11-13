@@ -125,6 +125,25 @@ def fix_json(raw_data: Dict) -> Dict:
                     not isinstance(r, (list, tuple)) or len(r) != 2 for r in ranges
                 ):
                     season_data[season] = []
+        
+        # Clean point_costs and reference_points structures
+        for cat in ["point_costs", "reference_points"]:
+            cat_data = fixed[cat].get(resort, {})
+            for season in list(cat_data):
+                content = cat_data[season]
+                if season == HOLIDAY_SEASON_KEY:
+                    # Remove invalid holiday entries
+                    for sub in list(content):
+                        if not isinstance(content[sub], dict):
+                            del content[sub]
+                else:
+                    # Remove extra keys not in DAY_TYPES
+                    for k in list(content):
+                        if k not in DAY_TYPES:
+                            del content[k]
+                    # Add missing day types
+                    for day in DAY_TYPES:
+                        content.setdefault(day, {})
    
     return fixed
 def is_duplicate_resort_name(name: str, resorts: List[str]) -> bool:
@@ -345,8 +364,8 @@ def add_season(data: Dict, resort: str, season: str):
         return
     for year in YEARS:
         data["season_blocks"][resort].setdefault(year, {})[season] = []
-    data["reference_points"].setdefault(resort, {})[season] = {}
-    data["point_costs"].setdefault(resort, {})[season] = {}
+    data["reference_points"].setdefault(resort, {})[season] = {day: {} for day in DAY_TYPES}
+    data["point_costs"].setdefault(resort, {})[season] = {day: {} for day in DAY_TYPES}
     save_data(data)
     st.success(f"✅ Added **{season}**")
     st.rerun()
