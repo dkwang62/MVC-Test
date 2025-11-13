@@ -22,7 +22,7 @@ st.markdown("""
 # SESSION STATE & REFRESH CONTROL
 # ----------------------------------------------------------------------
 if 'refresh_trigger' not in st.session_state: st.session_state.refresh_trigger = False
-if st.session_state.refresh_trigger: st.session_state.refresh_trigger = False; st.rerun()
+if st.session_state.refresh_trigger: st.session_state blogg.refresh_trigger = False; st.rerun()
 if 'last_upload_sig' not in st.session_state: st.session_state.last_upload_sig = None
 if 'delete_confirm' not in st.session_state: st.session_state.delete_confirm = False
 if 'data' not in st.session_state: st.session_state.data = None
@@ -67,7 +67,7 @@ def fix_json(raw):
     return raw
 
 # ----------------------------------------------------------------------
-# SIDEBAR: UPLOAD & DOWNLOAD
+# SIDEBAR: UPLOAD & DOWNLOAD (LIVE‑SYNCED)
 # ----------------------------------------------------------------------
 with st.sidebar:
     st.markdown("<p class='big-font'>Marriott Editor</p>", unsafe_allow_html=True)
@@ -87,8 +87,22 @@ with st.sidebar:
                 st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
+
+    # ------------------- LIVE DOWNLOAD (OPTION 1) -------------------
     if st.session_state.data:
-        st.download_button("Download", json.dumps(st.session_state.data, indent=2), "data.json", "application/json")
+        def get_latest_json():
+            import copy
+            latest = st.session_state.data
+            return json.dumps(copy.deepcopy(latest), indent=2, ensure_ascii=False)
+
+        st.download_button(
+            label="Download",
+            data=get_latest_json(),
+            file_name="data.json",
+            mime="application/json",
+            key="download_btn",
+            help="Always the most recent data – even if you just edited something."
+        )
 
 # ----------------------------------------------------------------------
 # MAIN UI
@@ -110,7 +124,7 @@ for i, r in enumerate(resorts):
     with cols[i % 6]:
         if st.button(r, key=f"resort_btn_{i}", type="primary" if current_resort == r else "secondary"):
             st.session_state.current_resort = r
-            st.session_state.delete_confirm = False
+            st.session COPYdelete_confirm = False
             st.rerun()
 
 # ----------------------------------------------------------------------
@@ -287,7 +301,7 @@ if current_resort:
             st.rerun()
 
     # ------------------------------------------------------------------
-    # HOLIDAY WEEK MANAGEMENT (sync reference_points ↔ holiday_weeks)
+    # HOLIDAY WEEK MANAGEMENT
     # ------------------------------------------------------------------
     st.subheader("Manage Individual Holiday Weeks")
     st.caption("Add or remove specific holiday weeks (e.g., Presidents Day) from this resort's **Reference Points**.")
@@ -317,7 +331,6 @@ if current_resort:
             st.info("No holiday weeks are currently active for this resort. Use the control below to add one.")
 
         c1, c2 = st.columns(2)
-        # ---- REMOVE ----
         with c1:
             st.markdown("##### Remove Holiday Week")
             del_holiday = st.selectbox("Select Holiday to Remove", [""] + current_active_holidays_sorted, key="del_holiday_select")
@@ -330,7 +343,6 @@ if current_resort:
                 st.success(f"Removed holiday **{del_holiday}**.")
                 st.rerun()
 
-        # ---- ADD ----
         with c2:
             st.markdown("##### Add Holiday Week")
             available_to_add = sorted(list(all_global_holidays - current_active_holidays_set))
@@ -434,11 +446,9 @@ if current_resort:
     st.subheader("Season & Holiday Gantt Chart")
     tab2025, tab2026 = st.tabs(["2025", "2026"])
 
-    # ---- Helper to resolve global holiday dates ----
     def resolve_global(year_str: str, holiday_name: str):
         return data["global_dates"].get(year_str, {}).get(holiday_name, [None, None])
 
-    # ---- Gantt chart function ----
     def gantt_chart(resort: str, year: int):
         rows = []
         ys = str(year)
@@ -481,7 +491,6 @@ if current_resort:
                 except Exception:
                     continue
 
-        # ---- FALLBACK ----
         if not rows:
             today = datetime.now()
             rows = [{
@@ -495,7 +504,6 @@ if current_resort:
         df["Start"]  = pd.to_datetime(df["Start"])
         df["Finish"] = pd.to_datetime(df["Finish"])
 
-        # ---- COLORS ----
         color_dict = {
             "Holiday":      "rgb(255,99,71)",
             "Low Season":   "rgb(135,206,250)",
@@ -510,7 +518,6 @@ if current_resort:
         }
         colors = {t: color_dict.get(t, "rgb(169,169,169)") for t in df["Type"].unique()}
 
-        # ---- PLOT ----
         fig = px.timeline(
             df,
             x_start="Start",
@@ -595,6 +602,6 @@ with st.expander("Holiday Dates"):
 # ----------------------------------------------------------------------
 st.markdown("""
 <div class='success-box'>
-    SINGAPORE 5:09 PM +08 • FINAL CODE • INFINITE LOOP FIX IMPLEMENTED
+    SINGAPORE 5:09 PM +08 • FINAL CODE • LIVE DOWNLOAD FIXED
 </div>
 """, unsafe_allow_html=True)
