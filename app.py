@@ -660,12 +660,14 @@ def render_reference_points_editor(data: Dict, resort: str):
 def render_season_points(content: Dict, resort: str, season: str):
     """Render points editor for a specific season - ADDED validation."""
     day_types = [k for k in content.keys() if k in DAY_TYPES]
+    extra_keys = [k for k in content.keys() if k not in DAY_TYPES]
+    has_extra_nested = any(isinstance(content.get(k, {}), dict) for k in extra_keys)
     has_nested_dicts = any(isinstance(v, dict) for v in content.values())
     is_holiday_season = not day_types and has_nested_dicts
    
     # Warn about mixed schema
-    if day_types and has_nested_dicts:
-        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + nested dicts)")
+    if day_types and has_extra_nested:
+        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + extra nested dicts)")
    
     if day_types:
         render_regular_season(content, resort, season, day_types)
