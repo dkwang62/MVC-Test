@@ -417,18 +417,10 @@ def update_room_in_section(section_data: Dict, old_name: str, new_name: str) -> 
     changes_made = False
    
     for season, season_data in section_data.items():
-        if season == HOLIDAY_SEASON_KEY:
-            # Handle holiday season (nested structure)
-            for holiday_name, holiday_data in season_data.items():
-                if isinstance(holiday_data, dict) and old_name in holiday_data:
-                    holiday_data[new_name] = holiday_data.pop(old_name)
-                    changes_made = True
-        else:
-            # Handle regular seasons (day types)
-            for day_type, day_data in season_data.items():
-                if isinstance(day_data, dict) and old_name in day_data:
-                    day_data[new_name] = day_data.pop(old_name)
-                    changes_made = True
+        for sub_name, sub_data in season_data.items():
+            if isinstance(sub_data, dict) and old_name in sub_data:
+                sub_data[new_name] = sub_data.pop(old_name)
+                changes_made = True
    
     return changes_made
 def handle_room_operations(data: Dict, resort: str):
@@ -660,12 +652,14 @@ def render_reference_points_editor(data: Dict, resort: str):
 def render_season_points(content: Dict, resort: str, season: str):
     """Render points editor for a specific season - ADDED validation."""
     day_types = [k for k in content.keys() if k in DAY_TYPES]
+    extra_keys = [k for k in content.keys() if k not in DAY_TYPES]
+    has_extra_nested = any(isinstance(content[k], dict) for k in extra_keys)
     has_nested_dicts = any(isinstance(v, dict) for v in content.values())
     is_holiday_season = not day_types and has_nested_dicts
    
     # Warn about mixed schema
-    if day_types and has_nested_dicts:
-        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + nested dicts)")
+    if day_types and has_extra_nested:
+        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + extra nested dicts)")
    
     if day_types:
         render_regular_season(content, resort, season, day_types)
@@ -919,6 +913,26 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
                     issues.append(f"Holiday '{holiday}' missing rooms: {', '.join(sorted(missing))}")
             else:
                 issues.append(f"Invalid data structure for holiday '{holiday}'")
+   
+    # Check structural integrity for reference_points and point_costs
+    for cat_name in ["reference_points", "point_costs"]:
+        cat = data[cat_name].get(resort, {})
+        for season, content in cat.items():
+            if season == HOLIDAY_SEASON_KEY:
+                for holiday, rooms in content.items():
+                    if not isinstance(rooms, dict):
+                        issues.append(f"{cat_name} Holiday '{holiday}' invalid (not dict)")
+            else:
+                found_day_types = [k for k in content if k in DAY_TYPES]
+                missing = set(DAY_TYPES) - set(found_day_types)
+                if missing:
+                    issues.append(f"{cat_name} Season '{season}' missing day types: {', '.join(missing)}")
+                extra = [k for k in content if k not in DAY_TYPES]
+                if extra:
+                    issues.append(f"{cat_name} Season '{season}' has extra keys: {', '.join(extra)}")
+                for day, rooms in content.items():
+                    if day in DAY_TYPES and not isinstance(rooms, dict):
+                        issues.append(f"{cat_name} Season '{season}' day '{day}' invalid (not dict)")
    
     return issues
 def render_validation_panel(data: Dict, current_resort: str):
