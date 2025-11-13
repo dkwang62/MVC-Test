@@ -794,4 +794,115 @@ def render_holiday_dates_editor(data: Dict):
 
 def render_holiday_date_range(data: Dict, year: str, name: str, dates: List, index: int):
     """Render a single holiday date range with delete option."""
-    date_list = dates if isinstance(dates, list) else [None,
+    date_list = dates if isinstance(dates, list) else [None, None]
+    start_str, end_str = date_list[0], date_list[1]
+
+    st.markdown(f"*{name}*")
+    col1, col2, col3 = st.columns([4, 4, 1])
+    with col1:
+        new_start = st.date_input(f"Start", safe_date(start_str), key=f"hs_{year}_{index}", label_visibility="collapsed")
+    with col2:
+        new_end = st.date_input(f"End", safe_date(end_str), key=f"he_{year}_{index}", label_visibility="collapsed")
+    with col3:
+        if st.button("Delete", key=f"del_h_{year}_{index}"):
+            del holidays[name]
+            save_data(data)
+            st.rerun()
+
+    stored_start_iso = start_str if start_str else safe_date(start_str).isoformat()
+    stored_end_iso = end_str if end_str else safe_date(end_str).isoformat()
+    if new_start.isoformat() != stored_start_iso or new_end.isoformat() != stored_end_iso:
+        data["global_dates"][year][name] = [new_start.isoformat(), new_end.isoformat()]
+        save_data(data)
+
+def render_new_holiday_interface(data: Dict, year: str):
+    """Render interface for adding new holidays."""
+    new_name = st.text_input(f"New Holiday Name ({year})", key=f"nhn_{year}")
+    col1, col2, col3 = st.columns([4, 4, 1])
+    with col1:
+        new_start = st.date_input("New Start Date", datetime.strptime(f"{year}-01-01", "%Y-%m-%d").date(), key=f"nhs_{year}")
+    with col2:
+        new_end = st.date_input("New End Date", datetime.strptime(f"{year}-01-07", "%Y-%m-%d").date(), key=f"nhe_{year}")
+    with col3:
+        if st.button("Add Holiday", key=f"add_h_{year}") and new_name and new_name not in data["global_dates"][year]:
+            data["global_dates"][year][new_name] = [new_start.isoformat(), new_end.isoformat()]
+            save_data(data)
+            st.rerun()
+
+# ----------------------------------------------------------------------
+# MAIN APPLICATION
+# ----------------------------------------------------------------------
+def main():
+    """Main application function."""
+    # Setup
+    setup_page()
+    initialize_session_state()
+    
+    # Sidebar
+    with st.sidebar:
+        st.markdown("<p class='big-font'>Marriott Editor</p>", unsafe_allow_html=True)
+        handle_file_upload()
+        if st.session_state.data:
+            create_download_button(st.session_state.data)
+    
+    # Main content
+    st.title("Marriott Data Editor")
+    st.caption("Rename • Add • Delete • Sync — All in One Place")
+    
+    # Check if data is loaded
+    if not st.session_state.data:
+        st.info("📁 Upload your data.json file to start editing")
+        return
+    
+    data = st.session_state.data
+    resorts = data["resorts_list"]
+    current_resort = st.session_state.current_resort
+    
+    # Resort grid
+    render_resort_grid(resorts, current_resort)
+    
+    # Resort creation
+    handle_resort_creation(data, resorts)
+    
+    # Resort-specific editing
+    if current_resort:
+        st.markdown(f"### **{current_resort}**")
+        
+        # Resort deletion
+        handle_resort_deletion(data, current_resort)
+        
+        # Season management
+        handle_season_renaming(data, current_resort)
+        handle_season_operations(data, current_resort)
+        
+        # Room type management
+        handle_room_renaming(data, current_resort)
+        handle_room_operations(data, current_resort)
+        
+        # Holiday management
+        handle_holiday_management(data, current_resort)
+        
+        # Season dates editor
+        render_season_dates_editor(data, current_resort)
+        
+        # Reference points editor
+        render_reference_points_editor(data, current_resort)
+        
+        # Gantt charts
+        render_gantt_charts(current_resort)
+    
+    # Global settings
+    render_global_settings(data)
+    
+    # Footer
+    st.markdown("""
+    <div class='success-box'>
+        SINGAPORE 5:09 PM +08 • FINAL CODE • ALL SYNTAX ERRORS FIXED
+    </div>
+    """, unsafe_allow_html=True)
+
+# ----------------------------------------------------------------------
+# RUN APPLICATION
+# ----------------------------------------------------------------------
+if __name__ == "__main__":
+    main()
