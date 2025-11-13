@@ -125,25 +125,6 @@ def fix_json(raw_data: Dict) -> Dict:
                     not isinstance(r, (list, tuple)) or len(r) != 2 for r in ranges
                 ):
                     season_data[season] = []
-        
-        # Clean point_costs and reference_points structures
-        for cat in ["point_costs", "reference_points"]:
-            cat_data = fixed[cat].get(resort, {})
-            for season in list(cat_data):
-                content = cat_data[season]
-                if season == HOLIDAY_SEASON_KEY:
-                    # Remove invalid holiday entries
-                    for sub in list(content):
-                        if not isinstance(content[sub], dict):
-                            del content[sub]
-                else:
-                    # Remove extra keys not in DAY_TYPES
-                    for k in list(content):
-                        if k not in DAY_TYPES:
-                            del content[k]
-                    # Add missing day types
-                    for day in DAY_TYPES:
-                        content.setdefault(day, {})
    
     return fixed
 def is_duplicate_resort_name(name: str, resorts: List[str]) -> bool:
@@ -364,8 +345,8 @@ def add_season(data: Dict, resort: str, season: str):
         return
     for year in YEARS:
         data["season_blocks"][resort].setdefault(year, {})[season] = []
-    data["reference_points"].setdefault(resort, {})[season] = {day: {} for day in DAY_TYPES}
-    data["point_costs"].setdefault(resort, {})[season] = {day: {} for day in DAY_TYPES}
+    data["reference_points"].setdefault(resort, {})[season] = {}
+    data["point_costs"].setdefault(resort, {})[season] = {}
     save_data(data)
     st.success(f"✅ Added **{season}**")
     st.rerun()
@@ -436,10 +417,18 @@ def update_room_in_section(section_data: Dict, old_name: str, new_name: str) -> 
     changes_made = False
    
     for season, season_data in section_data.items():
-        for sub_name, sub_data in season_data.items():
-            if isinstance(sub_data, dict) and old_name in sub_data:
-                sub_data[new_name] = sub_data.pop(old_name)
-                changes_made = True
+        if season == HOLIDAY_SEASON_KEY:
+            # Handle holiday season (nested structure)
+            for holiday_name, holiday_data in season_data.items():
+                if isinstance(holiday_data, dict) and old_name in holiday_data:
+                    holiday_data[new_name] = holiday_data.pop(old_name)
+                    changes_made = True
+        else:
+            # Handle regular seasons (day types)
+            for day_type, day_data in season_data.items():
+                if isinstance(day_data, dict) and old_name in day_data:
+                    day_data[new_name] = day_data.pop(old_name)
+                    changes_made = True
    
     return changes_made
 def handle_room_operations(data: Dict, resort: str):
@@ -671,14 +660,12 @@ def render_reference_points_editor(data: Dict, resort: str):
 def render_season_points(content: Dict, resort: str, season: str):
     """Render points editor for a specific season - ADDED validation."""
     day_types = [k for k in content.keys() if k in DAY_TYPES]
-    extra_keys = [k for k in content.keys() if k not in DAY_TYPES]
-    has_extra_nested = any(isinstance(content[k], dict) for k in extra_keys)
     has_nested_dicts = any(isinstance(v, dict) for v in content.values())
     is_holiday_season = not day_types and has_nested_dicts
    
     # Warn about mixed schema
-    if day_types and has_extra_nested:
-        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + extra nested dicts)")
+    if day_types and has_nested_dicts:
+        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + nested dicts)")
    
     if day_types:
         render_regular_season(content, resort, season, day_types)
@@ -868,7 +855,6 @@ def render_gantt_charts(resort: str):
         st.plotly_chart(create_gantt_chart(resort, 2025), use_container_width=True)
     with tab2026:
         st.plotly_chart(create_gantt_chart(resort, 2026), use_container_width=True)
-
 # ----------------------------------------------------------------------
 # GLOBAL SETTINGS
 # ----------------------------------------------------------------------
@@ -988,9 +974,6 @@ def main():
     # Resort-specific editing
     if current_resort:
         st.markdown(f"### **{current_resort}**")
-       
-        # Validation panel
-        render_validation_panel(data, current_resort)
        
         # Resort deletion
         handle_resort_deletion(data, current_resort)
