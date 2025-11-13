@@ -794,5 +794,4 @@ def render_holiday_dates_editor(data: Dict):
 
 def render_holiday_date_range(data: Dict, year: str, name: str, dates: List, index: int):
     """Render a single holiday date range with delete option."""
-    date_list = dates if isinstance(dates, list) else [None, None]
-    start_str, end_str = date_list[0],
+    date_list = dates if isinstance(dates, list) else [None,
