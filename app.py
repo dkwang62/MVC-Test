@@ -485,7 +485,7 @@ def delete_room_type(data: Dict, resort: str, room: str):
     st.rerun()
 
 # ----------------------------------------------------------------------
-# CHANGE ROOM NAME FUNCTIONALITY
+# CHANGE ROOM NAME FUNCTIONALITY - FIXED VERSION
 # ----------------------------------------------------------------------
 def handle_room_name_change(data: Dict, resort: str):
     """Handle changing room names across all seasons and categories."""
@@ -540,38 +540,50 @@ def handle_room_name_change(data: Dict, resort: str):
                 change_room_name_global(data, resort, old_room_name, new_room_name_clean)
         with col2:
             if st.button("❌ Cancel", key="cancel_room_name_change"):
-                st.session_state.room_rename_old = None
-                st.session_state.room_rename_new = None
                 st.rerun()
 
 def change_room_name_global(data: Dict, resort: str, old_name: str, new_name: str):
-    """Change room name across all data structures in the resort."""
-    # Update reference points
-    for season in data["reference_points"].get(resort, {}):
-        for day_type in data["reference_points"][resort][season]:
-            if isinstance(data["reference_points"][resort][season][day_type], dict):
-                if old_name in data["reference_points"][resort][season][day_type]:
-                    data["reference_points"][resort][season][day_type][new_name] = data["reference_points"][resort][season][day_type].pop(old_name)
+    """Change room name across all data structures in the resort - FIXED VERSION."""
+    changes_made = False
     
-    # Update point costs
-    for season in data["point_costs"].get(resort, {}):
-        for day_type in data["point_costs"][resort][season]:
-            if isinstance(data["point_costs"][resort][season][day_type], dict):
-                if old_name in data["point_costs"][resort][season][day_type]:
-                    data["point_costs"][resort][season][day_type][new_name] = data["point_costs"][resort][season][day_type].pop(old_name)
+    # Update reference points - FIXED: Handle both regular seasons and holiday seasons
+    ref_points = data["reference_points"].get(resort, {})
+    for season_name, season_data in ref_points.items():
+        if season_name == HOLIDAY_SEASON_KEY:
+            # Handle holiday season (nested structure)
+            for holiday_name, holiday_data in season_data.items():
+                if isinstance(holiday_data, dict) and old_name in holiday_data:
+                    holiday_data[new_name] = holiday_data.pop(old_name)
+                    changes_made = True
+        else:
+            # Handle regular seasons (day_type structure)
+            for day_type, day_data in season_data.items():
+                if isinstance(day_data, dict) and old_name in day_data:
+                    day_data[new_name] = day_data.pop(old_name)
+                    changes_made = True
     
-    # Update holiday weeks (if room names are used there)
-    for year in YEARS:
-        holiday_data = data["holiday_weeks"].get(resort, {}).get(year, {})
-        for holiday_name, holiday_info in holiday_data.items():
-            if isinstance(holiday_info, dict) and old_name in holiday_info:
-                holiday_info[new_name] = holiday_info.pop(old_name)
+    # Update point costs - FIXED: Handle both regular seasons and holiday seasons
+    point_costs = data["point_costs"].get(resort, {})
+    for season_name, season_data in point_costs.items():
+        if season_name == HOLIDAY_SEASON_KEY:
+            # Handle holiday season (nested structure)
+            for holiday_name, holiday_data in season_data.items():
+                if isinstance(holiday_data, dict) and old_name in holiday_data:
+                    holiday_data[new_name] = holiday_data.pop(old_name)
+                    changes_made = True
+        else:
+            # Handle regular seasons (day_type structure)
+            for day_type, day_data in season_data.items():
+                if isinstance(day_data, dict) and old_name in day_data:
+                    day_data[new_name] = day_data.pop(old_name)
+                    changes_made = True
     
-    save_data(data)
-    st.success(f"✅ Changed **{old_name}** → **{new_name}** everywhere")
-    st.session_state.room_rename_old = None
-    st.session_state.room_rename_new = None
-    st.rerun()
+    if changes_made:
+        save_data(data)
+        st.success(f"✅ Changed **{old_name}** → **{new_name}** everywhere")
+        st.rerun()
+    else:
+        st.error("❌ No changes made - room name not found in data")
 
 # ----------------------------------------------------------------------
 # HOLIDAY MANAGEMENT
@@ -730,7 +742,7 @@ def render_date_range(data: Dict, resort: str, year: str, season: str,
         save_data(data)
 
 # ----------------------------------------------------------------------
-# REFERENCE POINTS EDITOR
+# REFERENCE POINTS EDITOR - FIXED VERSION
 # ----------------------------------------------------------------------
 def render_reference_points_editor(data: Dict, resort: str):
     """Edit reference points for seasons and room types."""
@@ -742,21 +754,44 @@ def render_reference_points_editor(data: Dict, resort: str):
             render_season_points(content, resort, season)
 
 def render_season_points(content: Dict, resort: str, season: str):
-    """Render points editor for a specific season - ADDED validation."""
+    """Render points editor for a specific season - FIXED mixed data structure handling."""
     day_types = [k for k in content.keys() if k in DAY_TYPES]
-    has_nested_dicts = any(isinstance(v, dict) for v in content.values())
-    is_holiday_season = not day_types and has_nested_dicts
+    has_nested_dicts = any(isinstance(v, dict) and k not in DAY_TYPES for k, v in content.items())
+    is_holiday_season = season == HOLIDAY_SEASON_KEY
     
-    # Warn about mixed schema
+    # Fix mixed data structure automatically
     if day_types and has_nested_dicts:
-        st.warning(f"⚠️ Season '{season}' has mixed data structure (day types + nested dicts)")
+        st.warning(f"⚠️ Season '{season}' has mixed data structure. Attempting to fix...")
+        fix_mixed_season_structure(content, season)
+        st.success(f"✅ Fixed mixed data structure for '{season}'")
+        st.rerun()
+        return
     
-    if day_types:
+    if day_types and not is_holiday_season:
         render_regular_season(content, resort, season, day_types)
     elif is_holiday_season:
         render_holiday_season(content, resort, season)
     else:
         st.warning(f"⚠️ Season '{season}' has unexpected data structure")
+
+def fix_mixed_season_structure(content: Dict, season_name: str):
+    """Fix mixed season data structure by separating day types from nested data."""
+    day_types_data = {}
+    nested_data = {}
+    
+    for key, value in content.items():
+        if key in DAY_TYPES:
+            day_types_data[key] = value
+        elif isinstance(value, dict):
+            nested_data[key] = value
+    
+    # Clear and rebuild content
+    content.clear()
+    content.update(day_types_data)
+    
+    # If there was nested data and this isn't a holiday season, warn about data loss
+    if nested_data and season_name != HOLIDAY_SEASON_KEY:
+        st.error(f"⚠️ Lost nested data in '{season_name}': {list(nested_data.keys())}")
 
 def render_regular_season(content: Dict, resort: str, season: str, day_types: List[str]):
     """Render points editor for regular seasons."""
