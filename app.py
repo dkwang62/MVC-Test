@@ -113,13 +113,16 @@ def handle_file_upload():
         if current_sig != st.session_state.last_upload_sig:
             try:
                 raw_data = json.load(uploaded)
-                st.session_state.data = fixed_data
+                st.session_state.data = raw_data
                 st.session_state.current_resort = None
                 st.session_state.last_upload_sig = current_sig
-                st.success(f"✅ Loaded {len(fixed_data['resorts_list'])} resorts")
+
+                resorts_list = raw_data.get("resorts_list", [])
+                st.success(f"✅ Loaded {len(resorts_list)} resorts")
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error loading file: {e}")
+
 def create_download_button(data: Dict):
     """Create download button for current data."""
     if data:
