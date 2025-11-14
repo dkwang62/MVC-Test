@@ -1059,6 +1059,9 @@ def main():
         # Gantt charts
         render_gantt_charts(current_resort)
   
+        # Season dates editor
+        render_season_dates_editor(data, current_resort)
+      
         # Season management
         handle_season_renaming(data, current_resort)
         handle_season_operations(data, current_resort)
@@ -1069,9 +1072,6 @@ def main():
       
         # Holiday management
         handle_holiday_management(data, current_resort)
-      
-        # Season dates editor
-        render_season_dates_editor(data, current_resort)
       
         # Reference points editor
         render_reference_points_editor(data, current_resort)
