@@ -1056,6 +1056,9 @@ def main():
         # Resort deletion
         handle_resort_deletion(data, current_resort)
       
+        # Gantt charts
+        render_gantt_charts(current_resort)
+  
         # Season management
         handle_season_renaming(data, current_resort)
         handle_season_operations(data, current_resort)
@@ -1073,9 +1076,6 @@ def main():
         # Reference points editor
         render_reference_points_editor(data, current_resort)
       
-        # Gantt charts
-        render_gantt_charts(current_resort)
-  
     # Global settings
     render_global_settings(data)
   
