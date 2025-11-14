@@ -166,6 +166,33 @@ def create_download_button(data: Dict):
             help="Download the most recent version of your data"
         )
 # ----------------------------------------------------------------------
+# VERIFY DOWNLOADED FILE
+# ----------------------------------------------------------------------
+def handle_file_verification():
+    """Handle verification of downloaded file against current memory."""
+    st.sidebar.markdown("### Verify Downloaded File")
+    verify_upload = st.sidebar.file_uploader(
+        "Upload data.json to verify",
+        type="json",
+        key="verify_uploader"
+    )
+  
+    if verify_upload:
+        try:
+            uploaded_data = json.load(verify_upload)
+            # Generate compact JSON strings with sorted keys for comparison
+            current_json = json.dumps(st.session_state.data, sort_keys=True, ensure_ascii=False)
+            uploaded_json = json.dumps(uploaded_data, sort_keys=True, ensure_ascii=False)
+          
+            if current_json == uploaded_json:
+                st.sidebar.success("✅ The uploaded file matches the current data in memory.")
+            else:
+                st.sidebar.error("❌ The uploaded file does NOT match. Download again after confirming changes are saved.")
+        except json.JSONDecodeError:
+            st.sidebar.error("❌ Invalid JSON file uploaded.")
+        except Exception as e:
+            st.sidebar.error(f"❌ Error: {str(e)}")
+# ----------------------------------------------------------------------
 # RESORT MANAGEMENT COMPONENTS
 # ----------------------------------------------------------------------
 def render_resort_grid(resorts: List[str], current_resort: str):
@@ -996,6 +1023,7 @@ def main():
         handle_file_upload()
         if st.session_state.data:
             create_download_button(st.session_state.data)
+            handle_file_verification()
             render_revert_controls()
         show_save_indicator()
   
