@@ -94,39 +94,7 @@ def safe_date(date_str: Optional[str], default: str = "2025-01-01") -> datetime.
             return datetime.strptime(date_str.strip(), "%Y-%m-%d").date()
         except ValueError:
             return datetime.strptime(default, "%Y-%m-%d").date()
-def fix_json(raw_data: Dict) -> Dict:
-    """Ensure JSON data has proper structure with all required fields."""
-    fixed = copy.deepcopy(raw_data)
-  
-    # Initialize missing top-level keys
-    fixed.setdefault("season_blocks", {})
-    fixed.setdefault("point_costs", {})
-    fixed.setdefault("reference_points", {})
-    fixed.setdefault("maintenance_rates", {"2025": 0.81, "2026": 0.86})
-    fixed.setdefault("global_dates", {"2025": {}, "2026": {}})
-    fixed.setdefault("holiday_weeks", {})
-  
-    # Ensure resorts_list exists and is sorted
-    resorts = sorted(fixed.get("season_blocks", {}).keys())
-    fixed["resorts_list"] = resorts
-  
-    # Initialize structure for each resort
-    for resort in resorts:
-        fixed["season_blocks"].setdefault(resort, {"2025": {}, "2026": {}})
-        fixed["point_costs"].setdefault(resort, {})
-        fixed["reference_points"].setdefault(resort, {})
-        fixed["holiday_weeks"].setdefault(resort, {"2025": {}, "2026": {}})
-      
-        # Clean season blocks data
-        for year in YEARS:
-            season_data = fixed["season_blocks"][resort].setdefault(year, {})
-            for season, ranges in list(season_data.items()):
-                if not isinstance(ranges, list) or any(
-                    not isinstance(r, (list, tuple)) or len(r) != 2 for r in ranges
-                ):
-                    season_data[season] = []
-  
-    return fixed
+
 def is_duplicate_resort_name(name: str, resorts: List[str]) -> bool:
     """Check if resort name already exists (case-insensitive)."""
     name_clean = name.strip().lower()
@@ -145,7 +113,6 @@ def handle_file_upload():
         if current_sig != st.session_state.last_upload_sig:
             try:
                 raw_data = json.load(uploaded)
-                fixed_data = fix_json(raw_data)
                 st.session_state.data = fixed_data
                 st.session_state.current_resort = None
                 st.session_state.last_upload_sig = current_sig
