@@ -809,6 +809,13 @@ def validate_resort_data(working: Dict, data: Dict) -> List[str]:
     """Validate resort data and return list of issues."""
     issues: List[str] = []
     season_blocks = working.get("season_blocks", {})
+    days_covered = {
+        "Mon-Thu": {"Mon", "Tue", "Wed", "Thu"},
+        "Fri-Sat": {"Fri", "Sat"},
+        "Sun": {"Sun"},
+        "Sun-Thu": {"Sun", "Mon", "Tue", "Wed", "Thu"}
+    }
+    all_days = set(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"])
     # Check for overlapping season ranges and holidays
     for year in YEARS:
         season_ranges: List[Tuple[str, datetime, datetime]] = []
@@ -930,15 +937,23 @@ def validate_resort_data(working: Dict, data: Dict) -> List[str]:
                     issues.append(f"reference_points Holiday '{holiday}' invalid (not dict)")
         else:
             found_day_types = [k for k in content if k in DAY_TYPES]
-            missing = set(DAY_TYPES) - set(found_day_types)
-            if missing:
-                issues.append(f"reference_points Season '{season}' missing day types: {', '.join(missing)}")
             extra = [k for k in content if k not in DAY_TYPES]
             if extra:
                 issues.append(f"reference_points Season '{season}' has extra keys: {', '.join(extra)}")
             for day, rooms in content.items():
                 if day in DAY_TYPES and not isinstance(rooms, dict):
                     issues.append(f"reference_points Season '{season}' day '{day}' invalid (not dict)")
+            # Check day coverage
+            covered_days = set()
+            for day_type in found_day_types:
+                new_days = days_covered.get(day_type, set())
+                overlap = covered_days & new_days
+                if overlap:
+                    issues.append(f"Overlapping days in Season '{season}': {', '.join(overlap)}")
+                covered_days.update(new_days)
+            if len(covered_days) != 7:
+                missing_days = all_days - covered_days
+                issues.append(f"Season '{season}' does not cover full week: missing {', '.join(missing_days)}")
  
     return issues
 def render_validation_panel(working: Dict, data: Dict):
@@ -1097,6 +1112,45 @@ def render_save_button(data: Dict, working: Dict, resort: str):
             del st.session_state.working_resorts[resort]
             st.rerun()
 # ----------------------------------------------------------------------
+# MERGE FROM ANOTHER FILE
+# ----------------------------------------------------------------------
+def handle_merge_from_another_file(data: Dict):
+    st.sidebar.markdown("### Merge from Another File")
+    merge_upload = st.sidebar.file_uploader(
+        "Upload another data.json to merge",
+        type="json",
+        key="merge_uploader"
+    )
+ 
+    if merge_upload:
+        try:
+            merge_data = json.load(merge_upload)
+            merge_resorts = merge_data.get("resorts_list", [])
+            if merge_resorts:
+                selected_resorts = st.sidebar.multiselect(
+                    "Select resorts to merge (up to 2)",
+                    merge_resorts,
+                    max_selections=2,
+                    key="selected_merge_resorts"
+                )
+                if selected_resorts and st.sidebar.button("Merge Selected Resorts"):
+                    snapshot_before_change()
+                    for resort in selected_resorts:
+                        if resort in data["resorts_list"]:
+                            st.sidebar.warning(f"Resort '{resort}' already exists. Skipping to avoid overwrite.")
+                            continue
+                        data["resorts_list"].append(resort)
+                        for section in ["season_blocks", "reference_points", "holiday_weeks"]:
+                            if resort in merge_data.get(section, {}):
+                                data.setdefault(section, {})[resort] = copy.deepcopy(merge_data[section][resort])
+                    save_data()
+                    st.sidebar.success(f"✅ Merged {len(selected_resorts)} resorts")
+                    st.rerun()
+        except json.JSONDecodeError:
+            st.sidebar.error("❌ Invalid JSON file uploaded.")
+        except Exception as e:
+            st.sidebar.error(f"❌ Error: {str(e)}")
+# ----------------------------------------------------------------------
 # MAIN APPLICATION
 # ----------------------------------------------------------------------
 def main():
@@ -1113,6 +1167,7 @@ def main():
             create_download_button(st.session_state.data)
             handle_file_verification()
             render_revert_controls()
+            handle_merge_from_another_file(st.session_state.data)
         show_save_indicator()
  
     # Main content
