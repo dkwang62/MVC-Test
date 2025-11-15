@@ -6,7 +6,6 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import hashlib
 # ----------------------------------------------------------------------
 # CONSTANTS
 # ----------------------------------------------------------------------
@@ -50,6 +49,8 @@ def initialize_session_state():
         'delete_confirm': False,
         'data': None,
         'current_resort': None,
+        'previous_resort': None,
+        'working_resorts': {},
         'editing_season': None,
         'editing_room': None,
         'change_history': [],
@@ -59,14 +60,8 @@ def initialize_session_state():
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
-def save_data(data: Dict):
-    """Save data to session state with history tracking."""
-    # Save previous state to history (keep last 10 changes)
-    if st.session_state.data is not None:
-        st.session_state.change_history.append(copy.deepcopy(st.session_state.data))
-        st.session_state.change_history = st.session_state.change_history[-10:]
- 
-    st.session_state.data = data
+def save_data():
+    """Update last save time (history managed by callers)."""
     st.session_state.last_save_time = datetime.now()
 def show_save_indicator():
     """Show a small save indicator."""
@@ -78,7 +73,13 @@ def revert_last_change():
     """Revert to previous state if available."""
     if st.session_state.change_history:
         st.session_state.data = st.session_state.change_history.pop()
+        # Drop all per-resort working copies – they’ll be recreated from reverted data
+        st.session_state.working_resorts = {}
         st.rerun()
+def snapshot_before_change():
+    if st.session_state.data is not None:
+        st.session_state.change_history.append(copy.deepcopy(st.session_state.data))
+        st.session_state.change_history = st.session_state.change_history[-10:]
 # ----------------------------------------------------------------------
 # DATA MANAGEMENT
 # ----------------------------------------------------------------------
@@ -198,18 +199,20 @@ def handle_resort_creation(data: Dict, resorts: List[str]):
                 elif is_duplicate_resort_name(new_name_clean, resorts):
                     st.error("❌ Resort name already exists")
                 else:
-                    clone_resort(data, st.session_state.current_resort, new_name_clean, resorts)
+                    clone_resort(data, st.session_state.current_resort, new_name_clean)
 def create_blank_resort(data: Dict, new_name: str):
     """Create a new blank resort."""
+    snapshot_before_change()
     data.setdefault("resorts_list", []).append(new_name)
     data.setdefault("season_blocks", {})[new_name] = {year: {} for year in YEARS}
     data.setdefault("reference_points", {})[new_name] = {}
     data.setdefault("holiday_weeks", {})[new_name] = {year: {} for year in YEARS}
     st.session_state.current_resort = new_name
-    save_data(data)
+    save_data()
     st.rerun()
-def clone_resort(data: Dict, source: str, target: str, resorts: List[str]):
+def clone_resort(data: Dict, source: str, target: str):
     """Clone an existing resort."""
+    snapshot_before_change()
     data.setdefault("resorts_list", []).append(target)
     season_blocks = data.get("season_blocks", {})
     ref_points = data.get("reference_points", {})
@@ -224,7 +227,7 @@ def clone_resort(data: Dict, source: str, target: str, resorts: List[str]):
         holiday_weeks.get(source, {year: {} for year in YEARS})
     )
     st.session_state.current_resort = target
-    save_data(data)
+    save_data()
     st.success(f"✅ Cloned **{source}** → **{target}**")
     st.rerun()
 def handle_resort_deletion(data: Dict, current_resort: str):
@@ -251,33 +254,34 @@ def handle_resort_deletion(data: Dict, current_resort: str):
         st.stop()
 def delete_resort(data: Dict, resort: str):
     """Delete a resort from all data structures."""
+    snapshot_before_change()
     for category in ["season_blocks", "reference_points", "holiday_weeks"]:
         data.get(category, {}).pop(resort, None)
     data["resorts_list"].remove(resort)
     st.session_state.current_resort = None
     st.session_state.delete_confirm = False
-    save_data(data)
+    if resort in st.session_state.working_resorts:
+        del st.session_state.working_resorts[resort]
+    save_data()
     st.rerun()
 # ----------------------------------------------------------------------
 # SEASON MANAGEMENT
 # ----------------------------------------------------------------------
-def get_all_seasons(data: Dict, resort: str) -> List[str]:
+def get_all_seasons(working: Dict) -> List[str]:
     """Get all unique seasons used across years and categories."""
     seasons: Set[str] = set()
-    season_blocks = data.get("season_blocks", {})
-    ref_points = data.get("reference_points", {})
-    resort_season_blocks = season_blocks.get(resort, {})
+    season_blocks = working.get("season_blocks", {})
+    ref_points = working.get("reference_points", {})
     for year in YEARS:
-        seasons.update(resort_season_blocks.get(year, {}).keys())
-    resort_ref_points = ref_points.get(resort, {})
-    seasons.update(resort_ref_points.keys())
+        seasons.update(season_blocks.get(year, {}).keys())
+    seasons.update(ref_points.keys())
     return sorted(seasons)
-def handle_season_renaming(data: Dict, resort: str):
+def handle_season_renaming(working: Dict):
     """Handle renaming of seasons."""
     st.subheader("🏷️ Rename Seasons")
     st.caption("Applies to all years & sections")
  
-    seasons = get_all_seasons(data, resort)
+    seasons = get_all_seasons(working)
  
     for old_name in seasons:
         if old_name == HOLIDAY_SEASON_KEY:
@@ -285,59 +289,58 @@ def handle_season_renaming(data: Dict, resort: str):
          
         col1, col2 = st.columns([3, 1])
         with col1:
-            new_name = st.text_input(f"Rename **{old_name}** →", value=old_name, key=f"rename_season_{resort}_{old_name}")
+            new_name = st.text_input(f"Rename **{old_name}** →", value=old_name, key=f"rename_season_{old_name}")
         with col2:
-            if st.button("Apply", key=f"apply_rename_season_{resort}_{old_name}") and new_name != old_name and new_name:
-                rename_season(data, resort, old_name, new_name)
-def rename_season(data: Dict, resort: str, old_name: str, new_name: str):
+            if st.button("Apply", key=f"apply_rename_season_{old_name}") and new_name != old_name and new_name:
+                rename_season(working, old_name, new_name)
+def rename_season(working: Dict, old_name: str, new_name: str):
     """Rename a season across all data structures."""
     if new_name == HOLIDAY_SEASON_KEY:
         st.error("❌ Cannot rename to reserved season name 'Holiday Week'")
         return
     # Update season blocks
-    season_blocks_resort = (data.get("season_blocks") or {}).get(resort, {})
+    season_blocks = working.get("season_blocks", {})
     for year in YEARS:
-        year_block = season_blocks_resort.get(year, {})
+        year_block = season_blocks.get(year, {})
         if old_name in year_block:
             year_block[new_name] = year_block.pop(old_name)
     # Update reference points only
-    ref_points_resort = (data.get("reference_points") or {}).get(resort, {})
-    if old_name in ref_points_resort:
-        ref_points_resort[new_name] = ref_points_resort.pop(old_name)
-    save_data(data)
+    ref_points = working.get("reference_points", {})
+    if old_name in ref_points:
+        ref_points[new_name] = ref_points.pop(old_name)
     st.success(f"✅ Renamed **{old_name}** → **{new_name}**")
     st.rerun()
-def handle_season_operations(data: Dict, resort: str):
+def handle_season_operations(working: Dict):
     """Handle adding and deleting seasons - ADDED confirmation."""
     st.subheader("➕➖ Add / Delete Season")
-    seasons = get_all_seasons(data, resort)
+    seasons = get_all_seasons(working)
  
     col1, col2 = st.columns(2)
  
     with col1:
-        new_season = st.text_input("New Season Name", key=f"new_season_input_{resort}")
-        if st.button("Add Season", key=f"add_season_btn_{resort}") and new_season:
+        new_season = st.text_input("New Season Name", key="new_season_input")
+        if st.button("Add Season", key="add_season_btn") and new_season:
             if new_season.strip() and not any(s.lower() == new_season.lower() for s in seasons):
-                add_season(data, resort, new_season.strip())
+                add_season(working, new_season.strip())
             else:
                 st.error("Season name already exists or is invalid")
  
     with col2:
-        del_season = st.selectbox("Delete Season", [""] + seasons, key=f"del_season_select_{resort}")
+        del_season = st.selectbox("Delete Season", [""] + seasons, key="del_season_select")
         if del_season:
-            if st.button("Delete Season", key=f"delete_season_btn_{resort}"):
+            if st.button("Delete Season", key="delete_season_btn"):
                 # Confirmation for destructive operation
-                if st.session_state.get(f"confirm_delete_season_{resort}_{del_season}"):
-                    delete_season(data, resort, del_season)
-                    st.session_state[f"confirm_delete_season_{resort}_{del_season}"] = False
+                if st.session_state.get(f"confirm_delete_season_{del_season}"):
+                    delete_season(working, del_season)
+                    st.session_state[f"confirm_delete_season_{del_season}"] = False
                 else:
-                    st.session_state[f"confirm_delete_season_{resort}_{del_season}"] = True
+                    st.session_state[f"confirm_delete_season_{del_season}"] = True
                     st.warning(f"Are you sure you want to delete season '{del_season}'?")
-                    if st.button("Confirm Delete", key=f"confirm_del_season_{resort}_{del_season}"):
-                        delete_season(data, resort, del_season)
-                        st.session_state[f"confirm_delete_season_{resort}_{del_season}"] = False
+                    if st.button("Confirm Delete", key=f"confirm_del_season_{del_season}"):
+                        delete_season(working, del_season)
+                        st.session_state[f"confirm_delete_season_{del_season}"] = False
                         st.rerun()
-def add_season(data: Dict, resort: str, season: str):
+def add_season(working: Dict, season: str):
     """Add a new season to all years and categories."""
     season = season.strip()
     if not season:
@@ -346,72 +349,69 @@ def add_season(data: Dict, resort: str, season: str):
     if season == HOLIDAY_SEASON_KEY:
         st.error("❌ Reserved season name 'Holiday Week' cannot be used")
         return
-    season_blocks_resort = data.setdefault("season_blocks", {}).setdefault(resort, {})
+    season_blocks = working.setdefault("season_blocks", {})
     for year in YEARS:
-        season_blocks_resort.setdefault(year, {})[season] = []
-    data.setdefault("reference_points", {}).setdefault(resort, {})[season] = {}
-    save_data(data)
+        season_blocks.setdefault(year, {})[season] = []
+    working.setdefault("reference_points", {})[season] = {}
     st.success(f"✅ Added **{season}**")
     st.rerun()
-def delete_season(data: Dict, resort: str, season: str):
+def delete_season(working: Dict, season: str):
     """Delete a season from all data structures."""
-    season_blocks_resort = (data.get("season_blocks") or {}).get(resort, {})
+    season_blocks = working.get("season_blocks", {})
     for year in YEARS:
-        season_blocks_resort.get(year, {}).pop(season, None)
-    ref_points_resort = (data.get("reference_points") or {}).get(resort, {})
-    ref_points_resort.pop(season, None)
-    save_data(data)
+        season_blocks.get(year, {}).pop(season, None)
+    ref_points = working.get("reference_points", {})
+    ref_points.pop(season, None)
     st.success(f"✅ Deleted **{season}**")
     st.rerun()
 # ----------------------------------------------------------------------
 # ROOM TYPE MANAGEMENT
 # ----------------------------------------------------------------------
-def get_all_room_types(data: Dict, resort: str) -> List[str]:
+def get_all_room_types(working: Dict) -> List[str]:
     """Get all unique room types used in the resort."""
     rooms: Set[str] = set()
-    ref_points_for_resort = (data.get("reference_points") or {}).get(resort, {})
-    for season_data in ref_points_for_resort.values():
+    ref_points = working.get("reference_points", {})
+    for season_data in ref_points.values():
         for day_or_room in season_data.values():
             if isinstance(day_or_room, dict):
                 rooms.update(day_or_room.keys())
     return sorted(rooms)
-def handle_room_renaming(data: Dict, resort: str):
+def handle_room_renaming(working: Dict):
     """Handle renaming of room types with automatic Reference Points propagation."""
     st.subheader("🚪 Rename Room Types")
     st.caption("Applies everywhere including Reference Points")
  
-    rooms = get_all_room_types(data, resort)
+    rooms = get_all_room_types(working)
  
     for old_room in rooms:
         col1, col2 = st.columns([3, 1])
         with col1:
-            new_room = st.text_input(f"Rename **{old_room}** →", value=old_room, key=f"rename_room_{resort}_{old_room}")
+            new_room = st.text_input(f"Rename **{old_room}** →", value=old_room, key=f"rename_room_{old_room}")
         with col2:
-            if st.button("Apply", key=f"apply_rename_room_{resort}_{old_room}") and new_room != old_room and new_room:
+            if st.button("Apply", key=f"apply_rename_room_{old_room}") and new_room != old_room and new_room:
                 # Show confirmation for major changes
-                if old_room in get_all_room_types(data, resort): # Double-check it still exists
-                    rename_room_type(data, resort, old_room, new_room)
+                if old_room in get_all_room_types(working): # Double-check it still exists
+                    rename_room_type(working, old_room, new_room)
                 else:
                     st.error("Room type no longer exists or was already renamed")
-def rename_room_type(data: Dict, resort: str, old_name: str, new_name: str):
+def rename_room_type(working: Dict, old_name: str, new_name: str):
     """Enhanced room renaming with comprehensive propagation to Reference Points."""
     new_name = new_name.strip()
     if not new_name:
         st.error("Room name cannot be empty")
         return
-    if any(new_name.lower() == r.lower() for r in get_all_room_types(data, resort)):
+    if any(new_name.lower() == r.lower() for r in get_all_room_types(working)):
         st.error("❌ Room type name already exists (case-insensitive)")
         return
     changes_made = False
  
-    # Update both point_costs and reference_points sections
-    for section_name in ["point_costs", "reference_points"]:
-        section_data = data[section_name].get(resort, {})
-        section_changes = update_room_in_section(section_data, old_name, new_name)
-        changes_made = changes_made or section_changes
+    # Update reference_points section
+    section_name = "reference_points"
+    section_data = working.get(section_name, {})
+    section_changes = update_room_in_section(section_data, old_name, new_name)
+    changes_made = changes_made or section_changes
  
     if changes_made:
-        save_data(data)
         st.success(f"✅ Renamed **{old_name}** → **{new_name}** across all sections including Reference Points")
         st.rerun()
     else:
@@ -427,87 +427,86 @@ def update_room_in_section(section_data: Dict, old_name: str, new_name: str) -> 
                 changes_made = True
  
     return changes_made
-def handle_room_operations(data: Dict, resort: str):
+def handle_room_operations(working: Dict):
     """Handle adding and deleting room types - ADDED confirmation."""
     st.subheader("➕➖ Add / Delete Room Type")
-    rooms = get_all_room_types(data, resort)
+    rooms = get_all_room_types(working)
  
     col1, col2 = st.columns(2)
  
     with col1:
-        new_room = st.text_input("New Room Type", key=f"new_room_input_{resort}")
-        if st.button("Add Room Type", key=f"add_room_btn_{resort}") and new_room:
+        new_room = st.text_input("New Room Type", key="new_room_input")
+        if st.button("Add Room Type", key="add_room_btn") and new_room:
             if new_room.strip() and not any(r.lower() == new_room.lower() for r in rooms):
-                add_room_type(data, resort, new_room.strip())
+                add_room_type(working, new_room.strip())
             else:
                 st.error("Room type already exists or is invalid")
  
     with col2:
-        del_room = st.selectbox("Delete Room Type", [""] + rooms, key=f"del_room_select_{resort}")
+        del_room = st.selectbox("Delete Room Type", [""] + rooms, key="del_room_select")
         if del_room:
-            if st.button("Delete Room", key=f"delete_room_btn_{resort}"):
+            if st.button("Delete Room", key="delete_room_btn"):
                 # Confirmation for destructive operation
-                if st.session_state.get(f"confirm_delete_room_{resort}_{del_room}"):
-                    delete_room_type(data, resort, del_room)
-                    st.session_state[f"confirm_delete_room_{resort}_{del_room}"] = False
+                if st.session_state.get(f"confirm_delete_room_{del_room}"):
+                    delete_room_type(working, del_room)
+                    st.session_state[f"confirm_delete_room_{del_room}"] = False
                 else:
-                    st.session_state[f"confirm_delete_room_{resort}_{del_room}"] = True
+                    st.session_state[f"confirm_delete_room_{del_room}"] = True
                     st.warning(f"Are you sure you want to delete room type '{del_room}'?")
-                    if st.button("Confirm Delete", key=f"confirm_del_room_{resort}_{del_room}"):
-                        delete_room_type(data, resort, del_room)
-                        st.session_state[f"confirm_delete_room_{resort}_{del_room}"] = False
+                    if st.button("Confirm Delete", key=f"confirm_del_room_{del_room}"):
+                        delete_room_type(working, del_room)
+                        st.session_state[f"confirm_delete_room_{del_room}"] = False
                         st.rerun()
-def add_room_type(data: Dict, resort: str, room: str):
+def add_room_type(working: Dict, room: str):
     """Add a new room type with default points - improved schema enforcement."""
     room = room.strip()
     if not room:
         st.error("Room type name cannot be empty")
         return
      
-    ref_points_for_resort = (data.get("reference_points") or {}).get(resort, {})
-    for season in ref_points_for_resort:
+    ref_points = working.get("reference_points", {})
+    for season in ref_points:
         if season != HOLIDAY_SEASON_KEY:
             for day_type in DAY_TYPES:
-                ref_points_for_resort[season].setdefault(day_type, {})
-                ref_points_for_resort[season][day_type].setdefault(
+                ref_points[season].setdefault(day_type, {})
+                ref_points[season][day_type].setdefault(
                     room, DEFAULT_POINTS.get(day_type, 100)
                 )
         else:
-            for sub_season in ref_points_for_resort[season]:
-                if isinstance(ref_points_for_resort[season][sub_season], dict):
-                    ref_points_for_resort[season][sub_season].setdefault(
+            for sub_season in ref_points[season]:
+                if isinstance(ref_points[season][sub_season], dict):
+                    ref_points[season][sub_season].setdefault(
                         room, DEFAULT_HOLIDAY_POINTS.get(room, 1500)
                     )
  
-    save_data(data)
     st.success(f"✅ Added **{room}**")
     st.rerun()
-def delete_room_type(data: Dict, resort: str, room: str):
+def delete_room_type(working: Dict, room: str):
     """Delete a room type from all data structures - FIXED logic."""
-    ref_points_for_resort = (data.get("reference_points") or {}).get(resort, {})
-    for season in ref_points_for_resort:
-        for day_type, value in ref_points_for_resort[season].items():
+    ref_points = working.get("reference_points", {})
+    for season in ref_points:
+        for day_type, value in ref_points[season].items():
             if isinstance(value, dict):
                 value.pop(room, None)
  
-    save_data(data)
     st.success(f"✅ Deleted **{room}**")
     st.rerun()
 # ----------------------------------------------------------------------
 # HOLIDAY MANAGEMENT
 # ----------------------------------------------------------------------
-def handle_holiday_management(data: Dict, resort: str):
+def handle_holiday_management(working: Dict, resort: str, data: Dict):
     """Manage individual holiday weeks for a resort."""
     st.subheader("🎄 Manage Holiday Weeks")
     st.caption("Add or remove specific holiday weeks from reference points")
  
-    ref_points = data["reference_points"].setdefault(resort, {})
+    ref_points = working.setdefault("reference_points", {})
     ref_points.setdefault(HOLIDAY_SEASON_KEY, {})
  
     # Get available holidays
     all_holidays = set()
+    global_dates = data.setdefault("global_dates", {})
     for year in YEARS:
-        all_holidays.update(data["global_dates"].get(year, {}).keys())
+        all_holidays.update(global_dates.get(year, {}).keys())
     all_holidays = {h for h in all_holidays if h}
  
     current_holidays = set(ref_points.get(HOLIDAY_SEASON_KEY, {}).keys())
@@ -527,39 +526,38 @@ def handle_holiday_management(data: Dict, resort: str):
     col1, col2 = st.columns(2)
  
     with col1:
-        render_holiday_removal(data, resort, current_active)
+        render_holiday_removal(working, resort, current_active)
  
     with col2:
-        render_holiday_addition(data, resort, available_to_add)
-def render_holiday_removal(data: Dict, resort: str, current_holidays: List[str]):
+        render_holiday_addition(working, resort, available_to_add)
+def render_holiday_removal(working: Dict, resort: str, current_holidays: List[str]):
     """Render holiday removal interface."""
     st.markdown("##### Remove Holiday Week")
     del_holiday = st.selectbox("Select Holiday to Remove", [""] + current_holidays, key=f"del_holiday_select_{resort}")
  
     if st.button("Remove Selected Holiday", key=f"remove_holiday_btn_{resort}", disabled=not del_holiday):
-        remove_holiday(data, resort, del_holiday)
-def remove_holiday(data: Dict, resort: str, holiday: str):
+        remove_holiday(working, del_holiday)
+def remove_holiday(working: Dict, holiday: str):
     """Remove a holiday from all data structures."""
-    ref_points_resort = (data.get("reference_points") or {}).get(resort, {})
-    holiday_section = ref_points_resort.get(HOLIDAY_SEASON_KEY, {})
+    ref_points = working.get("reference_points", {})
+    holiday_section = ref_points.get(HOLIDAY_SEASON_KEY, {})
     holiday_section.pop(holiday, None)
-    holiday_weeks_resort = (data.get("holiday_weeks") or {}).get(resort, {})
+    holiday_weeks = working.get("holiday_weeks", {})
     for year in YEARS:
-        holiday_weeks_resort.get(year, {}).pop(holiday, None)
+        holiday_weeks.get(year, {}).pop(holiday, None)
  
-    save_data(data)
     st.success(f"✅ Removed **{holiday}**")
     st.rerun()
-def render_holiday_addition(data: Dict, resort: str, available_holidays: List[str]):
+def render_holiday_addition(working: Dict, resort: str, available_holidays: List[str]):
     """Render holiday addition interface."""
     st.markdown("##### Add Holiday Week")
     add_holiday = st.selectbox("Select Holiday to Add", [""] + available_holidays, key=f"add_holiday_select_{resort}")
  
     if st.button("Add Selected Holiday", key=f"add_holiday_btn_{resort}", type="primary", disabled=not add_holiday):
-        add_holiday_to_resort(data, resort, add_holiday)
-def add_holiday_to_resort(data: Dict, resort: str, holiday: str):
+        add_holiday_to_resort(working, add_holiday)
+def add_holiday_to_resort(working: Dict, holiday: str):
     """Add a holiday to resort data structures with room sync."""
-    rooms = get_all_room_types(data, resort)
+    rooms = get_all_room_types(working)
     holiday_data: Dict[str, int] = {}
     # Build holiday data from current rooms
     for room in rooms:
@@ -571,15 +569,14 @@ def add_holiday_to_resort(data: Dict, resort: str, holiday: str):
         st.warning(f"Used default room types for holiday '{holiday}'. Add rooms to resort first for better defaults.")
  
     # Add to reference points
-    ref_points_resort = data.setdefault("reference_points", {}).setdefault(resort, {})
-    ref_points_resort.setdefault(HOLIDAY_SEASON_KEY, {})[holiday] = copy.deepcopy(holiday_data)
+    ref_points = working.setdefault("reference_points", {})
+    ref_points.setdefault(HOLIDAY_SEASON_KEY, {})[holiday] = copy.deepcopy(holiday_data)
  
     # Add to holiday weeks for both years
-    holiday_weeks_resort = data.setdefault("holiday_weeks", {}).setdefault(resort, {})
+    holiday_weeks = working.setdefault("holiday_weeks", {})
     for year in YEARS:
-        holiday_weeks_resort.setdefault(year, {})[holiday] = f"global:{holiday}"
+        holiday_weeks.setdefault(year, {})[holiday] = f"global:{holiday}"
  
-    save_data(data)
     st.success(f"✅ Added **{holiday}**")
     if rooms:
         st.info(f"Remember to update holiday point values for {len(rooms)} room types")
@@ -587,13 +584,15 @@ def add_holiday_to_resort(data: Dict, resort: str, holiday: str):
 # ----------------------------------------------------------------------
 # SEASON DATES EDITOR
 # ----------------------------------------------------------------------
-def render_season_dates_editor(data: Dict, resort: str):
+def render_season_dates_editor(working: Dict, resort: str):
     """Edit season date ranges for each year."""
     st.subheader("📅 Season Dates")
  
+    season_blocks = working.setdefault("season_blocks", {})
+ 
     for year in YEARS:
         with st.expander(f"{year} Seasons", expanded=True):
-            year_data = data["season_blocks"][resort].setdefault(year, {})
+            year_data = season_blocks.setdefault(year, {})
             seasons = list(year_data.keys())
          
             # Add new season
@@ -601,28 +600,25 @@ def render_season_dates_editor(data: Dict, resort: str):
             with col1:
                 new_season = st.text_input(f"New season ({year})", key=f"ns_{resort}_{year}")
             with col2:
-                if st.button("Add", key=f"add_s_{resort}_{year}") and new_season and new_season not in year_data:
-                    year_data[new_season] = []
-                    save_data(data)
-                    st.rerun()
+                if st.button("Add", key=f"add_s_{resort}_{year}") and new_season:
+                    add_season(working, new_season.strip())
          
             # Edit existing seasons
             for season_idx, season in enumerate(seasons):
-                render_season_ranges(data, resort, year, season, season_idx)
-def render_season_ranges(data: Dict, resort: str, year: str, season: str, season_idx: int):
+                render_season_ranges(working, resort, year, season, season_idx)
+def render_season_ranges(working: Dict, resort: str, year: str, season: str, season_idx: int):
     """Render date ranges for a specific season."""
     st.markdown(f"**{season}**")
-    ranges = data["season_blocks"][resort][year][season]
+    ranges = working["season_blocks"][year][season]
  
     for range_idx, (start_str, end_str) in enumerate(ranges):
-        render_date_range(data, resort, year, season, season_idx, range_idx, start_str, end_str)
+        render_date_range(working, resort, year, season, season_idx, range_idx, start_str, end_str)
  
     # Add new range
     if st.button("+ Add Range", key=f"ar_{resort}_{year}_{season_idx}"):
         ranges.append([f"{year}-01-01", f"{year}-01-07"])
-        save_data(data)
         st.rerun()
-def render_date_range(data: Dict, resort: str, year: str, season: str,
+def render_date_range(working: Dict, resort: str, year: str, season: str,
                      season_idx: int, range_idx: int, start_str: str, end_str: str):
     """Render a single date range with edit/delete controls."""
     col1, col2, col3 = st.columns([3, 3, 1])
@@ -633,21 +629,19 @@ def render_date_range(data: Dict, resort: str, year: str, season: str,
         new_end = st.date_input("End", safe_date(end_str), key=f"de_{resort}_{year}_{season_idx}_{range_idx}")
     with col3:
         if st.button("X", key=f"dx_{resort}_{year}_{season_idx}_{range_idx}"):
-            data["season_blocks"][resort][year][season].pop(range_idx)
-            save_data(data)
+            working["season_blocks"][year][season].pop(range_idx)
             st.rerun()
  
     # Update if dates changed
     if new_start.isoformat() != start_str or new_end.isoformat() != end_str:
-        data["season_blocks"][resort][year][season][range_idx] = [new_start.isoformat(), new_end.isoformat()]
-        save_data(data)
+        working["season_blocks"][year][season][range_idx] = [new_start.isoformat(), new_end.isoformat()]
 # ----------------------------------------------------------------------
 # REFERENCE POINTS EDITOR
 # ----------------------------------------------------------------------
-def render_reference_points_editor(data: Dict, resort: str):
+def render_reference_points_editor(working: Dict, resort: str):
     """Edit reference points for seasons and room types."""
     st.subheader("🎯 Reference Points")
-    ref_points = data["reference_points"].setdefault(resort, {})
+    ref_points = working.setdefault("reference_points", {})
  
     for season, content in ref_points.items():
         with st.expander(season, expanded=True):
@@ -686,7 +680,6 @@ def render_regular_season(content: Dict, resort: str, season: str, day_types: Li
                 )
                 if new_value != current_points:
                     rooms[room] = int(new_value)
-                    save_data(st.session_state.data)
 def render_holiday_season(content: Dict, resort: str, season: str):
     """Render points editor for holiday seasons."""
     for sub_season, rooms in content.items():
@@ -702,22 +695,21 @@ def render_holiday_season(content: Dict, resort: str, season: str):
                 )
                 if new_value != current_points:
                     rooms[room] = int(new_value)
-                    save_data(st.session_state.data)
 # ----------------------------------------------------------------------
 # GANTT CHART
 # ----------------------------------------------------------------------
-def create_gantt_chart(resort: str, year: int) -> go.Figure:
+def create_gantt_chart(working: Dict, resort: str, year: int, data: Dict) -> go.Figure:
     """Create a Gantt chart for seasons and holidays."""
     rows = []
     year_str = str(year)
  
     # Add holidays
-    holiday_dict = st.session_state.data["holiday_weeks"].get(resort, {}).get(year_str, {})
+    holiday_dict = working.get("holiday_weeks", {}).get(year_str, {})
  
     for name, raw in holiday_dict.items():
         if isinstance(raw, str) and raw.startswith("global:"):
             holiday_name = raw.split(":", 1)[1]
-            raw = st.session_state.data["global_dates"].get(year_str, {}).get(holiday_name, [])
+            raw = data.get("global_dates", {}).get(year_str, {}).get(holiday_name, [])
         if isinstance(raw, list) and len(raw) >= 2:
             try:
                 start_dt = datetime.strptime(raw[0], "%Y-%m-%d")
@@ -733,7 +725,7 @@ def create_gantt_chart(resort: str, year: int) -> go.Figure:
                 pass
  
     # Add seasons
-    season_dict = st.session_state.data["season_blocks"].get(resort, {}).get(year_str, {})
+    season_dict = working.get("season_blocks", {}).get(year_str, {})
  
     for season_name, ranges in season_dict.items():
         for i, (start_str, end_str) in enumerate(ranges, 1):
@@ -801,60 +793,115 @@ def create_gantt_chart(resort: str, year: int) -> go.Figure:
     )
     fig.update_layout(showlegend=True, xaxis_title="Date", yaxis_title="Period")
     return fig
-def render_gantt_charts(resort: str):
+def render_gantt_charts(working: Dict, resort: str, data: Dict):
     """Render Gantt charts for both years."""
     st.subheader("📊 Season & Holiday Timeline")
     tab2025, tab2026 = st.tabs(["2025", "2026"])
  
     with tab2025:
-        st.plotly_chart(create_gantt_chart(resort, 2025), use_container_width=True)
+        st.plotly_chart(create_gantt_chart(working, resort, 2025, data), use_container_width=True)
     with tab2026:
-        st.plotly_chart(create_gantt_chart(resort, 2026), use_container_width=True)
+        st.plotly_chart(create_gantt_chart(working, resort, 2026, data), use_container_width=True)
 # ----------------------------------------------------------------------
 # VALIDATION
 # ----------------------------------------------------------------------
-def validate_resort_data(data: Dict, resort: str) -> List[str]:
+def validate_resort_data(working: Dict, data: Dict) -> List[str]:
     """Validate resort data and return list of issues."""
     issues: List[str] = []
-    season_blocks_resort = (data.get("season_blocks") or {}).get(resort, {})
-    # Check for overlapping season ranges
+    season_blocks = working.get("season_blocks", {})
+    # Check for overlapping season ranges and holidays
     for year in YEARS:
         season_ranges: List[Tuple[str, datetime, datetime]] = []
-        season_data = season_blocks_resort.get(year, {})
+        season_data = season_blocks.get(year, {})
      
         for season_name, ranges in season_data.items():
             for start_str, end_str in ranges:
                 try:
                     start = datetime.strptime(start_str, "%Y-%m-%d")
-                    end = datetime.strptime(end_str, "%Y-%m-%d")
+                    end = datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=1)  # end inclusive for checks
                     season_ranges.append((season_name, start, end))
                 except (ValueError, TypeError):
                     issues.append(f"Invalid date range in {year} {season_name}: {start_str} - {end_str}")
      
-        season_ranges.sort(key=lambda x: x[1]) # Sort by start date
+        season_ranges.sort(key=lambda x: x[1])
         for i in range(1, len(season_ranges)):
             prev_name, prev_start, prev_end = season_ranges[i-1]
             curr_name, curr_start, curr_end = season_ranges[i]
             if curr_start < prev_end:
                 issues.append(f"Overlapping seasons in {year}: {prev_name} and {curr_name}")
  
+        # Holiday ranges
+        holiday_ranges: List[Tuple[str, datetime, datetime]] = []
+        holiday_dict = working.get("holiday_weeks", {}).get(year, {})
+        for name, raw in holiday_dict.items():
+            if isinstance(raw, str) and raw.startswith("global:"):
+                holiday_name = raw.split(":", 1)[1]
+                raw = data.get("global_dates", {}).get(year, {}).get(holiday_name, [])
+            if isinstance(raw, list) and len(raw) >= 2:
+                try:
+                    start = datetime.strptime(raw[0], "%Y-%m-%d")
+                    end = datetime.strptime(raw[1], "%Y-%m-%d") + timedelta(days=1)
+                    holiday_ranges.append((name, start, end))
+                except (ValueError, TypeError):
+                    issues.append(f"Invalid holiday date in {year} {name}: {raw}")
+        holiday_ranges.sort(key=lambda x: x[1])
+        for i in range(1, len(holiday_ranges)):
+            prev_name, prev_start, prev_end = holiday_ranges[i-1]
+            curr_name, curr_start, curr_end = holiday_ranges[i]
+            if curr_start < prev_end:
+                issues.append(f"Overlapping holidays in {year}: {prev_name} and {curr_name}")
+ 
+        # Check cross overlaps (season and holiday)
+        for s_name, s_start, s_end in season_ranges:
+            for h_name, h_start, h_end in holiday_ranges:
+                if max(s_start, h_start) < min(s_end, h_end):
+                    issues.append(f"Overlap between season {s_name} and holiday {h_name} in {year}")
+ 
+        # Check overall coverage (no gaps in union)
+        all_ranges = season_ranges + holiday_ranges
+        if all_ranges:
+            all_ranges.sort(key=lambda x: x[1])
+            merged_start = all_ranges[0][1]
+            merged_end = all_ranges[0][2]
+            for _, start, end in all_ranges[1:]:
+                if start <= merged_end:  # merge adjacent or overlapping
+                    merged_end = max(merged_end, end)
+                else:
+                    gap_start = merged_end
+                    gap_end = start - timedelta(days=1)
+                    issues.append(f"Gap in overall coverage in {year}: {gap_start.date()} to {gap_end.date()}")
+                    merged_start = start
+                    merged_end = end
+            year_start = datetime(int(year), 1, 1)
+            year_end = datetime(int(year), 12, 31) + timedelta(days=1)
+            if merged_start > year_start:
+                gap_start = year_start
+                gap_end = merged_start - timedelta(days=1)
+                issues.append(f"Gap at start of {year}: {gap_start.date()} to {gap_end.date()}")
+            if merged_end < year_end:
+                gap_start = merged_end
+                gap_end = year_end - timedelta(days=1)
+                issues.append(f"Gap at end of {year}: {gap_start.date()} to {gap_end.date()}")
+        else:
+            issues.append(f"No coverage at all for {year}")
+ 
     # Check for empty seasons
-    all_seasons = get_all_seasons(data, resort)
-    ref_points_resort = (data.get("reference_points") or {}).get(resort, {})
+    all_seasons = get_all_seasons(working)
+    ref_points = working.get("reference_points", {})
     for season in all_seasons:
         if season == HOLIDAY_SEASON_KEY:
             continue
         has_data = False
         for year in YEARS:
-            if season_blocks_resort.get(year, {}).get(season):
+            if season_blocks.get(year, {}).get(season):
                 has_data = True
                 break
-        if not has_data and season in ref_points_resort:
+        if not has_data and season in ref_points:
             issues.append(f"Season '{season}' has reference points but no date ranges")
  
     # Check room consistency
-    all_rooms = set(get_all_room_types(data, resort))
-    for season, season_content in ref_points_resort.items():
+    all_rooms = set(get_all_room_types(working))
+    for season, season_content in ref_points.items():
         if season == HOLIDAY_SEASON_KEY:
             continue
         for day_type, rooms_dict in season_content.items():
@@ -865,8 +912,8 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
                     issues.append(f"Season '{season}' missing rooms in {day_type}: {', '.join(sorted(missing))}")
  
     # Check holiday consistency
-    if HOLIDAY_SEASON_KEY in ref_points_resort:
-        for holiday, room_data in ref_points_resort[HOLIDAY_SEASON_KEY].items():
+    if HOLIDAY_SEASON_KEY in ref_points:
+        for holiday, room_data in ref_points[HOLIDAY_SEASON_KEY].items():
             if isinstance(room_data, dict):
                 holiday_rooms = set(room_data.keys())
                 missing = all_rooms - holiday_rooms
@@ -876,8 +923,7 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
                 issues.append(f"Invalid data structure for holiday '{holiday}'")
  
     # Check structural integrity for reference_points only
-    cat = ref_points_resort
-    for season, content in cat.items():
+    for season, content in ref_points.items():
         if season == HOLIDAY_SEASON_KEY:
             for holiday, rooms in content.items():
                 if not isinstance(rooms, dict):
@@ -895,17 +941,16 @@ def validate_resort_data(data: Dict, resort: str) -> List[str]:
                     issues.append(f"reference_points Season '{season}' day '{day}' invalid (not dict)")
  
     return issues
-def render_validation_panel(data: Dict, current_resort: str):
+def render_validation_panel(working: Dict, data: Dict):
     """Render validation issues panel."""
-    if current_resort:
-        with st.expander("🔍 Validation Check", expanded=False):
-            issues = validate_resort_data(data, current_resort)
-            if issues:
-                st.error("Validation Issues Found:")
-                for issue in issues:
-                    st.write(f"• {issue}")
-            else:
-                st.success("✓ No validation issues found")
+    with st.expander("🔍 Validation Check", expanded=False):
+        issues = validate_resort_data(working, data)
+        if issues:
+            st.error("Validation Issues Found:")
+            for issue in issues:
+                st.write(f"• {issue}")
+        else:
+            st.success("✓ No validation issues found")
 # ----------------------------------------------------------------------
 # GLOBAL SETTINGS
 # ----------------------------------------------------------------------
@@ -928,14 +973,16 @@ def render_maintenance_fees(data: Dict):
             year, value=current_rate, step=0.01, format="%.4f", key=f"mf_{i}"
         )
         if new_rate != current_rate:
+            snapshot_before_change()
             rates[year] = float(new_rate)
-            save_data(data)
+            save_data()
 def render_holiday_dates_editor(data: Dict):
     """Edit global holiday dates - IMPROVED defensive coding."""
+    global_dates = data.setdefault("global_dates", {})
     for year in YEARS:
         st.write(f"**{year}**")
         # Defensive setdefault
-        holidays = data["global_dates"].setdefault(year, {})
+        holidays = global_dates.setdefault(year, {})
      
         # Existing holidays
         for i, (name, dates) in enumerate(list(holidays.items())):
@@ -955,14 +1002,16 @@ def render_holiday_date_range(data: Dict, year: str, name: str, dates: List, ind
         new_end = st.date_input(f"End", safe_date(end_str), key=f"he_{year}_{index}", label_visibility="collapsed")
     with col3:
         if st.button("Delete", key=f"del_h_{year}_{index}"):
+            snapshot_before_change()
             del data["global_dates"][year][name]
-            save_data(data)
+            save_data()
             st.rerun()
     stored_start_iso = start_str if start_str else safe_date(start_str).isoformat()
     stored_end_iso = end_str if end_str else safe_date(end_str).isoformat()
     if new_start.isoformat() != stored_start_iso or new_end.isoformat() != stored_end_iso:
+        snapshot_before_change()
         data["global_dates"][year][name] = [new_start.isoformat(), new_end.isoformat()]
-        save_data(data)
+        save_data()
 def render_new_holiday_interface(data: Dict, year: str):
     """Render interface for adding new holidays."""
     new_name = st.text_input(f"New Holiday Name ({year})", key=f"nhn_{year}")
@@ -972,9 +1021,10 @@ def render_new_holiday_interface(data: Dict, year: str):
     with col2:
         new_end = st.date_input("New End Date", datetime.strptime(f"{year}-01-07", "%Y-%m-%d").date(), key=f"nhe_{year}")
     with col3:
-        if st.button("Add Holiday", key=f"add_h_{year}") and new_name and new_name not in data["global_dates"][year]:
-            data["global_dates"][year][new_name] = [new_start.isoformat(), new_end.isoformat()]
-            save_data(data)
+        if st.button("Add Holiday", key=f"add_h_{year}") and new_name and new_name not in data.get("global_dates", {}).get(year, {}):
+            snapshot_before_change()
+            data.setdefault("global_dates", {}).setdefault(year, {})[new_name] = [new_start.isoformat(), new_end.isoformat()]
+            save_data()
             st.rerun()
 # ----------------------------------------------------------------------
 # REVERT FUNCTIONALITY
@@ -985,6 +1035,67 @@ def render_revert_controls():
         st.sidebar.markdown("---")
         if st.sidebar.button("↶ Revert Last Change", help="Undo the last change"):
             revert_last_change()
+# ----------------------------------------------------------------------
+# HANDLE RESORT SWITCH
+# ----------------------------------------------------------------------
+def handle_resort_switch(data: Dict, current_resort: str, previous_resort: str):
+    if previous_resort and previous_resort != current_resort:
+        working_resorts = st.session_state.working_resorts
+        if previous_resort in working_resorts:
+            working = working_resorts[previous_resort]
+            committed = {
+                'season_blocks': data.get("season_blocks", {}).get(previous_resort, {year: {} for year in YEARS}),
+                'reference_points': data.get("reference_points", {}).get(previous_resort, {}),
+                'holiday_weeks': data.get("holiday_weeks", {}).get(previous_resort, {year: {} for year in YEARS})
+            }
+            if working != committed:
+                st.warning(f"You have unsaved changes in {previous_resort}.")
+                changed_sections = []
+                for section in committed:
+                    if working[section] != committed[section]:
+                        changed_sections.append(section.replace('_', ' ').title())
+                if changed_sections:
+                    st.write("Changed sections: " + ', '.join(changed_sections))
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    if st.button("Save Changes"):
+                        commit_working_to_data(data, working, previous_resort)
+                        del working_resorts[previous_resort]
+                        st.session_state.previous_resort = current_resort
+                        st.rerun()
+                with col2:
+                    if st.button("Discard Changes"):
+                        del working_resorts[previous_resort]
+                        st.session_state.previous_resort = current_resort
+                        st.rerun()
+                with col3:
+                    if st.button("Cancel Switch"):
+                        st.session_state.current_resort = previous_resort
+                        st.rerun()
+                st.stop()
+    st.session_state.previous_resort = current_resort
+# ----------------------------------------------------------------------
+# COMMIT WORKING TO DATA
+# ----------------------------------------------------------------------
+def commit_working_to_data(data: Dict, working: Dict, resort: str):
+    snapshot_before_change()
+    for section in ("season_blocks", "reference_points", "holiday_weeks"):
+        data.setdefault(section, {})[resort] = copy.deepcopy(working.get(section, {}))
+    save_data()
+# ----------------------------------------------------------------------
+# RENDER SAVE BUTTON FOR RESORT
+# ----------------------------------------------------------------------
+def render_save_button(data: Dict, working: Dict, resort: str):
+    committed = {
+        'season_blocks': data.get("season_blocks", {}).get(resort, {year: {} for year in YEARS}),
+        'reference_points': data.get("reference_points", {}).get(resort, {}),
+        'holiday_weeks': data.get("holiday_weeks", {}).get(resort, {year: {} for year in YEARS})
+    }
+    if working != committed:
+        if st.button("💾 Save Resort Changes", type="primary"):
+            commit_working_to_data(data, working, resort)
+            del st.session_state.working_resorts[resort]
+            st.rerun()
 # ----------------------------------------------------------------------
 # MAIN APPLICATION
 # ----------------------------------------------------------------------
@@ -1014,11 +1125,26 @@ def main():
         return
  
     data = st.session_state.data
-    resorts = data["resorts_list"]
+    resorts = data.get("resorts_list", [])
     current_resort = st.session_state.current_resort
+    previous_resort = st.session_state.previous_resort
  
     # Resort grid
     render_resort_grid(resorts, current_resort)
+ 
+    # Handle switch
+    handle_resort_switch(data, current_resort, previous_resort)
+ 
+    # Load or create working for current
+    if current_resort:
+        working_resorts = st.session_state.working_resorts
+        if current_resort not in working_resorts:
+            working_resorts[current_resort] = {
+                'season_blocks': copy.deepcopy(data.get("season_blocks", {}).get(current_resort, {year: {} for year in YEARS})),
+                'reference_points': copy.deepcopy(data.get("reference_points", {}).get(current_resort, {})),
+                'holiday_weeks': copy.deepcopy(data.get("holiday_weeks", {}).get(current_resort, {year: {} for year in YEARS}))
+            }
+        working = working_resorts[current_resort]
  
     # Resort creation
     handle_resort_creation(data, resorts)
@@ -1028,30 +1154,33 @@ def main():
         st.markdown(f"### **{current_resort}**")
      
         # Validation panel
-        render_validation_panel(data, current_resort)
+        render_validation_panel(working, data)
+     
+        # Save button
+        render_save_button(data, working, current_resort)
      
         # Resort deletion
         handle_resort_deletion(data, current_resort)
      
         # Gantt charts
-        render_gantt_charts(current_resort)
+        render_gantt_charts(working, current_resort, data)
  
         # Season dates editor
-        render_season_dates_editor(data, current_resort)
+        render_season_dates_editor(working, current_resort)
      
         # Season management
-        handle_season_renaming(data, current_resort)
-        handle_season_operations(data, current_resort)
+        handle_season_renaming(working)
+        handle_season_operations(working)
      
         # Room type management
-        handle_room_renaming(data, current_resort)
-        handle_room_operations(data, current_resort)
+        handle_room_renaming(working)
+        handle_room_operations(working)
      
         # Holiday management
-        handle_holiday_management(data, current_resort)
+        handle_holiday_management(working, current_resort, data)
      
         # Reference points editor
-        render_reference_points_editor(data, current_resort)
+        render_reference_points_editor(working, current_resort)
      
     # Global settings
     render_global_settings(data)
