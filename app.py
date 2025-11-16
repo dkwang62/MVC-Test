@@ -3,7 +3,6 @@ import json
 import re
 from io import BytesIO
 from typing import List, Dict, Any, Union
-# Using pypdf, the current standard continuation of PyPDF2
 import pypdf 
 
 
@@ -16,6 +15,9 @@ MONTHS = {
     "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
     "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12
 }
+
+# Keywords to identify lines containing resort names for auto-extraction
+BRAND_NAMES = ["MARRIOTT", "SHERATON", "WESTIN", "THE RITZ-CARLTON", "GRAND RESIDENCES"]
 
 
 def month_day_to_iso(year: int, mon_abbr: str, day: str) -> str:
@@ -31,6 +33,59 @@ def normalize(text: str) -> str:
     text = text.replace("’", "'").replace("‘", "'")
     text = text.replace("–", "-").replace("—", "-")
     return text
+
+
+@st.cache_data
+def auto_extract_resorts(pdf_file_object: BytesIO) -> List[str]:
+    """
+    Scans the first few pages of the PDF to build a list of all resort names 
+    by looking for common brand name keywords.
+    """
+    st.info("Attempting to auto-extract all resort names from the PDF...")
+    resorts = set()
+    pdf_file_object.seek(0)
+    reader = pypdf.PdfReader(pdf_file_object)
+    
+    # We assume the resort list is on the first 10 pages, before the main tables start
+    max_pages_to_scan = min(len(reader.pages), 10) 
+    
+    for i in range(1, max_pages_to_scan): # Start from page 2 (index 1)
+        try:
+            page_text = reader.pages[i].extract_text()
+            if not page_text:
+                continue
+                
+            norm_text = normalize(page_text)
+            
+            # Split into lines and filter
+            for line in norm_text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Rule: The line must start with one of the brand names
+                if any(line.startswith(brand) for brand in BRAND_NAMES):
+                    
+                    # Heuristic to filter out short headings (like STATE names)
+                    # Resort names are typically long and mixed case/symbols in the source text.
+                    if len(line.split()) < 3 and all(c.isupper() or not c.isalpha() for c in line):
+                        # Skip if it looks like a short, all-caps heading (e.g., "FLORIDA")
+                        continue
+                        
+                    # Clean the name (remove trailing symbols like '®' or 'SM')
+                    clean_name = re.sub(r'[\u00AE\u2122\u00A9\u2120]', '', line).strip()
+                    
+                    # Convert to Title Case for cleaner output and add to set
+                    resorts.add(clean_name.title()) 
+                    
+        except Exception as e:
+            st.warning(f"Error processing page {i+1} for resorts: {e}")
+            
+    # Remove "Marriott Vacation Club" which often gets picked up as a generic heading
+    generic_term = "Marriott Vacation Club"
+    final_resorts = [r for r in list(resorts) if generic_term.upper() not in r.upper()]
+    
+    return sorted(final_resorts)
 
 
 def extract_resort_blocks_from_page_text(text: str) -> List[Dict[str, Any]]:
@@ -139,18 +194,21 @@ def extract_resort_blocks_from_page_text(text: str) -> List[Dict[str, Any]]:
     return rows
 
 
+@st.cache_data
 def find_resort_pages(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict[str, Union[int, None]]:
     """
     Finds the highest page index where each resort name appears.
-    Requires the file object to be at the start (use .seek(0)).
     """
     pdf_file_object.seek(0)
     reader = pypdf.PdfReader(pdf_file_object)
     page_map = {}
     
-    for resort in resorts_list:
+    progress_bar = st.progress(0, text="Searching for resort pages...")
+    
+    for i, resort in enumerate(resorts_list):
         term = normalize(resort)
-        term = term.replace("MARRIOTT", "").strip()
+        # Remove common, non-unique parts to improve matching
+        term = term.replace("MARRIOTT", "").replace("VACATION CLUB", "").strip()
         
         hits = []
         for idx, page in enumerate(reader.pages):
@@ -159,10 +217,13 @@ def find_resort_pages(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict
                 hits.append(idx)
         
         page_map[resort] = max(hits) if hits else None
+        progress_bar.progress((i + 1) / len(resorts_list), text=f"Searching for **{resort}**...")
         
+    progress_bar.empty()
     return page_map
 
 
+@st.cache_data
 def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict[str, Any]:
     """Coordinates the full extraction process for all resorts."""
     
@@ -174,7 +235,10 @@ def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Di
     reader = pypdf.PdfReader(pdf_file_object)
     
     result = {}
-    for resort in resorts_list:
+    
+    extraction_progress = st.progress(0, text="Extracting point data...")
+    
+    for i, resort in enumerate(resorts_list):
         page_idx = page_map.get(resort)
         
         if page_idx is None:
@@ -194,7 +258,10 @@ def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Di
             "page_index": page_idx + 1, # Display 1-based index
             "rows": rows,
         }
+        
+        extraction_progress.progress((i + 1) / len(resorts_list), text=f"Extracting data for **{resort}**...")
 
+    extraction_progress.empty()
     return result
 
 
@@ -203,64 +270,40 @@ def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Di
 def app_main():
     st.set_page_config(page_title="MVC PDF Extractor", layout="wide")
     st.title("Marriott PDF Point Chart Data Extractor")
-    st.markdown("Use this tool to parse the raw season and point data from the **MVC-2026.pdf** chart.")
+    st.markdown("This tool automatically extracts all 81+ resorts and their raw season/point data from the **MVC-2026.pdf** chart.")
 
-    # --- File Uploaders ---
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # File uploader for the PDF
-        uploaded_pdf = st.file_uploader(
-            "1. Upload MVC-2026.pdf", 
-            type="pdf", 
-            help="The Marriott Club Points Chart PDF (e.g., MVC-2026.pdf)"
-        )
-    
-    with col2:
-        # File uploader for the existing data.json to get the resort list
-        template_json_file = st.file_uploader(
-            "2. Upload data.json template (Optional)", 
-            type="json", 
-            help="Upload your existing data.json to ensure the resort list is consistent."
-        )
+    # --- File Uploader ---
+    uploaded_pdf = st.file_uploader(
+        "1. Upload MVC-2026.pdf", 
+        type="pdf", 
+        help="The Marriott Club Points Chart PDF (e.g., MVC-2026.pdf)"
+    )
 
-    # --- Determine Resort List ---
-    resorts_list = []
-    
-    if template_json_file:
-        try:
-            # Must seek(0) to read the uploaded file from the start
-            template_json_file.seek(0)
-            template = json.load(template_json_file)
-            resorts_list = template.get("resorts_list", [])
-            st.success(f"✅ Loaded **{len(resorts_list)}** resort names from `data.json`.")
-        except Exception as e:
-            st.error(f"❌ Error loading resorts from JSON: {e}")
-            
-    if not resorts_list:
-        st.info("Using a hardcoded fallback list of resorts.")
-        # Fallback list used if no JSON is provided or it's invalid/empty
-        resorts_list = [
-            "Ko Olina Beach Club", "Shadow Ridge", "Newport Coast Villas", 
-            "Ocean Pointe", "Grande Vista", "Desert Springs Villas", 
-            "Imperial Palms", "Waiohai Beach Club"
-        ]
-        
-    st.markdown(f"**Resorts to be searched** ({len(resorts_list)}): *{', '.join(resorts_list[:6])}...*")
     st.markdown("---")
 
-
     # --- Processing Button ---
-    if st.button("3. Start PDF Data Extraction", type="primary", disabled=not uploaded_pdf):
+    if st.button("2. Start Full Data Extraction", type="primary", disabled=not uploaded_pdf):
         if uploaded_pdf is None:
             st.error("Please upload the PDF file first.")
             return
 
-        # Read the file content into a memory buffer to pass to parsing functions
-        # This is the most reliable way to handle the uploaded file object
+        # Read the file content into a memory buffer
         pdf_buffer = BytesIO(uploaded_pdf.read())
 
-        with st.spinner("Processing PDF and extracting data... This may take a moment."):
+        with st.spinner("Step 1: Auto-detecting all resort names..."):
+            # Auto-extract resort list from PDF
+            resorts_list = auto_extract_resorts(pdf_buffer)
+            
+            if not resorts_list:
+                st.error("❌ Failed to automatically detect any resort names. Please check the PDF format.")
+                return
+
+        st.success(f"✅ Auto-detection complete! Found **{len(resorts_list)}** potential resorts.")
+        
+        with st.expander("Review Auto-Detected Resort List", expanded=False):
+            st.code('\n'.join(resorts_list), language='text')
+
+        with st.spinner("Step 2: Processing PDF and extracting point data for all resorts..."):
             try:
                 # The core logic
                 raw_data = extract_all_resorts(pdf_buffer, resorts_list)
