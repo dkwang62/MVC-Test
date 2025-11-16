@@ -4,6 +4,7 @@ import re
 from io import BytesIO
 from typing import List, Dict, Any, Union
 import pypdf 
+from pathlib import Path
 
 
 # ---------- HARDCODED RESORT LIST ----------
@@ -76,7 +77,7 @@ RESORTS_LIST = [
     "The Ritz-Carlton Club, Vail"
 ]
 
-# ---------- Configuration & Helpers (Unchanged) ----------
+# ---------- Configuration & Helpers ----------
 
 # Regex to capture date ranges like "JAN 3 - FEB 2"
 DATE_RANGE_RE = re.compile(
@@ -103,52 +104,71 @@ def normalize(text: str) -> str:
     text = text.upper()
     text = text.replace("’", "'").replace("‘", "'")
     text = text.replace("–", "-").replace("—", "-")
+    # Aggressively clean up non-essential characters that break matching
+    text = text.replace(",", "").replace(".", "").replace("(", "").replace(")", "").strip()
     return text
 
 
+@st.cache_data
 def extract_season_blocks_from_page_text(text: str) -> Dict[str, Any]:
     """
-    Extracts season names (e.g., Platinum) and their corresponding date ranges 
-    for 2025 and 2026 from the resort page text, matching the season_blocks structure.
+    Extracts season names and their corresponding date ranges for 2025 and 2026.
+    Refactored to be more resilient to messy PDF text extraction.
     """
     norm = normalize(text)
     result = {"2025": {}, "2026": {}}
     
+    # Pre-tokenize all lines
     lines = [ln.strip() for ln in norm.splitlines() if ln.strip()]
     
-    current_season = None
-    
-    for i, line in enumerate(lines):
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
         
-        # 1. Check for a Season Name to start a new block
-        season_found = False
+        current_season = None
+        
+        # 1. Check for a Season Name
         for s_name in SEASON_NAMES:
-            if line.startswith(s_name):
+            # Check if the line CONTAINS the season name (more flexible than startswith)
+            if s_name in line:
                 current_season = s_name.title()
-                season_found = True
                 break
         
-        if season_found:
-            # 2. Look for date ranges in the current line and the next few lines
+        if current_season:
+            # Season header found. Now, aggressively search for date ranges
             
+            # Start search block with the current line
             search_block = line
-            # Combine the current line with the next line to handle wrapping
-            if i + 1 < len(lines):
-                search_block += " " + lines[i+1]
+            
+            # Continue consuming lines until we find a line that is NOT likely a date line
+            j = i
+            while j < len(lines):
+                next_line = lines[j]
                 
+                # Heuristic: If the next line contains ANY month name, it's probably a date range continuation.
+                if any(mon in next_line for mon in MONTHS.keys()):
+                    search_block += " " + next_line
+                    j += 1
+                else:
+                    # Found a non-date line (e.g., "DAY*UNIT TYPE" or a new season)
+                    break
+            
+            # Update the main loop index to where we stopped consuming lines
+            i = j
+            
+            # 2. Parse all date ranges from the accumulated search block
             ranges = DATE_RANGE_RE.findall(search_block)
             
             if not ranges:
-                # If season header was found but no dates were immediately found, continue searching 
-                # for the next line in case the season name is on a line by itself
+                # If we found the season name but no dates, skip this block
                 continue 
 
-            # The date ranges typically alternate: [2025 range 1, 2026 range 1, 2025 range 2, 2026 range 2, ...]
             season_ranges_2025 = []
             season_ranges_2026 = []
             
             for idx, (m1, d1, m2, d2) in enumerate(ranges):
-                # The PDF structure typically lists 2025 dates first, then 2026 dates.
+                # Assuming alternating 2025 (even index) and 2026 (odd index) structure
                 year = 2025 if idx % 2 == 0 else 2026
                 start_iso = month_day_to_iso(year, m1, d1)
                 end_iso = month_day_to_iso(year, m2, d2)
@@ -164,13 +184,9 @@ def extract_season_blocks_from_page_text(text: str) -> Dict[str, Any]:
             if season_ranges_2026:
                 result["2026"][current_season] = result["2026"].get(current_season, []) + season_ranges_2026
 
-            current_season = None # Reset for the next season block
-
     # Clean up empty year dictionaries
-    if not result["2025"]:
-        del result["2025"]
-    if not result["2026"]:
-        del result["2026"]
+    result.pop("2025", None)
+    result.pop("2026", None)
         
     return result
 
@@ -178,23 +194,35 @@ def extract_season_blocks_from_page_text(text: str) -> Dict[str, Any]:
 @st.cache_data
 def find_resort_pages(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict[str, Union[int, None]]:
     """
-    Finds the highest page index where each resort name appears.
+    Finds the highest page index where each resort name appears using multiple,
+    simplified search terms for better resilience.
     """
     pdf_file_object.seek(0)
     reader = pypdf.PdfReader(pdf_file_object)
     page_map = {}
     
-    # Using a list comprehension for efficiency
     for resort in resorts_list:
-        term = normalize(resort)
-        # Remove common, non-unique parts to improve matching stability
-        term = term.replace("MARRIOTT", "").replace("VACATION CLUB", "").strip()
+        normalized_resort = normalize(resort)
         
+        # 1. Aggressively simplified term
+        term1 = normalized_resort.replace("MARRIOTT'S", "").replace("MARRIOTT", "").replace("VACATION CLUB", "").replace("AND RESIDENCES", "").replace("THE RITZ-CARLTON", "").replace("SHERATON", "").replace("WESTIN", "").strip()
+        
+        # 2. Extract unique keywords (e.g., 'ARUBA OCEAN', 'NEWPORT COAST')
+        keywords = normalized_resort.split()
+        unique_keywords = [k for k in keywords if len(k) > 2 and k not in ["MARRIOTT", "CLUB", "THE", "A", "OF", "IN", "AT", "BY", "VACATION", "SHERATON", "WESTIN", "RITZ-CARLTON", "AND", "OR", "RESIDENCE"]]
+        term2 = " ".join(unique_keywords).strip()
+
+        # Search terms from most to least specific
+        search_terms = [normalized_resort, term1, term2]
+        search_terms = sorted(list(set([t for t in search_terms if t and len(t) > 3])), key=len, reverse=True)
+
         hits = []
         for idx, page in enumerate(reader.pages):
             text = normalize(page.extract_text() or "")
-            if term in text:
-                hits.append(idx)
+            for term in search_terms:
+                if term in text:
+                    hits.append(idx)
+                    break # Stop searching terms for this page once a hit is found
         
         page_map[resort] = max(hits) if hits else None
         
@@ -203,7 +231,7 @@ def find_resort_pages(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict
 
 @st.cache_data
 def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Dict[str, Any]:
-    """Coordinates the full extraction process for the hardcoded resort list."""
+    """Coordinates the full extraction process."""
     
     # 1. Find the page index for each resort
     page_map = find_resort_pages(pdf_file_object, resorts_list) 
@@ -219,18 +247,14 @@ def extract_all_resorts(pdf_file_object: BytesIO, resorts_list: List[str]) -> Di
     for i, resort in enumerate(resorts_list):
         page_idx = page_map.get(resort)
         
-        # Log which resorts were skipped for transparency
         if page_idx is None:
-            st.info(f"Page not found for resort: **{resort}**. Skipping.")
+            # st.info(f"Page not found for resort: **{resort}**. Skipping.")
+            pass # Keep silent, but the final count will be accurate
             continue
 
-        # Extract text from the identified page index
         text = reader.pages[page_idx].extract_text() or ""
-        
-        # Parse the season block data
         blocks = extract_season_blocks_from_page_text(text)
         
-        # Only add to the result if some data was found
         if blocks:
             season_blocks_result[resort] = blocks
         else:
@@ -276,14 +300,17 @@ def app_main():
 
                 output_dict = {
                     "$schema": "./schema.json", 
-                    "resorts_list": list(season_blocks_data.keys()), # List only resorts that returned data
+                    "resorts_list": sorted(list(season_blocks_data.keys())), 
                     "season_blocks": season_blocks_data,
-                    "global_dates": {}, # Placeholder as this data is typically manual
+                    "global_dates": {}, 
                 }
                 
                 output_json_str = json.dumps(output_dict, indent=2)
 
                 st.success(f"🎉 Extraction Complete! Successfully found data for **{len(season_blocks_data)}** resorts.")
+                
+                if len(season_blocks_data) < len(RESORTS_LIST):
+                    st.warning(f"⚠️ Note: Data was missing or not found for {len(RESORTS_LIST) - len(season_blocks_data)} resorts.")
                 
                 st.subheader("Extracted Season Blocks Output")
                 
@@ -303,7 +330,7 @@ def app_main():
 
             except Exception as e:
                 st.error("An unexpected error occurred during extraction.")
-                st.exception(e) # Display full traceback for debugging
+                st.exception(e)
 
 
 if __name__ == "__main__":
