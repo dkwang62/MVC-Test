@@ -3060,6 +3060,112 @@
           ]
         ]
       }
+    },
+    "Streamside Birch Vail": {
+      "2025": {
+        "High Season": [
+          [
+            "2025-01-03",
+            "2025-01-16"
+          ],
+          [
+            "2025-03-28",
+            "2025-04-17"
+          ],
+          [
+            "2025-06-27",
+            "2025-07-03"
+          ],
+          [
+            "2025-07-11",
+            "2025-07-24"
+          ],
+          [
+            "2025-12-05",
+            "2025-12-18"
+          ]
+        ],
+        "Peak Season": [
+          [
+            "2025-01-17",
+            "2025-02-13"
+          ],
+          [
+            "2025-02-21",
+            "2025-03-27"
+          ]
+        ],
+        "Low Season": [
+          [
+            "2025-04-18",
+            "2025-06-12"
+          ],
+          [
+            "2025-09-26",
+            "2025-11-20"
+          ]
+        ],
+        "Mid Season": [
+          [
+            "2025-06-13",
+            "2025-06-26"
+          ],
+          [
+            "2025-07-25",
+            "2025-09-25"
+          ]
+        ]
+      },
+      "2026": {
+        "High Season": [
+          [
+            "2026-01-02",
+            "2026-01-15"
+          ],
+          [
+            "2026-03-27",
+            "2026-04-16"
+          ],
+          [
+            "2026-07-10",
+            "2026-07-30"
+          ],
+          [
+            "2026-12-04",
+            "2026-12-17"
+          ]
+        ],
+        "Peak Season": [
+          [
+            "2026-01-16",
+            "2026-02-12"
+          ],
+          [
+            "2026-02-20",
+            "2026-03-26"
+          ]
+        ],
+        "Low Season": [
+          [
+            "2026-04-17",
+            "2026-06-11"
+          ],
+          [
+            "2026-09-25",
+            "2026-11-19"
+          ]
+        ],
+        "Mid Season": [
+          [
+            "2026-06-12",
+            "2026-07-02"
+          ],
+          [
+            "2026-07-31",
+            "2026-09-24"
+          ]
+        ]
+      }
     }
   },
   "holiday_weeks": {
@@ -3619,6 +3725,24 @@
       "2026": {
         "Presidents Day": "global:Presidents Day",
         "Independence Day": "global:Independence Day",
+        "Christmas": "global:Christmas",
+        "New Year's Eve/Day": "global:New Year's Eve/Day"
+      }
+    },
+    "Streamside Birch Vail": {
+      "2025": {
+        "Presidents Day": "global:Presidents Day",
+        "Independence Day": "global:Independence Day",
+        "Thanksgiving": "global:Thanksgiving",
+        "Thanksgiving 2": "global:Thanksgiving 2",
+        "Christmas": "global:Christmas",
+        "New Year's Eve/Day": "global:New Year's Eve/Day"
+      },
+      "2026": {
+        "Presidents Day": "global:Presidents Day",
+        "Independence Day": "global:Independence Day",
+        "Thanksgiving": "global:Thanksgiving",
+        "Thanksgiving 2": "global:Thanksgiving 2",
         "Christmas": "global:Christmas",
         "New Year's Eve/Day": "global:New Year's Eve/Day"
       }
@@ -7085,6 +7209,88 @@
           "0-Studio": 1900
         }
       }
+    },
+    "Streamside Birch Vail": {
+      "High Season": {
+        "Fri-Sat": {
+          "Suite": 175,
+          "1-BDRM": 250,
+          "2-BDRM": 350
+        },
+        "Sun-Thu": {
+          "Suite": 75,
+          "1-BDRM": 100,
+          "2-BDRM": 150
+        }
+      },
+      "Peak Season": {
+        "Fri-Sat": {
+          "Suite": 225,
+          "1-BDRM": 300,
+          "2-BDRM": 450
+        },
+        "Sun-Thu": {
+          "Suite": 100,
+          "1-BDRM": 125,
+          "2-BDRM": 200
+        }
+      },
+      "Low Season": {
+        "Fri-Sat": {
+          "Suite": 50,
+          "1-BDRM": 75,
+          "2-BDRM": 100
+        },
+        "Sun-Thu": {
+          "Suite": 50,
+          "1-BDRM": 50,
+          "2-BDRM": 75
+        }
+      },
+      "Mid Season": {
+        "Fri-Sat": {
+          "Suite": 100,
+          "1-BDRM": 125,
+          "2-BDRM": 175
+        },
+        "Sun-Thu": {
+          "Suite": 50,
+          "1-BDRM": 75,
+          "2-BDRM": 100
+        }
+      },
+      "Holiday Week": {
+        "Presidents Day": {
+          "Suite": 1125,
+          "1-BDRM": 1500,
+          "2-BDRM": 2225
+        },
+        "Independence Day": {
+          "Suite": 725,
+          "1-BDRM": 1000,
+          "2-BDRM": 1450
+        },
+        "Thanksgiving": {
+          "Suite": 350,
+          "1-BDRM": 400,
+          "2-BDRM": 575
+        },
+        "Thanksgiving Weekend": {
+          "Suite": 725,
+          "1-BDRM": 1000,
+          "2-BDRM": 1450
+        },
+        "Christmas": {
+          "Suite": 1300,
+          "1-BDRM": 1675,
+          "2-BDRM": 2400
+        },
+        "New Year's Eve/Day": {
+          "Suite": 1275,
+          "1-BDRM": 1900,
+          "2-BDRM": 2725
+        }
+      }
     }
   },
   "resorts_list": [
@@ -7121,7 +7327,8 @@
     "Grand Residence Tahoe",
     "Sheraton Scottsdale Arizona",
     "Cypress Harbour Orlando",
-    "Lakeshore Reserve Orlando"
+    "Lakeshore Reserve Orlando",
+    "Streamside Birch Vail"
   ],
   "maintenance_rates": {
     "2025": 0.5,
