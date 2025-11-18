@@ -1,10 +1,9 @@
-import streamlit as st
+Modify the following code to get rid of the calculate button which should be automatic as soon as a resort is selected. Also in owner mode the parameters should be displayed even when a different resort is selected. import streamlit as st
 import math
 import json
 from datetime import datetime, timedelta
 import pandas as pd
 import plotly.express as px
-
 # ----------------------------------------------------------------------
 # Setup page
 # ----------------------------------------------------------------------
@@ -19,7 +18,6 @@ def setup_page():
         }
     </style>
     """, unsafe_allow_html=True)
-
 # ----------------------------------------------------------------------
 # Initialize session state
 # ----------------------------------------------------------------------
@@ -32,7 +30,6 @@ def initialize_session_state():
         st.session_state.delete_confirm = False
     st.session_state.setdefault("data_cache", {})
     st.session_state.setdefault("allow_renter_modifications", False)
-
 # ----------------------------------------------------------------------
 # File handling functions
 # ----------------------------------------------------------------------
@@ -45,7 +42,6 @@ def handle_file_upload():
             st.success("File uploaded successfully!")
         except Exception as e:
             st.error(f"Error loading file: {e}")
-
 # ----------------------------------------------------------------------
 # Custom date formatter: 12 Jan 2026
 # ----------------------------------------------------------------------
@@ -55,7 +51,6 @@ def fmt_date(d):
     elif isinstance(d, (pd.Timestamp, datetime)):
         d = d.date()
     return d.strftime("%d %b %Y")
-
 # ----------------------------------------------------------------------
 # Helpers
 # ----------------------------------------------------------------------
@@ -70,10 +65,8 @@ def display_room(key: str) -> str:
     parts = key.split()
     view = parts[-1] if len(parts) > 1 and parts[-1] in ROOM_VIEW_LEGEND else ""
     return f"{parts[0]} {ROOM_VIEW_LEGEND.get(view, view)}" if view else key
-
 def resolve_global(year: str, key: str) -> list:
     return st.session_state.data.get("global_dates", {}).get(year, {}).get(key, [])
-
 # ----------------------------------------------------------------------
 # Core data generation (cached)
 # ----------------------------------------------------------------------
@@ -92,7 +85,6 @@ def generate_data(resort: str, date: datetime.date):
     holiday = None
     h_start = h_end = None
     is_h_start = False
-
     # New Year's
     if (date.month == 12 and date.day >= 26) or (date.month == 1 and date.day <= 1):
         prev = str(int(year) - 1)
@@ -100,7 +92,6 @@ def generate_data(resort: str, date: datetime.date):
         end = datetime.strptime(f"{year}-01-01", "%Y-%m-%d").date()
         if start <= date <= end:
             holiday, h_start, h_end, is_h_start = "New Year's Eve/Day", start, end, date == start
-
     # Holiday Weeks
     if not holiday and year in HOLIDAY_WEEKS.get(resort, {}):
         for name, raw in HOLIDAY_WEEKS[resort][year].items():
@@ -112,7 +103,6 @@ def generate_data(resort: str, date: datetime.date):
                 if s <= date <= e:
                     holiday, h_start, h_end, is_h_start = name, s, e, date == s
                     break
-
     # Seasons
     if not holiday and year in SEASON_BLOCKS.get(resort, {}):
         for s_name, ranges in SEASON_BLOCKS[resort][year].items():
@@ -122,7 +112,6 @@ def generate_data(resort: str, date: datetime.date):
                     break
             if season != "Default Season":
                 break
-
     # Points
     if holiday:
         src = REF_POINTS.get(resort, {}).get("Holiday Week", {}).get(holiday, {})
@@ -142,24 +131,20 @@ def generate_data(resort: str, date: datetime.date):
         src = REF_POINTS.get(resort, {}).get(season, {}).get(cat, {}) if cat else {}
         for internal_key, pts in src.items():
             entry[display_room(internal_key)] = pts
-
     if holiday:
         entry.update(HolidayWeek=True, holiday_name=holiday,
                      holiday_start=h_start, holiday_end=h_end,
                      HolidayWeekStart=is_h_start)
-
     final_src = REF_POINTS.get(resort, {}).get("Holiday Week", {}).get(holiday, {}) if holiday else src
     disp_to_int = {display_room(k): k for k in final_src}
     cache[ds] = (entry, disp_to_int)
     return entry, disp_to_int
-
 # ----------------------------------------------------------------------
 # GANTT CHART — FULLY FIXED
 # ----------------------------------------------------------------------
 def gantt_chart(resort: str, year: int):
     rows = []
     ys = str(year)
-
     # === HOLIDAYS ===
     for name, raw in HOLIDAY_WEEKS.get(resort, {}).get(ys, {}).items():
         if isinstance(raw, str) and raw.startswith("global:"):
@@ -178,7 +163,6 @@ def gantt_chart(resort: str, year: int):
                 })
             except:
                 continue
-
     # === SEASONS ===
     for s_name, ranges in SEASON_BLOCKS.get(resort, {}).get(ys, {}).items():
         for i, (s, e) in enumerate(ranges, 1):
@@ -195,7 +179,6 @@ def gantt_chart(resort: str, year: int):
                 })
             except:
                 continue
-
     # === FALLBACK ===
     if not rows:
         today = datetime.now()
@@ -205,11 +188,9 @@ def gantt_chart(resort: str, year: int):
             "Finish": today + timedelta(days=1),
             "Type": "No Data"
         }]
-
     df = pd.DataFrame(rows)
     df["Start"] = pd.to_datetime(df["Start"])
     df["Finish"] = pd.to_datetime(df["Finish"])
-
     # === COLORS ===
     color_dict = {
         "Holiday": "rgb(255,99,71)",
@@ -224,7 +205,6 @@ def gantt_chart(resort: str, year: int):
         "No Data": "rgb(128,128,128)"
     }
     colors = {t: color_dict.get(t, "rgb(169,169,169)") for t in df["Type"].unique()}
-
     # === PLOT ===
     fig = px.timeline(
         df,
@@ -236,10 +216,8 @@ def gantt_chart(resort: str, year: int):
         title=f"{resort} Seasons & Holidays ({year})",
         height=max(400, len(df) * 35)
     )
-
     fig.update_yaxes(autorange="reversed")
     fig.update_xaxes(tickformat="%d %b %Y")
-
     # CORRECT HOVER
     fig.update_traces(
         hovertemplate=(
@@ -248,10 +226,8 @@ def gantt_chart(resort: str, year: int):
             "End: %{x|%d %b %Y}<extra></extra>"
         )
     )
-
     fig.update_layout(showlegend=True, xaxis_title="Date", yaxis_title="Period")
     return fig
-
 # ----------------------------------------------------------------------
 # Discount & Breakdowns
 # ----------------------------------------------------------------------
@@ -263,7 +239,6 @@ def apply_discount(points: int, discount: str | None, date: datetime.date) -> tu
     if discount == "within_30_days":
         return math.floor(points * 0.75), True
     return points, False
-
 def renter_breakdown(resort, room, checkin, nights, rate, discount):
     rows, tot_pts, tot_rent = [], 0, 0
     cur_h, h_end = None, None
@@ -277,7 +252,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
             applied = True
             disc_days.append(fmt_date(d))
         rent = math.ceil(raw_pts * rate)
-       
+      
         if entry.get("HolidayWeek"):
             if entry.get("HolidayWeekStart"):
                 cur_h = entry["holiday_name"]
@@ -296,7 +271,6 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
             tot_pts += eff_pts
             tot_rent += rent
     return pd.DataFrame(rows), tot_pts, tot_rent, applied, disc_days
-
 def owner_breakdown(resort, room, checkin, nights, disc_mul,
                     inc_maint, inc_cap, inc_dep,
                     rate, cap_per_pt, coc, life, salvage):
@@ -345,7 +319,6 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
             tot_pts += dpts
     return (pd.DataFrame(rows), tot_pts, tot_cost,
             totals["m"], totals["c"], totals["d"])
-
 # ----------------------------------------------------------------------
 # COMPARISON helpers
 # ----------------------------------------------------------------------
@@ -378,7 +351,7 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                 applied = True
                 disc_days.append(fmt_date(d))
             rent = math.ceil(raw_pts * rate)
-           
+          
             if is_holiday and is_h_start:
                 if h_name not in holiday_totals[room]:
                     h_start = min(s for s, _, n in holiday_ranges if n == h_name)
@@ -411,7 +384,6 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
     holiday_df = pd.DataFrame(holiday_chart)
     chart_df = pd.DataFrame(chart_rows)
     return pivot, chart_df, holiday_df, applied, disc_days
-
 def compare_owner(resort, rooms, checkin, nights, disc_mul,
                   inc_maint, inc_cap, inc_dep,
                   rate, cap_per_pt, coc, life, salvage):
@@ -475,7 +447,6 @@ def compare_owner(resort, rooms, checkin, nights, disc_mul,
     holiday_df = pd.DataFrame(holiday_chart)
     chart_df = pd.DataFrame(chart_rows)
     return pivot, chart_df, holiday_df
-
 # ----------------------------------------------------------------------
 # Adjust holiday range — FIXED
 # ----------------------------------------------------------------------
@@ -496,13 +467,11 @@ def adjust_date_range(resort, start, nights):
         e0 = max(e for _, e, _ in ranges)
         return min(start, s0), (max(end, e0) - min(start, s0)).days + 1, True
     return start, nights, False
-
 # ----------------------------------------------------------------------
 # Main App Logic
 # ----------------------------------------------------------------------
 setup_page()
 initialize_session_state()
-
 if st.session_state.data is None:
     try:
         with open("data.json", "r") as f:
@@ -514,15 +483,12 @@ if st.session_state.data is None:
         st.info("No data.json found for automatic load. Please upload a file.")
     except Exception as e:
         st.error(f"❌ Error automatically loading data.json: {e}")
-
 # Sidebar
 with st.sidebar:
     handle_file_upload()
-
 if not st.session_state.data:
     st.error("No data loaded. Please upload a JSON file.")
     st.stop()
-
 data = st.session_state.data
 ROOM_VIEW_LEGEND = data.get("room_view_legend", {
     "GV": "Garden", "OV": "Ocean View", "OF": "Oceanfront", "S": "Standard",
@@ -539,10 +505,8 @@ ROOM_VIEW_LEGEND = data.get("room_view_legend", {
 SEASON_BLOCKS = data.get("season_blocks", {})
 REF_POINTS = data.get("reference_points", {})
 HOLIDAY_WEEKS = data.get("holiday_weeks", {})
-
 resorts = data.get("resorts_list", [])
 current_resort = st.session_state.current_resort
-
 # Render the resort selection grid.
 st.subheader("🏨 Select Resort")
 cols = st.columns(6)
@@ -553,16 +517,12 @@ for i, resort in enumerate(resorts):
             st.session_state.current_resort = resort
             st.session_state.delete_confirm = False
             st.rerun()
-
 resort = current_resort
-
 if not resort:
     st.warning("Please select a resort.")
     st.stop()
-
 user_mode = st.sidebar.selectbox("User Mode", ["Renter", "Owner"], index=0, key="mode")
 # st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
-
 checkin = st.date_input(
     "Check-in Date",
     min_value=datetime(2025,1,3).date(),
@@ -571,10 +531,8 @@ checkin = st.date_input(
 )
 st.markdown(f"**Selected Check-in:** `{fmt_date(checkin)}`")
 nights = st.number_input("Number of Nights", 1, 30, 7)
-
 maintenance_rates = data.get("maintenance_rates", {})
 default_rate = maintenance_rates.get(str(checkin.year), 0.86)
-
 with st.expander("How " + ("Rent" if user_mode=="Renter" else "Cost") + " Is Calculated"):
     if user_mode == "Renter":
         st.markdown(f"""
@@ -592,7 +550,6 @@ with st.expander("How " + ("Rent" if user_mode=="Renter" else "Cost") + " Is Cal
         - Depreciation = Points × [(Purchase Price – Salvage) ÷ Useful Life]
         - Total cost = Maintenance + Capital Cost + Depreciation
         """)
-
 rate_per_point = default_rate
 discount_opt = None
 disc_mul = 1.0
@@ -601,7 +558,6 @@ cap_per_pt = 16.0
 life = 15
 salvage = 3.0
 inc_maint = inc_cap = inc_dep = True
-
 with st.sidebar:
     st.header("Parameters")
     if user_mode == "Owner":
@@ -640,10 +596,8 @@ with st.sidebar:
         else:
             rate_per_point = default_rate
             discount_opt = None
-
 st.subheader(f"{resort} {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
 year = str(checkin.year)
-
 if (st.session_state.get("last_resort") != resort or
         st.session_state.get("last_year") != year):
     st.session_state.data_cache.clear()
@@ -651,7 +605,6 @@ if (st.session_state.get("last_resort") != resort or
         st.session_state.pop(k, None)
     st.session_state.last_resort = resort
     st.session_state.last_year = year
-
 if "room_types" not in st.session_state:
     entry, d2i = generate_data(resort, checkin)
     st.session_state.room_types = sorted(k for k in entry if k not in
@@ -662,15 +615,13 @@ room_types = st.session_state.room_types
 room = st.selectbox("Select Room Type", room_types, key="room_sel")
 compare = st.multiselect("Compare With Other Room Types",
                          [r for r in room_types if r != room])
-
 checkin_adj, nights_adj, adjusted = adjust_date_range(resort, checkin, nights)
 if adjusted:
     end_date = checkin_adj + timedelta(days=nights_adj-1)
     st.info(f"Adjusted to full holiday: **{fmt_date(checkin_adj)}** to **{fmt_date(end_date)}** ({nights_adj} nights)")
-
 if st.button("Calculate"):
     gantt = gantt_chart(resort, checkin.year)
-    
+   
     if user_mode == "Renter":
         df, pts, rent, disc_ap, disc_days = renter_breakdown(
             resort, room, checkin_adj, nights_adj, rate_per_point, discount_opt)
@@ -702,7 +653,6 @@ if st.button("Calculate"):
         if inc_dep and d_cost: st.success(f"Depreciation: ${d_cost:,}")
         st.download_button("Download CSV", df.to_csv(index=False).encode(),
                            f"{resort}_{fmt_date(checkin_adj).replace(' ', '_')}_breakdown.csv", "text/csv")
-
     if compare:
         all_rooms = [room] + compare
         if user_mode == "Renter":
@@ -745,5 +695,4 @@ if st.button("Calculate"):
                              barmode="group", text="TotalCostValue", height=600)
                 fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
                 st.plotly_chart(fig, use_container_width=True)
-
     st.plotly_chart(gantt, use_container_width=True)
