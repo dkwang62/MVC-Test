@@ -363,8 +363,6 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
     return (pd.DataFrame(rows), tot_pts, tot_cost,
             totals["m"], totals["c"], totals["d"])
 
-
-
 # ----------------------------------------------------------------------
 # COMPARISON helpers
 # ----------------------------------------------------------------------
