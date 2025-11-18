@@ -592,7 +592,7 @@ with st.sidebar:
             rate_per_point, discount_opt = default_rate, None
 
 # --- Resort Selection ---
-st.subheader("Select Resort")
+st.title("Select Resort")
 cols = st.columns(6)
 current_resort = st.session_state.current_resort
 for i, resort_name in enumerate(resorts):
