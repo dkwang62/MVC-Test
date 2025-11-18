@@ -325,15 +325,15 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         entry, _ = generate_data(resort, d)
         raw_pts = entry.get(room, 0)
         
-        # Calculate discounted points
+        # Calculate discounted points (eff_pts) for POINTS REQUIRED total
         eff_pts, disc = apply_discount(raw_pts, discount, d)
         
         if disc:
             applied = True
             disc_days.append(fmt_date(d))
         
-        # FIX: Calculate rent based on EFFECTIVE (DISCOUNTED) points
-        rent = math.ceil(eff_pts * rate)
+        # Calculate rent based on RAW points (as requested by user)
+        rent = math.ceil(raw_pts * rate)
         
         if entry.get("HolidayWeek"):
             if entry.get("HolidayWeekStart"):
@@ -447,8 +447,8 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                 applied = True
                 disc_days.append(fmt_date(d))
             
-            # FIX: Calculate rent based on EFFECTIVE (DISCOUNTED) points
-            rent = math.ceil(eff_pts * rate)
+            # Use RAW points for rent calculation (as requested by user)
+            rent = math.ceil(raw_pts * rate)
             
             if is_holiday and is_h_start:
                 if h_name not in holiday_totals[room]:
@@ -465,6 +465,7 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                 data_rows.append({"Date": fmt_date(d),
                                   "Room Type": room, "Rent": f"${rent}"})
                 total_rent[room] += rent
+                # Use RAW points for chart value
                 chart_rows.append({"Date": d, "Day": d.strftime("%a"),
                                    "Room Type": room, "RentValue": rent,
                                    "Holiday": "No"})
@@ -649,7 +650,7 @@ with st.sidebar:
             rate_per_point, discount_opt = default_rate, None
 
 # --- Resort Selection ---
-st.subheader("Select Resort")
+st.title("Select Resort")
 cols = st.columns(6)
 current_resort = st.session_state.current_resort
 for i, resort_name in enumerate(resorts):
@@ -665,7 +666,7 @@ if not resort:
     st.stop()
 
 # --- Main Inputs (Compact Layout) ---
-st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
+# st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
 
 col1, col2, col3, col4 = st.columns(4)
 
