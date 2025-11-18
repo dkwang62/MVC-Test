@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 
 # ----------------------------------------------------------------------
-# Setup page (Grok)
+# Setup page
 # ----------------------------------------------------------------------
 def setup_page():
     st.set_page_config(page_title="MVC Calculator", layout="wide")
@@ -592,7 +592,7 @@ with st.sidebar:
             rate_per_point, discount_opt = default_rate, None
 
 # --- Resort Selection ---
-st.title("Select Resort")
+st.subheader("Select Resort")
 cols = st.columns(6)
 current_resort = st.session_state.current_resort
 for i, resort_name in enumerate(resorts):
@@ -608,7 +608,7 @@ if not resort:
     st.stop()
 
 # --- Main Inputs (Compact Layout) ---
-# st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
+st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -658,9 +658,13 @@ if user_mode == "Renter":
     st.subheader(f"{resort} Rental Breakdown")
     st.dataframe(df, use_container_width=True)
     
-    if discount_opt and disc_applied:
+    # Always show discount message, even if 0%
+    if discount_opt:
         pct = 30 if discount_opt == "within_60_days" else 25
-        st.success(f"Discount Applied: {pct}% off points ({len(disc_days)} day(s): {', '.join(disc_days)})")
+        days_str = f"({len(disc_days)} day(s): {', '.join(disc_days)})" if disc_days else "(0 days)"
+        st.success(f"Discount Applied: {pct}% off points {days_str}")
+    else:
+        st.success("Discount Applied: 0% off points (0 days)")
     
     st.success(f"Total Points Required: {pts:,} | Total Rent: ${rent:,}")
     st.download_button("Download Breakdown CSV", df.to_csv(index=False),
