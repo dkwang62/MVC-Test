@@ -364,6 +364,7 @@ def owner_breakdown(resort, room, checkin, nights, disc_mul,
             totals["m"], totals["c"], totals["d"])
 
 
+
 # ----------------------------------------------------------------------
 # COMPARISON helpers
 # ----------------------------------------------------------------------
