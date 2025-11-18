@@ -306,17 +306,6 @@ def adjust_date_range(resort, start, nights):
 # ----------------------------------------------------------------------
 # Discount & Breakdowns
 # ----------------------------------------------------------------------
-def apply_discount(points: int, discount: str | None, date: datetime.date) -> tuple[int, bool]:
-    # This function is now deprecated, but keeping it for completeness of original structure.
-    if not discount:
-        return points, False
-    # Corrected logic:
-    if discount == "within_30_days": # Executive (25% off)
-        return math.floor(points * 0.75), True
-    if discount == "within_60_days": # Presidential (30% off)
-        return math.floor(points * 0.7), True
-    return points, False
-
 def renter_breakdown(resort, room, checkin, nights, rate, discount):
     # Added tot_raw_pts to track undiscounted points
     rows, tot_eff_pts, tot_raw_pts, tot_rent = [], 0, 0, 0 
@@ -350,6 +339,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         daily_disc_label = disc_label if disc else "0%"
         
         # Apply bold formatting to rent (REQUESTED)
+        # Use a generic column name "RentValue" in the rows dict to simplify the dataframe creation
         rent_formatted = f"**${rent}**"
 
         if entry.get("HolidayWeek"):
@@ -360,7 +350,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
                 
                 rows.append({"Date": f"{cur_h} ({fmt_date(h_start)} - {fmt_date(h_end)})",
                               "Day": "", 
-                              room: rent_formatted, # RENT BOLDED & MOVED LEFT
+                              "RentValue": rent_formatted, # Use generic name for rent column in data structure
                               "Undiscounted Points": raw_pts, # RENAMED
                               "Discount Applied": daily_disc_label,
                               "Points Used (Discounted)": eff_pts})
@@ -372,7 +362,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         else:
             cur_h = h_end = None
             rows.append({"Date": fmt_date(d), "Day": d.strftime("%a"),
-                          room: rent_formatted, # RENT BOLDED & MOVED LEFT
+                          "RentValue": rent_formatted, # Use generic name for rent column in data structure
                           "Undiscounted Points": raw_pts, # RENAMED
                           "Discount Applied": daily_disc_label,
                           "Points Used (Discounted)": eff_pts})
@@ -381,7 +371,10 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
             tot_rent += rent
             
     df = pd.DataFrame(rows)
-    # The column renaming happened inline, so no more .rename() needed here for clarity
+    # RENAME the generic "RentValue" column to the actual room name for display
+    if not df.empty and "RentValue" in df.columns:
+        df = df.rename(columns={"RentValue": room})
+        
     return df, tot_eff_pts, tot_raw_pts, tot_rent, applied, disc_days 
 
 def owner_breakdown(resort, room, checkin, nights, disc_mul,
@@ -647,6 +640,7 @@ with st.sidebar:
     user_mode = st.selectbox("User Mode", ["Renter", "Owner"], key="mode", index=0)
     
     default_rate = data.get("maintenance_rates", {}).get("2026", 0.86)
+    rate_per_point, discount_opt = default_rate, None # Initialize renter variables
 
     if user_mode == "Owner":
         cap_per_pt = st.number_input("Purchase Price per Point ($)", 0.0, step=0.1, value=16.0, key="cap_per_pt")
@@ -671,6 +665,10 @@ with st.sidebar:
 
     else:  # Renter mode
         st.session_state.allow_renter_modifications = st.checkbox("More Options", key="allow_renter_mod")
+        
+        # Define 'opt' outside the if block to ensure it's always available for rate explanation logic later
+        opt = "Based on Maintenance Rate (No Discount)" 
+        
         if st.session_state.allow_renter_modifications:
             # CORRECTED RENTER DISCOUNT OPTIONS
             opt = st.radio("Rate/Discount Option", [
@@ -679,6 +677,7 @@ with st.sidebar:
                 "Executive: 25% Points Discount (Booked within 30 days)", 
                 "Presidential: 30% Points Discount (Booked within 60 days)"
             ], key="rate_opt")
+            
             if opt == "Custom Rate (No Discount)":
                 rate_per_point = st.number_input("Custom Rate per Point ($)", 0.0, step=0.01, value=default_rate, key="custom_rate")
                 discount_opt = None
@@ -768,12 +767,16 @@ if user_mode == "Renter":
     # --- Renter Calculation Explanation (New Section) ---
     st.markdown("### 💡 Rent Calculation Explained")
     
+    # Define rate_opt here to ensure it exists for the check below
+    rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
+
     # Determine the rate basis for the explanation
     rate_basis = ""
     # Check if a custom rate was selected in the sidebar options
-    is_custom_rate = 'opt' in locals() and opt == "Custom Rate (No Discount)"
+    is_custom_rate = rate_opt == "Custom Rate (No Discount)"
     
     if is_custom_rate:
+        # Use the rate_per_point defined in the sidebar logic
         rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
     else:
         # This covers all options where the rate defaults to the maintenance rate
@@ -805,7 +808,8 @@ if user_mode == "Renter":
     # Download button remains
     # Need to remove bold from rent column before CSV export
     df_export = df.copy()
-    df_export[room] = df_export[room].str.replace('**', '').str.replace('$', '')
+    if room in df_export.columns:
+        df_export[room] = df_export[room].astype(str).str.replace('**', '').str.replace('$', '')
     st.download_button("Download Breakdown CSV", df_export[cols].to_csv(index=False),
                        f"{resort}_{fmt_date(checkin_adj)}_rental.csv", "text/csv")
 
