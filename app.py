@@ -307,12 +307,11 @@ def adjust_date_range(resort, start, nights):
 # Discount & Breakdowns
 # ----------------------------------------------------------------------
 def renter_breakdown(resort, room, checkin, nights, rate, discount):
-    # Added tot_raw_pts to track undiscounted points
     rows, tot_eff_pts, tot_raw_pts, tot_rent = [], 0, 0, 0 
     cur_h, h_end = None, None
     applied, disc_days = False, []
     
-    # Determine the discount multiplier and label based on the option (CORRECTED)
+    # Determine the discount multiplier and label based on the option
     disc_mul, disc_label = 1.0, "0%"
     if discount == "within_30_days": # Executive (25% off)
         disc_mul, disc_label = 0.75, "25%" 
@@ -338,8 +337,8 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         # Determine the effective discount percentage for the row display
         daily_disc_label = disc_label if disc else "0%"
         
-        # Apply bold formatting to rent 
-        rent_formatted = f"**${rent}**"
+        # Format rent without Markdown (No bolding)
+        rent_formatted = f"${rent}"
 
         if entry.get("HolidayWeek"):
             if entry.get("HolidayWeekStart"):
@@ -487,13 +486,15 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                     holiday_totals[room][h_name] = {"rent": rent, "start": h_start, "end": h_end}
                 start_str = fmt_date(holiday_totals[room][h_name]["start"])
                 end_str = fmt_date(holiday_totals[room][h_name]["end"])
+                # Removed bolding: f"**${rent}**" -> f"${rent}"
                 data_rows.append({"Date": f"{h_name} ({start_str} - {end_str})",
-                                  "Room Type": room, "Rent": f"**${rent}**"}) # BOLDED RENT
+                                  "Room Type": room, "Rent": f"${rent}"}) 
                 continue
             
             if not is_holiday:
+                # Removed bolding: f"**${rent}**" -> f"${rent}"
                 data_rows.append({"Date": fmt_date(d),
-                                  "Room Type": room, "Rent": f"**${rent}**"}) # BOLDED RENT
+                                  "Room Type": room, "Rent": f"${rent}"}) 
                 total_rent[room] += rent
                 # Use RAW points for chart value (Rent is based on RAW points)
                 chart_rows.append({"Date": d, "Day": d.strftime("%a"),
@@ -502,7 +503,8 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                                     
     total_row = {"Date": "Total Rent (Non-Holiday)"}
     for r in rooms:
-        total_row[r] = f"**${total_rent[r]}**" # BOLDED RENT
+        # Removed bolding: f"**${total_rent[r]}**" -> f"${total_rent[r]}"
+        total_row[r] = f"${total_rent[r]}" 
     data_rows.append(total_row)
     
     df = pd.DataFrame(data_rows)
@@ -524,8 +526,7 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
 def compare_owner(resort, rooms, checkin, nights, disc_mul,
                   inc_maint, inc_cap, inc_dep,
                   rate, cap_per_pt, coc, life, salvage):
-    data_rows = []
-    chart_rows = []
+    rows, chart_rows = [], []
     total_cost = {r: 0 for r in rooms}
     holiday_totals = {r: {} for r in rooms}
     
@@ -568,12 +569,12 @@ def compare_owner(resort, rooms, checkin, nights, disc_mul,
                     holiday_totals[room][h_name] = {"cost": day_cost, "start": h_start, "end": h_end}
                 start_str = fmt_date(holiday_totals[room][h_name]["start"])
                 end_str = fmt_date(holiday_totals[room][h_name]["end"])
-                data_rows.append({"Date": f"{h_name} ({start_str} - {end_str})",
+                rows.append({"Date": f"{h_name} ({start_str} - {end_str})",
                                   "Room Type": room, "Total Cost": f"${day_cost}"})
                 continue
                 
             if not is_holiday:
-                data_rows.append({"Date": fmt_date(d),
+                rows.append({"Date": fmt_date(d),
                                   "Room Type": room, "Total Cost": f"${day_cost}"})
                 total_cost[room] += day_cost
                 chart_rows.append({"Date": d, "Day": d.strftime("%a"),
@@ -583,9 +584,9 @@ def compare_owner(resort, rooms, checkin, nights, disc_mul,
     total_row = {"Date": "Total Cost (Non-Holiday)"}
     for r in rooms:
         total_row[r] = f"${total_cost[r]}"
-    data_rows.append(total_row)
+    rows.append(total_row)
     
-    df = pd.DataFrame(data_rows)
+    df = pd.DataFrame(rows)
     # Ensure all rooms are columns in pivot for complete comparison
     pivot = df.pivot_table(index="Date", columns="Room Type", values="Total Cost", aggfunc="first")
     pivot = pivot.reset_index()[["Date"] + [c for c in rooms if c in pivot.columns]]
@@ -612,7 +613,6 @@ if st.session_state.data is None:
     try:
         with open("data.json", "r") as f:
             st.session_state.data = json.load(f)
-#        st.info(f"Loaded {len(st.session_state.data.get('resorts_list', []))} resorts from data.json")
     except FileNotFoundError:
         st.info("No data.json found. Please upload a file.")
     except Exception as e:
@@ -665,7 +665,6 @@ with st.sidebar:
     else:  # Renter mode
         st.session_state.allow_renter_modifications = st.checkbox("More Options", key="allow_renter_mod")
         
-        # Define 'opt' outside the if block to ensure it's always available for rate explanation logic later
         opt = "Based on Maintenance Rate (No Discount)" 
         
         if st.session_state.allow_renter_modifications:
@@ -747,46 +746,38 @@ if adjusted:
 # --- AUTOMATIC CALCULATION (No Button!) ---
 gantt = gantt_chart(resort, checkin.year)
 
+# ----------------------------------------------------------------------
+# RENTER MODE
+# ----------------------------------------------------------------------
 if user_mode == "Renter":
-    # Updated return values
     df, pts, raw_pts_total, rent, disc_applied, disc_days = renter_breakdown(
         resort, room, checkin_adj, nights_adj, rate_per_point, discount_opt)
     
     st.subheader(f"{resort} Rental Breakdown")
     
-    # Define the column order for clarity (REQUESTED: Rent/Room first, Discount last)
     cols = ["Date", "Day", room, "Undiscounted Points", "Discount Applied", "Points Used (Discounted)"]
     
-    # *** FIX: Use standard st.dataframe rendering to avoid the AttributeError ***
-    # The dataframe already contains Markdown for bolding (**$XXX**) in the 'room' column
+    # Use standard rendering
     st.dataframe(df[cols], use_container_width=True) 
     
-    # --- Renter Calculation Explanation (New Section) ---
+    # --- Renter Calculation Explanation ---
     st.markdown("### 💡 Rent Calculation Explained")
     
-    # Define rate_opt here to ensure it exists for the check below
     rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
-
-    # Determine the rate basis for the explanation
-    rate_basis = ""
-    # Check if a custom rate was selected in the sidebar options
     is_custom_rate = rate_opt == "Custom Rate (No Discount)"
     
     if is_custom_rate:
-        # Use the rate_per_point defined in the sidebar logic
         rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
     else:
-        # This covers all options where the rate defaults to the maintenance rate
         rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
         
     st.markdown(f"""
-    * The **Rent** amount (in **bold**) is calculated based on the **Undiscounted Points** for the night using {rate_basis}
+    * The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
     * The **Discount Applied** column reflects the selected last-minute discount:
         * **Executive**: 25% off points (booked within 30 days)
         * **Presidential**: 30% off points (booked within 60 days)
     * **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
     """)
-    # --- End Explanation ---
 
     # Display discount message only if a discount was selected
     if discount_opt:
@@ -803,15 +794,17 @@ if user_mode == "Renter":
     st.success(f"Total Undiscounted Points: {raw_pts_total:,} | Total Points Used (Discounted): {pts:,} | Final Total Rent: **${rent:,}**")
     
     # Download button remains
-    # Need to remove bold from rent column before CSV export
     df_export = df.copy()
+    # Remove $ sign for export to keep it clean, but keep all other columns intact
     if room in df_export.columns:
-        # Use str.replace to remove Markdown formatting for clean CSV
-        df_export[room] = df_export[room].astype(str).str.replace('**', '').str.replace('$', '', regex=False)
+        df_export[room] = df_export[room].astype(str).str.replace('$', '', regex=False)
     st.download_button("Download Breakdown CSV", df_export[cols].to_csv(index=False),
                        f"{resort}_{fmt_date(checkin_adj)}_rental.csv", "text/csv")
 
-else:  # Owner mode
+# ----------------------------------------------------------------------
+# OWNER MODE
+# ----------------------------------------------------------------------
+else:  
     df, pts, cost, m_cost, c_cost, d_cost = owner_breakdown(
         resort, room, checkin_adj, nights_adj, disc_mul,
         inc_maint, inc_cap, inc_dep,
@@ -839,6 +832,7 @@ else:  # Owner mode
 # ----------------------------------------------------------------------
 # Gantt Chart Display and Comparison (Final Section)
 # ----------------------------------------------------------------------
+st.markdown("---")
 st.subheader("Season & Holiday Overview")
 st.plotly_chart(gantt, use_container_width=True)
 
@@ -852,7 +846,7 @@ if compare:
             resort, [room] + compare, checkin_adj, nights_adj, rate_per_point, discount_opt
         )
         st.markdown("### Daily Rent Comparison")
-        # FIX: Use standard rendering, as Markdown columns are used
+        # Standard rendering used
         st.dataframe(comp_df, use_container_width=True, hide_index=True) 
 
         if not chart_df.empty:
