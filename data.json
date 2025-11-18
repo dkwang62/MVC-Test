@@ -9070,6 +9070,7 @@
     }
   },
   "resorts_list": [
+    "Ko Olina Beach Club",
     "Aruba Ocean Club",
     "Aruba Surf Club",
     "Bali Nusa Dua Gardens",
@@ -9086,7 +9087,6 @@
     "Grande Vista Orlando",
     "Imperial Palms Orlando",
     "Kauai Beach Club",
-    "Ko Olina Beach Club",
     "Lakeshore Reserve Orlando",
     "Legends Edge at Bay Point",
     "Los Suenos Costa Rica",
@@ -9118,10 +9118,10 @@
     "Willow Ridge Lodge Branson"
   ],
   "maintenance_rates": {
-    "2025": 0.5,
-    "2026": 0.56,
-    "2027": 0.6,
-    "2028": 0.65
+    "2025": 0.81,
+    "2026": 0.86,
+    "2027": 0.91,
+    "2028": 0.96
   },
   "global_dates": {
     "2025": {
