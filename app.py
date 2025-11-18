@@ -10,6 +10,15 @@ import plotly.express as px
 # ----------------------------------------------------------------------
 def setup_page():
     st.set_page_config(page_title="MVC Calculator", layout="wide")
+    st.markdown("""
+    <style>
+        .stButton button {
+            font-size: 12px !important;
+            padding: 5px 10px !important;
+            height: auto !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 # ----------------------------------------------------------------------
 # Initialize session state
@@ -36,37 +45,6 @@ def handle_file_upload():
             st.success("File uploaded successfully!")
         except Exception as e:
             st.error(f"Error loading file: {e}")
-
-def create_download_button(data):
-    json_str = json.dumps(data, indent=4)
-    st.download_button("Download Current Data", json_str, "data.json", "application/json")
-
-def handle_file_verification():
-    if st.button("Verify Data"):
-        # Placeholder for verification logic
-        st.info("Data verification not implemented yet.")
-
-def handle_merge_from_another_file(current_data):
-    merge_file = st.file_uploader("Upload file to merge", type="json", key="merge_uploader")
-    if merge_file:
-        try:
-            merge_data = json.load(merge_file)
-            # Simple recursive update for merging
-            def merge_dicts(d1, d2):
-                for k, v in d2.items():
-                    if isinstance(v, dict) and k in d1 and isinstance(d1[k], dict):
-                        merge_dicts(d1[k], v)
-                    else:
-                        d1[k] = v
-            merge_dicts(current_data, merge_data)
-            st.session_state.data = current_data
-            st.success("Merged successfully!")
-        except Exception as e:
-            st.error(f"Error merging: {e}")
-
-def show_save_indicator():
-    # Placeholder, can be expanded to show if data needs saving
-    pass
 
 # ----------------------------------------------------------------------
 # Custom date formatter: 12 Jan 2026
@@ -539,13 +517,7 @@ if st.session_state.data is None:
 
 # Sidebar
 with st.sidebar:
-    st.markdown("<p class='big-font'>File Operations</p>", unsafe_allow_html=True)
     handle_file_upload()
-    if st.session_state.data:
-        create_download_button(st.session_state.data)
-        handle_file_verification()
-        handle_merge_from_another_file(st.session_state.data)
-    show_save_indicator()
 
 if not st.session_state.data:
     st.error("No data loaded. Please upload a JSON file.")
