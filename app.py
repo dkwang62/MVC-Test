@@ -747,7 +747,7 @@ if adjusted:
 gantt = gantt_chart(resort, checkin.year)
 
 # ----------------------------------------------------------------------
-# RENTER MODE
+# RENTER MODE (Revised Explanation using st.expander)
 # ----------------------------------------------------------------------
 if user_mode == "Renter":
     df, pts, raw_pts_total, rent, disc_applied, disc_days = renter_breakdown(
@@ -760,24 +760,32 @@ if user_mode == "Renter":
     # Use standard rendering
     st.dataframe(df[cols], use_container_width=True) 
     
-    # --- Renter Calculation Explanation ---
-    st.markdown("### 💡 Rent Calculation Explained")
-    
-    rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
-    is_custom_rate = rate_opt == "Custom Rate (No Discount)"
-    
-    if is_custom_rate:
-        rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
-    else:
-        rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
+    # --- Renter Calculation Explanation placed inside an Expander ---
+    with st.expander("💡 Rent Calculation Explained"):
         
-    st.markdown(f"""
-    * The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
-    * The **Discount Applied** column reflects the selected last-minute discount:
-        * **Executive**: 25% off points (booked within 30 days)
-        * **Presidential**: 30% off points (booked within 60 days)
-    * **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
-    """)
+        # Define rate_opt here to ensure it exists for the check below
+        rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
+        is_custom_rate = rate_opt == "Custom Rate (No Discount)"
+        
+        if is_custom_rate:
+            rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
+        else:
+            # Note: This logic now pulls the latest rate_per_point from the sidebar 
+            # if the "More Options" is checked, otherwise it uses the default.
+            if st.session_state.get('rate_opt') == "Based on Maintenance Rate (No Discount)":
+                rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
+            else:
+                # If a discount option is selected, the rent is still calculated on the default maintenance rate
+                rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
+
+
+        st.markdown(f"""
+        * The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
+        * The **Discount Applied** column reflects the selected last-minute discount:
+            * **Executive**: 25% off points (booked within 30 days)
+            * **Presidential**: 30% off points (booked within 60 days)
+        * **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
+        """)
 
     # Display discount message only if a discount was selected
     if discount_opt:
@@ -795,12 +803,10 @@ if user_mode == "Renter":
     
     # Download button remains
     df_export = df.copy()
-    # Remove $ sign for export to keep it clean, but keep all other columns intact
     if room in df_export.columns:
         df_export[room] = df_export[room].astype(str).str.replace('$', '', regex=False)
     st.download_button("Download Breakdown CSV", df_export[cols].to_csv(index=False),
                        f"{resort}_{fmt_date(checkin_adj)}_rental.csv", "text/csv")
-
 # ----------------------------------------------------------------------
 # OWNER MODE
 # ----------------------------------------------------------------------
