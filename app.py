@@ -307,15 +307,14 @@ def adjust_date_range(resort, start, nights):
 # Discount & Breakdowns
 # ----------------------------------------------------------------------
 def apply_discount(points: int, discount: str | None, date: datetime.date) -> tuple[int, bool]:
-    # This function is now deprecated in favor of internal logic in renter_breakdown
-    # to handle raw_pts and eff_pts simultaneously. Kept for compatibility if other
-    # parts of the code still rely on it, but the new renter_breakdown uses its logic internally.
+    # This function is now deprecated, but keeping it for completeness of original structure.
     if not discount:
         return points, False
-    if discount == "within_60_days":
-        return math.floor(points * 0.7), True
-    if discount == "within_30_days":
+    # Corrected logic:
+    if discount == "within_30_days": # Executive (25% off)
         return math.floor(points * 0.75), True
+    if discount == "within_60_days": # Presidential (30% off)
+        return math.floor(points * 0.7), True
     return points, False
 
 def renter_breakdown(resort, room, checkin, nights, rate, discount):
@@ -324,12 +323,12 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
     cur_h, h_end = None, None
     applied, disc_days = False, []
     
-    # Determine the discount multiplier and label based on the option
+    # Determine the discount multiplier and label based on the option (CORRECTED)
     disc_mul, disc_label = 1.0, "0%"
-    if discount == "within_60_days":
-        disc_mul, disc_label = 0.7, "30%" # Executive discount
-    elif discount == "within_30_days":
-        disc_mul, disc_label = 0.75, "25%" # Presidential discount
+    if discount == "within_30_days": # Executive (25% off)
+        disc_mul, disc_label = 0.75, "25%" 
+    elif discount == "within_60_days": # Presidential (30% off)
+        disc_mul, disc_label = 0.7, "30%" 
 
     for i in range(nights):
         d = checkin + timedelta(days=i)
@@ -344,12 +343,15 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
             applied = True
             disc_days.append(fmt_date(d))
         
-        # Calculate rent based on RAW points (as requested by user)
+        # Calculate rent based on RAW points 
         rent = math.ceil(raw_pts * rate)
         
         # Determine the effective discount percentage for the row display
         daily_disc_label = disc_label if disc else "0%"
         
+        # Apply bold formatting to rent (REQUESTED)
+        rent_formatted = f"**${rent}**"
+
         if entry.get("HolidayWeek"):
             if entry.get("HolidayWeekStart"):
                 cur_h = entry["holiday_name"]
@@ -358,30 +360,29 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
                 
                 rows.append({"Date": f"{cur_h} ({fmt_date(h_start)} - {fmt_date(h_end)})",
                               "Day": "", 
-                              "Raw Points": raw_pts, # NEW: Undiscounted points
-                              "Discount Applied": daily_disc_label, # NEW: Discount label
-                              "Effective Points (Used)": eff_pts, # NEW: Discounted points
-                              room: f"${rent}"})
+                              room: rent_formatted, # RENT BOLDED & MOVED LEFT
+                              "Undiscounted Points": raw_pts, # RENAMED
+                              "Discount Applied": daily_disc_label,
+                              "Points Used (Discounted)": eff_pts})
                 tot_eff_pts += eff_pts
-                tot_raw_pts += raw_pts # Track raw points total
+                tot_raw_pts += raw_pts 
                 tot_rent += rent
             elif cur_h and d <= h_end:
                 continue
         else:
             cur_h = h_end = None
             rows.append({"Date": fmt_date(d), "Day": d.strftime("%a"),
-                          "Raw Points": raw_pts, # NEW: Undiscounted points
-                          "Discount Applied": daily_disc_label, # NEW: Discount label
-                          "Effective Points (Used)": eff_pts, # NEW: Discounted points
-                          room: f"${rent}"})
+                          room: rent_formatted, # RENT BOLDED & MOVED LEFT
+                          "Undiscounted Points": raw_pts, # RENAMED
+                          "Discount Applied": daily_disc_label,
+                          "Points Used (Discounted)": eff_pts})
             tot_eff_pts += eff_pts
-            tot_raw_pts += raw_pts # Track raw points total
+            tot_raw_pts += raw_pts 
             tot_rent += rent
             
-    # Modify the column names to be clearer in the output
     df = pd.DataFrame(rows)
-    df.rename(columns={"Effective Points (Used)": "Points Used (Discounted)"}, inplace=True)
-    return df, tot_eff_pts, tot_raw_pts, tot_rent, applied, disc_days # Return tot_raw_pts
+    # The column renaming happened inline, so no more .rename() needed here for clarity
+    return df, tot_eff_pts, tot_raw_pts, tot_rent, applied, disc_days 
 
 def owner_breakdown(resort, room, checkin, nights, disc_mul,
                     inc_maint, inc_cap, inc_dep,
@@ -447,12 +448,12 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
     
     HOLIDAY_WEEKS = st.session_state.data.get("holiday_weeks", {})
 
-    # Determine the discount multiplier (used for points, not rent)
+    # Determine the discount multiplier (CORRECTED)
     disc_mul = 1.0
-    if discount == "within_60_days":
-        disc_mul = 0.7
-    elif discount == "within_30_days":
+    if discount == "within_30_days": # Executive (25% off)
         disc_mul = 0.75
+    elif discount == "within_60_days": # Presidential (30% off)
+        disc_mul = 0.7
     
     stay_end = checkin + timedelta(days=nights - 1)
     holiday_ranges = []
@@ -484,7 +485,7 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                 applied = True
                 disc_days.append(fmt_date(d))
             
-            # Use RAW points for rent calculation (as requested by user)
+            # Use RAW points for rent calculation 
             rent = math.ceil(raw_pts * rate)
             
             if is_holiday and is_h_start:
@@ -495,12 +496,12 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                 start_str = fmt_date(holiday_totals[room][h_name]["start"])
                 end_str = fmt_date(holiday_totals[room][h_name]["end"])
                 data_rows.append({"Date": f"{h_name} ({start_str} - {end_str})",
-                                  "Room Type": room, "Rent": f"${rent}"})
+                                  "Room Type": room, "Rent": f"**${rent}**"}) # BOLDED RENT
                 continue
             
             if not is_holiday:
                 data_rows.append({"Date": fmt_date(d),
-                                  "Room Type": room, "Rent": f"${rent}"})
+                                  "Room Type": room, "Rent": f"**${rent}**"}) # BOLDED RENT
                 total_rent[room] += rent
                 # Use RAW points for chart value (Rent is based on RAW points)
                 chart_rows.append({"Date": d, "Day": d.strftime("%a"),
@@ -509,7 +510,7 @@ def compare_renter(resort, rooms, checkin, nights, rate, discount):
                                     
     total_row = {"Date": "Total Rent (Non-Holiday)"}
     for r in rooms:
-        total_row[r] = f"${total_rent[r]}"
+        total_row[r] = f"**${total_rent[r]}**" # BOLDED RENT
     data_rows.append(total_row)
     
     df = pd.DataFrame(data_rows)
@@ -649,6 +650,7 @@ with st.sidebar:
 
     if user_mode == "Owner":
         cap_per_pt = st.number_input("Purchase Price per Point ($)", 0.0, step=0.1, value=16.0, key="cap_per_pt")
+        # Owner discount logic remains the same (0, 25, 30) for cost calculation
         disc_lvl = st.selectbox("Last-Minute Discount", [0, 25, 30],
                                  format_func=lambda x: f"{x}% ({['Ordinary','Executive','Presidential'][x//25]})",
                                  key="disc_lvl")
@@ -670,20 +672,20 @@ with st.sidebar:
     else:  # Renter mode
         st.session_state.allow_renter_modifications = st.checkbox("More Options", key="allow_renter_mod")
         if st.session_state.allow_renter_modifications:
+            # CORRECTED RENTER DISCOUNT OPTIONS
             opt = st.radio("Rate/Discount Option", [
                 "Based on Maintenance Rate (No Discount)", 
                 "Custom Rate (No Discount)",
-                "Booked within 60 days (30% Points Discount)", 
-                "Booked within 30 days (25% Points Discount)"
+                "Executive: 25% Points Discount (Booked within 30 days)", 
+                "Presidential: 30% Points Discount (Booked within 60 days)"
             ], key="rate_opt")
             if opt == "Custom Rate (No Discount)":
                 rate_per_point = st.number_input("Custom Rate per Point ($)", 0.0, step=0.01, value=default_rate, key="custom_rate")
                 discount_opt = None
-            elif opt == "Booked within 60 days (30% Points Discount)":
-                # Rent is still based on the maintenance rate unless a custom rate is chosen.
-                rate_per_point, discount_opt = default_rate, "within_60_days"
-            elif opt == "Booked within 30 days (25% Points Discount)":
-                rate_per_point, discount_opt = default_rate, "within_30_days"
+            elif "Executive" in opt:
+                rate_per_point, discount_opt = default_rate, "within_30_days" # 30 days is Executive (25%)
+            elif "Presidential" in opt:
+                rate_per_point, discount_opt = default_rate, "within_60_days" # 60 days is Presidential (30%)
             else: # "Based on Maintenance Rate (No Discount)"
                 rate_per_point, discount_opt = default_rate, None
         else:
@@ -754,10 +756,14 @@ if user_mode == "Renter":
     
     st.subheader(f"{resort} Rental Breakdown")
     
-    # Define the column order for clarity
-    cols = ["Date", "Day", "Raw Points", "Discount Applied", "Points Used (Discounted)", room]
+    # Define the column order for clarity (REQUESTED: Rent/Room first, Discount last)
+    cols = ["Date", "Day", room, "Undiscounted Points", "Discount Applied", "Points Used (Discounted)"]
     
-    st.dataframe(df[cols], use_container_width=True) # Display the DataFrame with new columns
+    st.dataframe(df[cols], use_container_width=True, 
+                 # Use column configuration to ensure the bold formatting is rendered
+                 column_config={
+                     room: st.column_config.MarkdownColumn("Rent", help=f"Rent for {room}", width="small")
+                 }) 
     
     # --- Renter Calculation Explanation (New Section) ---
     st.markdown("### 💡 Rent Calculation Explained")
@@ -774,28 +780,33 @@ if user_mode == "Renter":
         rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
         
     st.markdown(f"""
-    * **Rent is always calculated** based on the **Raw Points** (undiscounted) for the night using {rate_basis}
-    * The **Discount Applied** column reflects the last-minute discount (Executive: 30% off points, Presidential: 25% off points).
-    * **Points Used (Discounted)** are the points actually **debited** from the member's account.
+    * The **Rent** amount (in **bold**) is calculated based on the **Undiscounted Points** for the night using {rate_basis}
+    * The **Discount Applied** column reflects the selected last-minute discount:
+        * **Executive**: 25% off points (booked within 30 days)
+        * **Presidential**: 30% off points (booked within 60 days)
+    * **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
     """)
     # --- End Explanation ---
 
-    # Always show discount message, using disc_applied for dynamic message
+    # Display discount message only if a discount was selected
     if discount_opt:
-        pct = 30 if discount_opt == "within_60_days" else 25
+        pct = 25 if discount_opt == "within_30_days" else 30
+        lvl = "Executive" if discount_opt == "within_30_days" else "Presidential"
+        
         if disc_applied:
             days_str = f"({len(disc_days)} day(s): {', '.join(disc_days)})"
-            st.success(f"**{pct}% Last-Minute Discount** Applied to Points {days_str}")
+            st.success(f"**{lvl} ({pct}%) Last-Minute Discount** Applied to Points {days_str}")
         else:
-            st.info(f"**{pct}% Last-Minute Discount** selected, but no points were found for this room on these dates to apply it to.")
-    else:
-        st.info("No Last-Minute Discount Selected. Points used are the same as Raw Points.")
+            st.info(f"**{lvl} ({pct}%) Last-Minute Discount** selected, but no points were found for this room on these dates to apply it to.")
     
     # Display the final totals clearly
-    st.success(f"Total Raw Points: {raw_pts_total:,} | Total Points Used (Discounted): {pts:,} | Final Total Rent: **${rent:,}**")
+    st.success(f"Total Undiscounted Points: {raw_pts_total:,} | Total Points Used (Discounted): {pts:,} | Final Total Rent: **${rent:,}**")
     
     # Download button remains
-    st.download_button("Download Breakdown CSV", df[cols].to_csv(index=False),
+    # Need to remove bold from rent column before CSV export
+    df_export = df.copy()
+    df_export[room] = df_export[room].str.replace('**', '').str.replace('$', '')
+    st.download_button("Download Breakdown CSV", df_export[cols].to_csv(index=False),
                        f"{resort}_{fmt_date(checkin_adj)}_rental.csv", "text/csv")
 
 else:  # Owner mode
@@ -816,7 +827,7 @@ else:  # Owner mode
 
     st.subheader(f"{resort} Ownership Cost Breakdown")
     st.dataframe(df[cols], use_container_width=True)
-    st.success(f"Total Points Used: {pts:,} | Total Cost: ${cost:,}")
+    st.success(f"Total Points Used: {pts:,} | Total Cost: **${cost:,}**")
     if inc_maint and m_cost: st.info(f"Maintenance Cost Included: ${m_cost:,}")
     if inc_cap and c_cost: st.info(f"Capital Cost Included: ${c_cost:,}")
     if inc_dep and d_cost: st.info(f"Depreciation Cost Included: ${d_cost:,}")
@@ -839,7 +850,11 @@ if compare:
             resort, [room] + compare, checkin_adj, nights_adj, rate_per_point, discount_opt
         )
         st.markdown("### Daily Rent Comparison")
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        st.dataframe(comp_df, use_container_width=True, hide_index=True,
+                     # Use column configuration to ensure the bold formatting is rendered
+                     column_config={
+                         c: st.column_config.MarkdownColumn(c) for c in comp_df.columns if c != "Date"
+                     }) 
 
         if not chart_df.empty:
             fig = px.bar(chart_df, x="Date", y="RentValue", color="Room Type",
