@@ -338,8 +338,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         # Determine the effective discount percentage for the row display
         daily_disc_label = disc_label if disc else "0%"
         
-        # Apply bold formatting to rent (REQUESTED)
-        # Use a generic column name "RentValue" in the rows dict to simplify the dataframe creation
+        # Apply bold formatting to rent 
         rent_formatted = f"**${rent}**"
 
         if entry.get("HolidayWeek"):
@@ -350,7 +349,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
                 
                 rows.append({"Date": f"{cur_h} ({fmt_date(h_start)} - {fmt_date(h_end)})",
                               "Day": "", 
-                              "RentValue": rent_formatted, # Use generic name for rent column in data structure
+                              "RentValue": rent_formatted, # Use generic name
                               "Undiscounted Points": raw_pts, # RENAMED
                               "Discount Applied": daily_disc_label,
                               "Points Used (Discounted)": eff_pts})
@@ -362,7 +361,7 @@ def renter_breakdown(resort, room, checkin, nights, rate, discount):
         else:
             cur_h = h_end = None
             rows.append({"Date": fmt_date(d), "Day": d.strftime("%a"),
-                          "RentValue": rent_formatted, # Use generic name for rent column in data structure
+                          "RentValue": rent_formatted, # Use generic name
                           "Undiscounted Points": raw_pts, # RENAMED
                           "Discount Applied": daily_disc_label,
                           "Points Used (Discounted)": eff_pts})
@@ -758,11 +757,9 @@ if user_mode == "Renter":
     # Define the column order for clarity (REQUESTED: Rent/Room first, Discount last)
     cols = ["Date", "Day", room, "Undiscounted Points", "Discount Applied", "Points Used (Discounted)"]
     
-    st.dataframe(df[cols], use_container_width=True, 
-                 # Use column configuration to ensure the bold formatting is rendered
-                 column_config={
-                     room: st.column_config.MarkdownColumn("Rent", help=f"Rent for {room}", width="small")
-                 }) 
+    # *** FIX: Use standard st.dataframe rendering to avoid the AttributeError ***
+    # The dataframe already contains Markdown for bolding (**$XXX**) in the 'room' column
+    st.dataframe(df[cols], use_container_width=True) 
     
     # --- Renter Calculation Explanation (New Section) ---
     st.markdown("### 💡 Rent Calculation Explained")
@@ -809,7 +806,8 @@ if user_mode == "Renter":
     # Need to remove bold from rent column before CSV export
     df_export = df.copy()
     if room in df_export.columns:
-        df_export[room] = df_export[room].astype(str).str.replace('**', '').str.replace('$', '')
+        # Use str.replace to remove Markdown formatting for clean CSV
+        df_export[room] = df_export[room].astype(str).str.replace('**', '').str.replace('$', '', regex=False)
     st.download_button("Download Breakdown CSV", df_export[cols].to_csv(index=False),
                        f"{resort}_{fmt_date(checkin_adj)}_rental.csv", "text/csv")
 
@@ -854,11 +852,8 @@ if compare:
             resort, [room] + compare, checkin_adj, nights_adj, rate_per_point, discount_opt
         )
         st.markdown("### Daily Rent Comparison")
-        st.dataframe(comp_df, use_container_width=True, hide_index=True,
-                     # Use column configuration to ensure the bold formatting is rendered
-                     column_config={
-                         c: st.column_config.MarkdownColumn(c) for c in comp_df.columns if c != "Date"
-                     }) 
+        # FIX: Use standard rendering, as Markdown columns are used
+        st.dataframe(comp_df, use_container_width=True, hide_index=True) 
 
         if not chart_df.empty:
             fig = px.bar(chart_df, x="Date", y="RentValue", color="Room Type",
