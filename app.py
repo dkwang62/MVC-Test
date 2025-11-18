@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 
 # ----------------------------------------------------------------------
-# Setup page
+# Setup page (Grok)
 # ----------------------------------------------------------------------
 def setup_page():
     st.set_page_config(page_title="MVC Calculator", layout="wide")
@@ -608,7 +608,7 @@ if not resort:
     st.stop()
 
 # --- Main Inputs (Compact Layout) ---
-st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
+# st.title(f"Marriott Vacation Club {'Rent' if user_mode=='Renter' else 'Cost'} Calculator")
 
 col1, col2, col3, col4 = st.columns(4)
 
