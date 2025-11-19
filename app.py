@@ -838,48 +838,128 @@ else:
 # ----------------------------------------------------------------------
 # Gantt Chart Display and Comparison (Final Section)
 # ----------------------------------------------------------------------
-st.markdown("---")
-st.subheader("Season & Holiday Overview")
+# st.markdown("---")
+# st.subheader("Season & Holiday Overview")
 st.plotly_chart(gantt, use_container_width=True)
 
+# ----------------------------------------------------------------------
+# COMPARISON MODE (REVISED RENTER SECTION)
+# ----------------------------------------------------------------------
 if compare:
-    st.markdown("---")
-    st.subheader("Room Comparison")
+    all_rooms = [room] + compare
+    compare_df_pivot, chart_df, holiday_df, disc_applied, disc_days = compare_renter(
+        resort, all_rooms, checkin_adj, nights_adj, rate_per_point, discount_opt)
+    
+    st.write(f"### {resort} Room Type Comparison")
+    st.dataframe(compare_df_pivot, use_container_width=True)
 
-    if user_mode == "Renter":
-        # Renter Comparison
-        comp_df, chart_df, holiday_df, _, _ = compare_renter(
-            resort, [room] + compare, checkin_adj, nights_adj, rate_per_point, discount_opt
-        )
-        st.markdown("### Daily Rent Comparison")
-        # Standard rendering used
-        st.dataframe(comp_df, use_container_width=True, hide_index=True) 
+    # --- START: NEW TOTAL RENT COMPARISON CHART LOGIC ---
+    try:
+        # all_rooms is already defined as [room] + compare
+        # Extract the Total Rent (Non-Holiday) row from the comparison pivot table
+        total_rent_row = compare_df_pivot[compare_df_pivot["Date"] == "Total Rent (Non-Holiday)"]
+        if not total_rent_row.empty:
+            total_rent_data = []
+            for room_name in all_rooms:
+                # Safely extract and clean the rent string (e.g., "$1,234")
+                if room_name in total_rent_row.columns:
+                    rent_str = total_rent_row[room_name].iloc[0]
+                    try:
+                        # Remove '$' and ',' and convert to integer
+                        rent_value = int(rent_str.replace('$', '').replace(',', '').strip())
+                    except:
+                        rent_value = 0
+                    total_rent_data.append({
+                        "Room Type": room_name,
+                        "Total Rent ($)": rent_value
+                    })
+            total_rent_df = pd.DataFrame(total_rent_data)
 
-        if not chart_df.empty:
-            fig = px.bar(chart_df, x="Date", y="RentValue", color="Room Type",
-                         title="Daily Rent Comparison (Non-Holiday)",
-                         hover_data={"Date": "|%d %b %Y", "RentValue": True, "Day": True},
-                         labels={"RentValue": "Rent ($)"})
-            fig.update_xaxes(dtick="d", tickformat="%a\n%d %b", tickangle=0)
+            if not total_rent_df.empty:
+                st.write("### Total Rent Comparison (Non-Holiday Stay)")
+                fig_total = px.bar(
+                    total_rent_df,
+                    x="Room Type",
+                    y="Total Rent ($)",
+                    color="Room Type",
+                    labels={"Total Rent ($)": "Total Rent for Stay ($)"},
+                    height=500,
+                    text="Total Rent ($)",
+                    text_auto=True
+                )
+                fig_total.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
+                fig_total.update_layout(showlegend=False)
+                st.plotly_chart(fig_total, use_container_width=True)
+    except Exception as e:
+        st.warning(f"Could not generate Total Rent Comparison chart: {e}")
+    # --- END: NEW TOTAL RENT COMPARISON CHART LOGIC ---
+
+    compare_csv = compare_df_pivot.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label="Download Room Comparison for Excel",
+        data=compare_csv,
+        file_name=f"{resort}_room_comparison.csv",
+        mime="text/csv"
+    )
+
+    if not chart_df.empty:
+        non_holiday_df = chart_df[chart_df["Holiday"] == "No"]
+        if not non_holiday_df.empty:
+            start_date = non_holiday_df["Date"].min()
+            end_date = non_holiday_df["Date"].max()
+            start_date_str = start_date.strftime("%b %d")
+            end_date_str = end_date.strftime("%b %d, %Y")
+            # title = f"{resort} Daily Rent Comparison (Non-Holiday, {start_date_str} - {end_date_str})"
+            # st.subheader(title)
+
+            day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+            fig = px.bar(
+                non_holiday_df,
+                x="Day",
+                y="RentValue",
+                color="Room Type",
+                barmode="group",
+                labels={"RentValue": "Rent ($)", "Day": "Day of Week"},
+                height=600,
+                text="RentValue",
+                text_auto=True,
+                category_orders={"Day": day_order}
+            )
+            fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
+            fig.update_xaxes(
+                ticktext=day_order,
+                tickvals=[0, 1, 2, 3, 4, 5, 6],
+                tickmode="array"
+            )
+            fig.update_layout(
+                legend_title_text="Room Type",
+                bargap=0.2,
+                bargroupgap=0.1
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-    else:
-        # Owner Comparison
-        comp_df, chart_df, holiday_df = compare_owner(
-            resort, [room] + compare, checkin_adj, nights_adj, disc_mul,
-            inc_maint, inc_cap, inc_dep,
-            rate_per_point, cap_per_pt,
-            coc if 'coc' in locals() else 0.07,
-            life if 'life' in locals() else 15,
-            salvage if 'salvage' in locals() else 3.0
+    if not holiday_df.empty:
+        start_date = holiday_df["start"].min()
+        end_date = holiday_df["end"].max()
+        start_date_str = start_date.strftime("%b %d")
+        end_date_str = end_date.strftime("%b %d, %Y")
+        title = f"{resort} Room Type Comparison (Holiday Weeks, {start_date_str} - {end_date_str})"
+        st.subheader(title)
+        fig = px.bar(
+            holiday_df,
+            x="Holiday",
+            y="RentValue",
+            color="Room Type",
+            barmode="group",
+            labels={"RentValue": "Rent ($)", "Holiday": "Holiday Week"},
+            height=600,
+            text="RentValue",
+            text_auto=True
         )
-        st.markdown("### Daily Cost Comparison")
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
-
-        if not chart_df.empty:
-            fig = px.bar(chart_df, x="Date", y="TotalCostValue", color="Room Type",
-                         title="Daily Cost Comparison (Non-Holiday)",
-                         hover_data={"Date": "|%d %b %Y", "TotalCostValue": True, "Day": True},
-                         labels={"TotalCostValue": "Total Cost ($)"})
-            fig.update_xaxes(dtick="d", tickformat="%a\n%d %b", tickangle=0)
-            st.plotly_chart(fig, use_container_width=True)
+        fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
+        fig.update_layout(
+            legend_title_text="Room Type",
+            bargap=0.2,
+            bargroupgap=0.1
+        )
+        st.plotly_chart(fig, use_container_width=True)
