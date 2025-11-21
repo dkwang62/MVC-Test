@@ -605,19 +605,24 @@ def main():
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
-            - Points used are floor(raw points * discount multiplier).
-            - Maintenance cost is ceil(points * maintenance rate).
-            - Capital cost is ceil(points * (purchase price * cost of capital)).
-            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life))).
-            - Total cost is sum of selected costs.
-            - **Holiday points are for the entire holiday period (not daily averages).**
-            - When your stay touches a holiday week, dates expand to cover the full holiday period.
+            - **Maintenance Cost**  
+            - Maintenance rate per point × number of points used that day.
+
+            - **Capital Cost**  
+            - Purchase price per point × capital cost rate × number of points used that day.  
+            - *(This represents the “cost of tying up your money.”)*
+
+            - **Depreciation Cost**  
+            - (Purchase price − salvage value) ÷ useful life × number of points used that day.  
+            - *(This spreads out your ownership cost over the years.)*
             """)
         else:
             st.markdown("""
-            - Points required are floor(raw points * discount multiplier if applicable).
-            - Rent cost is ceil(effective points * rate) - based on the discounted points you're using.
-            - Discounts apply if booked within 30/60 days, reducing both points needed AND the cost.
+            - The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
+            - The **Discount Applied** column reflects the selected last-minute discount:
+            - **Executive**: 25% off points (booked within 30 days)
+            - **Presidential**: 30% off points (booked within 60 days)
+            - **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
             - **Holiday points are for the entire holiday period (not daily averages).**
             - When your stay touches a holiday week, dates expand to cover the full holiday period.
             """)
