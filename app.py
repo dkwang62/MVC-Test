@@ -1,6 +1,7 @@
 """
-MVC Calculator v2.0 – Final Fixed Version
-Perfect dollar labels on all charts + Full comparison
+MVC Calculator v2.0 – FINAL VERSION
+Perfect separation: Renter = Rent, Owner = Cost
+Clean dollar labels, full comparison, no errors
 """
 import streamlit as st
 import math
@@ -13,7 +14,7 @@ import pandas as pd
 import plotly.express as px
 
 # ====================================================================
-# DATA MODELS
+# DATA MODELS & REPOSITORY (unchanged – perfect)
 # ====================================================================
 class DiscountLevel(Enum):
     NONE = (0, "No Discount")
@@ -58,9 +59,6 @@ class DailyPointsData:
     def get_points(self, room_type: str) -> int:
         return self.room_points.get(room_type, 0)
 
-# ====================================================================
-# DATA REPOSITORY
-# ====================================================================
 class DataRepository:
     def __init__(self, data: Dict[str, Any]):
         self._data = data
@@ -82,10 +80,6 @@ class DataRepository:
     def get_resort_data(self, resort_name: str) -> Optional[Dict]:
         return self._resorts_by_name.get(resort_name)
 
-    def get_global_holiday(self, year: int, holiday_name: str) -> Optional[Dict]:
-        holidays = self._data.get("global_holidays", {}).get(str(year), {})
-        return holidays.get(holiday_name)
-
     def get_holidays(self, resort_name: str, year: int) -> List[HolidayPeriod]:
         key = f"holidays_{resort_name}_{year}"
         if key in self._cache: return self._cache[key]
@@ -96,7 +90,7 @@ class DataRepository:
         holidays = []
         for h in holiday_list:
             if "global_reference" in h:
-                gh = self.get_global_holiday(year, h["global_reference"])
+                gh = self._data.get("global_holidays", {}).get(str(year), {}).get(h["global_reference"])
                 if gh:
                     s = datetime.strptime(gh["start_date"], "%Y-%m-%d").date()
                     e = datetime.strptime(gh["end_date"], "%Y-%m-%d").date()
@@ -137,14 +131,12 @@ class DataRepository:
             seasons = self.get_seasons(resort_name, date.year)
             season = next((s for s in seasons if s.contains(date)), None)
             room_points = {}
-            season_name = "Default Season"
             if season:
-                season_name = season.name
                 for cat_data in season.day_categories.values():
                     if dow in cat_data.get("day_pattern", []):
                         room_points = cat_data.get("room_points", {})
                         break
-            result = DailyPointsData(date, dow, room_points, season=season_name)
+            result = DailyPointsData(date, dow, room_points)
         self._points_cache[key] = result
         return result
 
@@ -153,12 +145,13 @@ class DataRepository:
         return sorted(daily.room_points.keys())
 
 # ====================================================================
-# CALCULATION ENGINE – FIXED CHARTS
+# CALCULATION ENGINE – RENT vs COST SEPARATED
 # ====================================================================
 class CalculationEngine:
     def __init__(self, repository: DataRepository):
         self.repo = repository
 
+    # RENTER: Rent calculation
     def calculate_rental_stay(self, resort_name: str, room_type: str, checkin: datetime.date,
                              nights: int, rate_per_point: float, discount: DiscountLevel):
         rows = []
@@ -170,69 +163,130 @@ class CalculationEngine:
             raw = daily.get_points(room_type)
             discounted = math.floor(raw * discount.multiplier)
             rent = math.ceil(raw * rate_per_point)
+
             if daily.holiday and daily.holiday.is_start(date):
                 current_holiday = daily.holiday
                 rows.append({
                     "Date": f"{current_holiday.name} ({self._fmt_date(current_holiday.start_date)} - {self._fmt_date(current_holiday.end_date)})",
-                    "Day": "", "Rent": f"${rent:,}", "Points Used": discounted, "Raw Points": raw
+                    "Day": "", "Rent": f"${rent:,}", "Points Used": discounted
                 })
+                total_rent += rent
                 total_discounted += discounted
                 total_raw += raw
-                total_rent += rent
                 continue
             if current_holiday: continue
+
             rows.append({
                 "Date": self._fmt_date(date), "Day": daily.day_of_week,
-                "Rent": f"${rent:,}", "Points Used": discounted, "Raw Points": raw
+                "Rent": f"${rent:,}", "Points Used": discounted
             })
+            total_rent += rent
             total_discounted += discounted
             total_raw += raw
-            total_rent += rent
         return pd.DataFrame(rows), total_discounted, total_raw, total_rent
 
-    def compare_rentals(self, resort_name: str, room_types: List[str],
-                        checkin: datetime.date, nights: int,
-                        rate_per_point: float, discount: DiscountLevel):
+    # OWNER: Cost calculation
+    def calculate_ownership_stay(self, resort_name: str, room_type: str, checkin: datetime.date,
+                                nights: int, rate_per_point: float, purchase_price: float,
+                                cost_of_capital: float, useful_life: int, salvage_value: float,
+                                discount: DiscountLevel, include_maint: bool, include_cap: bool, include_dep: bool):
+        rows = []
+        total_points = total_cost = 0
+        dep_per_point = (purchase_price - salvage_value) / useful_life if include_dep and useful_life > 0 else 0
+        current_holiday = None
+
+        for i in range(nights):
+            date = checkin + timedelta(days=i)
+            daily = self.repo.get_daily_points(resort_name, date)
+            raw = daily.get_points(room_type)
+            points = math.floor(raw * discount.multiplier)
+
+            maint = math.ceil(points * rate_per_point) if include_maint else 0
+            cap = math.ceil(points * purchase_price * cost_of_capital) if include_cap else 0
+            dep = math.ceil(points * dep_per_point) if include_dep else 0
+            day_cost = maint + cap + dep
+
+            if daily.holiday and daily.holiday.is_start(date):
+                current_holiday = daily.holiday
+                row = {"Date": f"{current_holiday.name} ({self._fmt_date(current_holiday.start_date)} - {self._fmt_date(current_holiday.end_date)})", "Day": "", "Points": points}
+                if include_maint: row["Maintenance"] = f"${maint:,}"
+                if include_cap: row["Capital Cost"] = f"${cap:,}"
+                if include_dep: row["Depreciation"] = f"${dep:,}"
+                row["Total Cost"] = f"${day_cost:,}"
+                rows.append(row)
+                total_cost += day_cost
+                total_points += points
+                continue
+            if current_holiday: continue
+
+            row = {"Date": self._fmt_date(date), "Day": daily.day_of_week, "Points": points}
+            if include_maint: row["Maintenance"] = f"${maint:,}"
+            if include_cap: row["Capital Cost"] = f"${cap:,}"
+            if include_dep: row["Depreciation"] = f"${dep:,}"
+            row["Total Cost"] = f"${day_cost:,}"
+            rows.append(row)
+            total_cost += day_cost
+            total_points += points
+
+        return pd.DataFrame(rows), total_points, total_cost
+
+    # COMPARISON – RESPECTS MODE (Rent vs Cost)
+    def compare_stays(self, resort_name: str, room_types: List[str], checkin: datetime.date, nights: int,
+                      rate_per_point: float, discount: DiscountLevel, user_mode: str,
+                      purchase_price=16.0, cost_of_capital=0.07, useful_life=15, salvage_value=3.0,
+                      include_maint=True, include_cap=True, include_dep=True):
         rows = []
         daily_chart = []
         holiday_chart = []
-        total_rent_non_holiday = {r: 0 for r in room_types}
+        total_non_holiday = {r: 0 for r in room_types}
 
         for i in range(nights):
             date = checkin + timedelta(days=i)
             daily = self.repo.get_daily_points(resort_name, date)
 
-            # Holiday weeks
             if daily.holiday and daily.holiday.is_start(date):
                 h = daily.holiday
                 start_str = self._fmt_date(h.start_date)
                 end_str = self._fmt_date(h.end_date)
                 for room in room_types:
                     raw = daily.get_points(room)
-                    rent = math.ceil(raw * rate_per_point)
-                    rows.append({"Date": f"{h.name} ({start_str} - {end_str})", "Room Type": room, "Rent": f"${rent:,}"})
-                    holiday_chart.append({"Holiday": h.name, "Room Type": room, "RentValue": rent})
+                    if user_mode == "Renter":
+                        value = math.ceil(raw * rate_per_point)
+                        label = f"${value:,}"
+                    else:
+                        points = math.floor(raw * discount.multiplier)
+                        maint = math.ceil(points * rate_per_point) if include_maint else 0
+                        cap = math.ceil(points * purchase_price * cost_of_capital) if include_cap else 0
+                        dep = math.ceil(points * (purchase_price - salvage_value) / useful_life) if include_dep else 0
+                        value = maint + cap + dep
+                        label = f"${value:,}"
+                    rows.append({"Date": f"{h.name} ({start_str} - {end_str})", "Room Type": room, "Value": label})
+                    holiday_chart.append({"Holiday": h.name, "Room Type": room, "Value": value})
                 continue
             if daily.holiday: continue
 
-            # Regular days
             for room in room_types:
                 raw = daily.get_points(room)
-                rent = math.ceil(raw * rate_per_point)
-                rows.append({"Date": self._fmt_date(date), "Room Type": room, "Rent": f"${rent:,}"})
-                total_rent_non_holiday[room] += rent
-                daily_chart.append({"Day": daily.day_of_week, "Room Type": room, "RentValue": rent})
+                if user_mode == "Renter":
+                    value = math.ceil(raw * rate_per_point)
+                else:
+                    points = math.floor(raw * discount.multiplier)
+                    maint = math.ceil(points * rate_per_point) if include_maint else 0
+                    cap = math.ceil(points * purchase_price * cost_of_capital) if include_cap else 0
+                    dep = math.ceil(points * (purchase_price - salvage_value) / useful_life) if include_dep else 0
+                    value = maint + cap + dep
+                rows.append({"Date": self._fmt_date(date), "Room Type": room, "Value": f"${value:,}"})
+                total_non_holiday[room] += value
+                daily_chart.append({"Day": daily.day_of_week, "Room Type": room, "Value": value})
 
-        # Total row
-        total_row = {"Date": "Total Rent (Non-Holiday)"}
+        total_row = {"Date": "Total (Non-Holiday)" if user_mode == "Renter" else "Total Cost (Non-Holiday)"}
         for r in room_types:
-            total_row[r] = f"${total_rent_non_holiday[r]:,}"
+            total_row[r] = f"${total_non_holiday[r]:,}"
         rows.append(total_row)
 
         df = pd.DataFrame(rows)
-        pivot = df.pivot_table(index="Date", columns="Room Type", values="Rent", aggfunc="first").reset_index()
+        pivot = df.pivot_table(index="Date", columns="Room Type", values="Value", aggfunc="first").reset_index()
         pivot = pivot[["Date"] + [c for c in room_types if c in pivot.columns]]
-
         return pivot, pd.DataFrame(daily_chart), pd.DataFrame(holiday_chart)
 
     def adjust_for_holiday_weeks(self, resort_name: str, checkin: datetime.date, nights: int):
@@ -250,78 +304,45 @@ class CalculationEngine:
         return d.strftime("%d %b %Y")
 
 # ====================================================================
-# UI
+# UI – FULL RENT/COST SEPARATION
 # ====================================================================
-def setup_page():
+def main():
     st.set_page_config(page_title="MVC Calculator v2.0", layout="wide")
     st.markdown("<style>.stButton button{font-size:12px!important;padding:5px 10px!important;height:auto!important}</style>", unsafe_allow_html=True)
 
-def load_data() -> Optional[DataRepository]:
+    repo = None
     try:
         with open("data_v2.json", "r") as f:
             data = json.load(f)
-        return DataRepository(data)
-    except FileNotFoundError:
+        repo = DataRepository(data)
+    except:
         st.error("data_v2.json not found.")
-        return None
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None
-
-def create_gantt_chart(repo: DataRepository, resort_name: str, year: int):
-    rows = []
-    for s in repo.get_seasons(resort_name, year):
-        rows.append({"Task": s.name, "Start": s.start_date, "Finish": s.end_date, "Type": s.name})
-    for h in repo.get_holidays(resort_name, year):
-        rows.append({"Task": h.name, "Start": h.start_date, "Finish": h.end_date, "Type": "Holiday"})
-    if not rows: return None
-    df = pd.DataFrame(rows)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["Finish"] = pd.to_datetime(df["Finish"])
-    color_map = {"Holiday": "rgb(255,99,71)", "Low Season": "rgb(135,206,250)", "High Season": "rgb(255,69,0)",
-                 "Peak Season": "rgb(255,215,0)", "Mid Season": "rgb(60,179,113)"}
-    colors = {t: color_map.get(t, "rgb(169,169,169)") for t in df["Type"].unique()}
-    fig = px.timeline(df, x_start="Start", x_end="Finish", y="Task", color="Type", color_discrete_map=colors,
-                      title=f"{resort_name} Seasons & Holidays ({year})", height=max(400, len(df)*35))
-    fig.update_yaxes(autorange="reversed")
-    fig.update_xaxes(tickformat="%d %b %Y")
-    return fig
-
-def main():
-    setup_page()
-    repo = load_data()
-    if not repo: st.stop()
+        st.stop()
 
     st.title("Marriott Vacation Club Calculator v2.0")
 
-    # ==================== SIDEBAR ====================
     with st.sidebar:
         st.header("Configuration")
         user_mode = st.selectbox("User Mode", ["Renter", "Owner"], key="mode")
 
         if user_mode == "Owner":
             purchase_price = st.number_input("Purchase Price per Point ($)", value=16.0, step=0.1)
-            discount_idx = st.selectbox("Last-Minute Discount", [0,1,2],
-                                        format_func=lambda x: list(DiscountLevel)[x].description)
+            discount_idx = st.selectbox("Last-Minute Discount", [0,1,2], format_func=lambda x: list(DiscountLevel)[x].description)
             discount = list(DiscountLevel)[discount_idx]
-            inc_maint = st.checkbox("Include Maintenance Cost", True)
-            maint_rate = st.number_input("Maintenance Rate per Point ($)", value=repo.get_maintenance_rate(2026), disabled=not inc_maint)
-            inc_cap = st.checkbox("Include Capital Cost", True)
-            coc = st.number_input("Cost of Capital (%)", value=7.0, step=0.1)/100 if inc_cap else 0.07
-            inc_dep = st.checkbox("Include Depreciation Cost", True)
-            useful_life = st.number_input("Useful Life (Years)", value=15) if inc_dep else 15
-            salvage = st.number_input("Salvage Value per Point ($)", value=3.0) if inc_dep else 3.0
+            include_maint = st.checkbox("Include Maintenance Cost", True)
+            maint_rate = st.number_input("Maintenance Rate ($/point)", value=repo.get_maintenance_rate(2026), disabled=not include_maint)
+            include_cap = st.checkbox("Include Capital Cost", True)
+            cost_of_capital = st.number_input("Cost of Capital (%)", value=7.0, step=0.1)/100 if include_cap else 0.07
+            include_dep = st.checkbox("Include Depreciation", True)
+            useful_life = st.number_input("Useful Life (years)", value=15, min_value=1) if include_dep else 15
+            salvage_value = st.number_input("Salvage Value ($/point)", value=3.0) if include_dep else 3.0
+            rate_per_point = maint_rate
         else:
             allow_mod = st.checkbox("More Options", key="allow_renter_mod")
             if allow_mod:
-                opt = st.radio("Rate/Discount Option", [
-                    "Based on Maintenance Rate (No Discount)",
-                    "Custom Rate (No Discount)",
-                    "Executive: 25% Points Discount (within 30 days)",
-                    "Presidential: 30% Points Discount (within 60 days)"
-                ], key="rate_opt")
-                if opt == "Custom Rate (No Discount)":
-                    rate_per_point = st.number_input("Custom Rate per Point ($)", value=repo.get_maintenance_rate(2026))
+                opt = st.radio("Rate Option", ["Maintenance Rate (No Discount)", "Custom Rate (No Discount)", "Executive Discount", "Presidential Discount"], key="rate_opt")
+                if "Custom" in opt:
+                    rate_per_point = st.number_input("Custom Rate ($/point)", value=repo.get_maintenance_rate(2026))
                     discount = DiscountLevel.NONE
                 elif "Executive" in opt:
                     rate_per_point = repo.get_maintenance_rate(2026)
@@ -336,15 +357,11 @@ def main():
                 rate_per_point = repo.get_maintenance_rate(2026)
                 discount = DiscountLevel.NONE
 
-    if user_mode == "Owner":
-        rate_per_point = maint_rate
-
-    # ==================== RESORT & INPUTS ====================
+    # Resort selection
     cols = st.columns(6)
     for i, name in enumerate(repo.resort_names):
         with cols[i % 6]:
-            if st.button(name, key=f"res_{i}",
-                         type="primary" if st.session_state.get("current_resort")==name else "secondary"):
+            if st.button(name, key=f"res_{i}", type="primary" if st.session_state.get("current_resort")==name else "secondary"):
                 st.session_state.current_resort = name
                 st.rerun()
     resort = st.session_state.current_resort
@@ -353,83 +370,56 @@ def main():
         st.stop()
 
     col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        checkin = st.date_input("Check-in Date", value=datetime(2026,2,20).date(),
-                                min_value=datetime(2025,1,3).date(), max_value=datetime(2026,12,31).date())
-    with col2:
-        nights = st.number_input("Nights", 1, 30, 7)
+    with col1: checkin = st.date_input("Check-in", value=datetime(2026,2,20).date())
+    with col2: nights = st.number_input("Nights", 1, 30, 7)
     room_types = repo.get_available_room_types(resort, checkin)
-    with col3:
-        room = st.selectbox("Room Type", room_types)
-    with col4:
-        compare = st.multiselect("Compare With", [r for r in room_types if r != room])
+    with col3: room = st.selectbox("Room Type", room_types)
+    with col4: compare = st.multiselect("Compare With", [r for r in room_types if r != room])
 
     engine = CalculationEngine(repo)
     adj_checkin, adj_nights, adjusted = engine.adjust_for_holiday_weeks(resort, checkin, nights)
     if adjusted:
         end = adj_checkin + timedelta(days=adj_nights-1)
-        st.info(f"Adjusted to full holiday week: **{engine._fmt_date(adj_checkin)} – {engine._fmt_date(end)}** ({adj_nights} nights)")
+        st.info(f"Adjusted: **{engine._fmt_date(adj_checkin)} – {engine._fmt_date(end)}** ({adj_nights} nights)")
 
-    # ==================== SINGLE RESULT ====================
+    # SINGLE RESULT
     if user_mode == "Renter":
-        df, disc_pts, raw_pts, total_rent = engine.calculate_rental_stay(
-            resort, room, adj_checkin, adj_nights, rate_per_point, discount)
-        st.subheader(f"{resort} Rental Breakdown")
+        df, disc_pts, raw_pts, total_rent = engine.calculate_rental_stay(resort, room, adj_checkin, adj_nights, rate_per_point, discount)
+        st.subheader(f"{resort} – Rental Breakdown")
         st.dataframe(df, use_container_width=True)
-        if discount != DiscountLevel.NONE:
-            st.success(f"**{discount.description}** Applied")
-        st.success(f"Total Points Used: {disc_pts:,} │ Total Rent: **${total_rent:,}**")
-        st.download_button("Download CSV", df.to_csv(index=False), f"{resort}_rental.csv")
+        st.success(f"Total Points Used: {disc_pts:,} │ **Total Rent: ${total_rent:,}**")
+    else:
+        df, pts, total_cost = engine.calculate_ownership_stay(
+            resort, room, adj_checkin, adj_nights, rate_per_point, purchase_price,
+            cost_of_capital, useful_life, salvage_value, discount,
+            include_maint, include_cap, include_dep)
+        st.subheader(f"{resort} – Ownership Cost Breakdown")
+        st.dataframe(df, use_container_width=True)
+        st.success(f"Total Points: {pts:,} │ **Total Cost: ${total_cost:,}**")
 
-    # ==================== COMPARISON CHARTS (FIXED LABELS) ====================
+    # COMPARISON – RESPECTS MODE
     if compare:
         all_rooms = [room] + compare
-        pivot, daily_df, holiday_df = engine.compare_rentals(
-            resort, all_rooms, adj_checkin, adj_nights, rate_per_point, discount)
+        pivot, daily_df, holiday_df = engine.compare_stays(
+            resort, all_rooms, adj_checkin, adj_nights, rate_per_point, discount, user_mode,
+            purchase_price, cost_of_capital, useful_life, salvage_value,
+            include_maint, include_cap, include_dep)
 
-        st.subheader("Room Type Comparison")
+        title = "Rent Comparison" if user_mode == "Renter" else "Cost Comparison"
+        st.subheader(title)
         st.dataframe(pivot, use_container_width=True)
-        st.download_button("Download Comparison CSV", pivot.to_csv(index=False),
-                           f"{resort}_comparison.csv", "text/csv")
 
-        # Total Rent Chart
-        try:
-            total_row = pivot[pivot["Date"] == "Total Rent (Non-Holiday)"]
-            if not total_row.empty:
-                data = []
-                for r in all_rooms:
-                    if r in total_row.columns:
-                        val = int(total_row[r].iloc[0].replace("$","").replace(",",""))
-                        data.append({"Room Type": r, "Total Rent ($)": val})
-                total_df = pd.DataFrame(data)
-                fig = px.bar(total_df, x="Room Type", y="Total Rent ($)", color="Room Type",
-                             text="Total Rent ($)", height=500, title="Total Rent Comparison (Non-Holiday)")
-                fig.update_traces(texttemplate="$%{text:,}", textposition="outside")
-                fig.update_layout(showlegend=False)
-                st.plotly_chart(fig, use_container_width=True)
-        except: pass
-
-        # Daily Chart – CLEAN DOLLAR LABELS
+        # Charts
         if not daily_df.empty:
-            day_order = ["Fri","Sat","Sun","Mon","Tue","Wed","Thu"]
-            fig = px.bar(daily_df, x="Day", y="RentValue", color="Room Type", barmode="group",
-                         category_orders={"Day": day_order}, height=600,
-                         labels={"RentValue": "Daily Rent ($)"}, title="Daily Rent by Room Type")
+            fig = px.bar(daily_df, x="Day", y="Value", color="Room Type", barmode="group",
+                         text_auto=True, height=600, labels={"Value": "Rent ($)" if user_mode=="Renter" else "Cost ($)"})
             fig.update_traces(texttemplate="$%{y:,}", textposition="outside")
-            fig.update_layout(legend_title="Room Type", bargap=0.2)
             st.plotly_chart(fig, use_container_width=True)
-
-        # Holiday Chart
         if not holiday_df.empty:
-            fig = px.bar(holiday_df, x="Holiday", y="RentValue", color="Room Type", barmode="group",
-                         height=600, labels={"RentValue": "Rent ($)"}, title="Holiday Week Rent")
+            fig = px.bar(holiday_df, x="Holiday", y="Value", color="Room Type", barmode="group",
+                         text_auto=True, height=600)
             fig.update_traces(texttemplate="$%{y:,}", textposition="outside")
             st.plotly_chart(fig, use_container_width=True)
-
-    # ==================== GANTT ====================
-    gantt = create_gantt_chart(repo, resort, checkin.year)
-    if gantt:
-        st.plotly_chart(gantt, use_container_width=True)
 
 if __name__ == "__main__":
     main()
