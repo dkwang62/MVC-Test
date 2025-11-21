@@ -605,37 +605,32 @@ def main():
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
-            - **Maintenance Cost** = Maintenance rate per point × number of points used that day.
-            - **Capital Cost** = Purchase price per point × capital cost rate × number of points used that day.  
-                *(This represents the “cost of tying up your money.”)*
-            - **Depreciation Cost** = (Purchase price − salvage value) ÷ useful life × number of points used that day.  
+            - **Maintenance Cost** = Maintenance rate per point × number of points used.
+            - **Capital Cost** = Purchase price per point × cost of capital rate × number of points used.  
+                *(This represents the "cost of tying up your money.")*
+            - **Depreciation Cost** = (Purchase price − salvage value) ÷ useful life × number of points used.  
                 *(This spreads out your ownership cost over the years.)*
+            - Points used are floor(raw points × discount multiplier).
+            - **Holiday points are for the entire holiday period (not daily averages).**
+            - When your stay touches a holiday week, dates expand to cover the full holiday period.
             """)
         else:
-            # Define rate_opt here to ensure it exists for the check below
-            rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
-            is_custom_rate = rate_opt == "Custom Rate (No Discount)"
-        
-            if is_custom_rate:
-                rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
+            discount_text = ""
+            if policy == DiscountPolicy.PRESIDENTIAL:
+                discount_text = "**Presidential Discount**: 30% off points (booked within 60 days)"
+            elif policy == DiscountPolicy.EXECUTIVE:
+                discount_text = "**Executive Discount**: 25% off points (booked within 30 days)"
             else:
-                # Note: This logic now pulls the latest rate_per_point from the sidebar 
-                # if the "More Options" is checked, otherwise it uses the default.
-                if st.session_state.get('rate_opt') == "Based on Maintenance Rate (No Discount)":
-                    rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
-                else:
-                    # If a discount option is selected, the rent is still calculated on the default maintenance rate
-                    rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
-
-            st.markdown("""
-            - The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
-            - The **Discount Applied** column reflects the selected last-minute discount:
-                **Executive**: 25% off points (booked within 30 days)
-                **Presidential**: 30% off points (booked within 60 days)
-            - **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
+                discount_text = "**No Discount Applied**"
+            
+            st.markdown(f"""
+            - The **Rent** amount is calculated using **${rate:.2f} per point**.
+            - {discount_text}
+            - When a discount applies, both the points required AND the rent cost are reduced.
             - **Holiday points are for the entire holiday period (not daily averages).**
-                When your stay touches a holiday week, dates expand to cover the full holiday period.
+            - When your stay touches a holiday week, dates expand to cover the full holiday period.
             """)
+    
     if mode == UserMode.OWNER:
         if owner_params['inc_m']: st.info(f"Maintenance: ${res.m_cost:,.2f}")
         if owner_params['inc_c']: st.info(f"Capital Cost: ${res.c_cost:,.2f}")
