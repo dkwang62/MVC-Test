@@ -615,11 +615,11 @@ def main():
             st.markdown("""
             - The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
             - The **Discount Applied** column reflects the selected last-minute discount:
-            - **Executive**: 25% off points (booked within 30 days)
-            - **Presidential**: 30% off points (booked within 60 days)
+                **Executive**: 25% off points (booked within 30 days)
+                **Presidential**: 30% off points (booked within 60 days)
             - **Points Used (Discounted)** are the points actually **debited** from the member's account (this is the value after the discount, if applicable).
             - **Holiday points are for the entire holiday period (not daily averages).**
-            - When your stay touches a holiday week, dates expand to cover the full holiday period.
+                When your stay touches a holiday week, dates expand to cover the full holiday period.
             """)
     if mode == UserMode.OWNER:
         if owner_params['inc_m']: st.info(f"Maintenance: ${res.m_cost:,.2f}")
