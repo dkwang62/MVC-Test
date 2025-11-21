@@ -612,6 +612,21 @@ def main():
                 *(This spreads out your ownership cost over the years.)*
             """)
         else:
+            # Define rate_opt here to ensure it exists for the check below
+            rate_opt = st.session_state.get('rate_opt', "Based on Maintenance Rate (No Discount)")
+            is_custom_rate = rate_opt == "Custom Rate (No Discount)"
+        
+            if is_custom_rate:
+                rate_basis = f"a **Custom Rate** of **${rate_per_point:.2f} per point**."
+            else:
+                # Note: This logic now pulls the latest rate_per_point from the sidebar 
+                # if the "More Options" is checked, otherwise it uses the default.
+                if st.session_state.get('rate_opt') == "Based on Maintenance Rate (No Discount)":
+                    rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
+                else:
+                    # If a discount option is selected, the rent is still calculated on the default maintenance rate
+                    rate_basis = f"the **Maintenance Rate** of **${default_rate:.2f} per point**."
+
             st.markdown("""
             - The **Rent** amount is calculated based on the **Undiscounted Points** for the night using {rate_basis}
             - The **Discount Applied** column reflects the selected last-minute discount:
