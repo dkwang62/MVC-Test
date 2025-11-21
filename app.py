@@ -218,7 +218,7 @@ class MVCCalculator:
                 # Calculate days in this holiday
                 holiday_days = (holiday.end_date - holiday.start_date).days + 1
                 
-                # Apply discounts to the entire holiday points
+                # Apply discounts to the points
                 is_disc_holiday = False
                 if is_owner:
                     eff = math.floor(raw * disc_mul)
@@ -237,6 +237,7 @@ class MVCCalculator:
                         disc_days.append(disc_date.strftime("%Y-%m-%d"))
                 
                 # Calculate costs for entire holiday period
+                # For renters: cost is ALWAYS based on undiscounted (raw) points
                 holiday_cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
@@ -248,7 +249,8 @@ class MVCCalculator:
                         dp = math.ceil(eff * owner_config.get('dep_rate', 0.0))
                     holiday_cost = m + c + dp
                 else:
-                    holiday_cost = math.ceil(eff * rate)
+                    # Renter: Cost based on RAW (undiscounted) points
+                    holiday_cost = math.ceil(raw * rate)
                 
                 # Add single row for entire holiday
                 row = {
@@ -304,7 +306,8 @@ class MVCCalculator:
                         dp = math.ceil(eff * owner_config.get('dep_rate', 0.0))
                     day_cost = m + c + dp
                 else:
-                    day_cost = math.ceil(eff * rate)
+                    # Renter: Cost based on RAW (undiscounted) points
+                    day_cost = math.ceil(raw * rate)
                 
                 row = {
                     "Date": d_str,
@@ -389,7 +392,8 @@ class MVCCalculator:
                         if owner_config['inc_d']: dp = math.ceil(eff * owner_config['dep_rate'])
                         cost = m + c + dp
                     else:
-                        cost = math.ceil(eff * rate)
+                        # Renter: Cost based on RAW (undiscounted) points
+                        cost = math.ceil(raw * rate)
                     
                     holiday_data[room][h.name] += cost
                     
@@ -418,7 +422,8 @@ class MVCCalculator:
                         if owner_config['inc_d']: dp = math.ceil(eff * owner_config['dep_rate'])
                         cost = m + c + dp
                     else:
-                        cost = math.ceil(eff * rate)
+                        # Renter: Cost based on RAW (undiscounted) points
+                        cost = math.ceil(raw * rate)
                     
                     daily_data.append({
                         "Day": d.strftime("%a"), "Date": d, "Room Type": room,
@@ -602,6 +607,7 @@ def main():
         pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
         st.success(f"Discount Applied: {pct} off points ({len(res.discounted_days)} day(s): {', '.join(res.discounted_days)})")
     st.success(f"Total Points Required: {res.total_points:,} | Total {'Rent' if mode == UserMode.RENTER else 'Cost'}: ${res.financial_total:,.2f}")
+    
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
@@ -635,6 +641,7 @@ def main():
         if owner_params['inc_m']: st.info(f"Maintenance: ${res.m_cost:,.2f}")
         if owner_params['inc_c']: st.info(f"Capital Cost: ${res.c_cost:,.2f}")
         if owner_params['inc_d']: st.info(f"Depreciation: ${res.d_cost:,.2f}")
+    
     st.download_button("Download Breakdown CSV", res.breakdown_df.to_csv(index=False), f"{r_name}_{'rental' if mode == UserMode.RENTER else 'cost'}.csv")
     if comp_rooms:
         all_rooms = [room_sel] + comp_rooms
