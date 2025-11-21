@@ -207,7 +207,7 @@ class MVCCalculator:
                 # Renter Logic
                 days_until = (date - datetime.now().date()).days
                 if discount_policy == DiscountPolicy.PRESIDENTIAL and days_until <= 60:
-                    eff_pts = math.floor(raw_pts * 0.7); disc_applied = True; disc_days.append(str(date))
+                    eff_pts = math.floor(raw_pts * 0.70); disc_applied = True; disc_days.append(str(date))
                 elif discount_policy == DiscountPolicy.EXECUTIVE and days_until <= 30:
                     eff_pts = math.floor(raw_pts * 0.75); disc_applied = True; disc_days.append(str(date))
 
@@ -284,7 +284,6 @@ class MVCCalculator:
             })
 
             # Re-iterate days for Charting Data (Daily)
-            # Note: calculate_single_stay groups holidays, so we need a simpler daily loop for the bar chart
             for i in range(nights):
                 date = checkin + timedelta(days=i)
                 pts_map, h = self._get_points_map(resort, date)
@@ -326,9 +325,7 @@ class MVCCalculator:
         if not df_holiday.empty:
             df_holiday = df_holiday.groupby(["Holiday", "Room Type"])[col_label].sum().reset_index()
 
-        # Construct Pivot Table manually to match old format
-        # Date | Room 1 Cost | Room 2 Cost ...
-        # We will use the Grouped Breakdown logic for the Pivot to be readable
+        # Construct Pivot Table manually
         pivot_rows = []
         
         # Get date ranges (using first room as master timeline)
@@ -338,8 +335,7 @@ class MVCCalculator:
         for date_str in dates:
             row = {"Date": date_str}
             for room in rooms:
-                # Re-calc for just this specific date row logic is hard without re-running.
-                # Optimized approach: Run calc for all rooms, merge on Date.
+                # Run calc for all rooms, merge on Date.
                 r_res = self.calculate_single_stay(resort_name, room, checkin, nights, rate, discount_policy, owner_params)
                 # Find value for this date
                 val = r_res.breakdown_df.loc[r_res.breakdown_df["Date"] == date_str]
@@ -367,7 +363,7 @@ class MVCCalculator:
         end = checkin + timedelta(days=nights-1)
         for h in resort.years[year].holidays:
             if h.start_date <= end and h.end_date >= checkin:
-                if nights < 7: # Only adjust if less than a week (Old app logic)
+                if nights < 7: # Only adjust if less than a week
                     return h.start_date, 7, True
         return checkin, nights, False
 
@@ -379,10 +375,20 @@ class MVCCalculator:
 # ==============================================================================
 
 def main():
-    # 1. Setup
+    # 0. INITIALIZE SESSION STATE (CRITICAL FIX)
+    if "data" not in st.session_state:
+        st.session_state.data = None
+    if "data_cache" not in st.session_state:
+        st.session_state.data_cache = {}
+    if "allow_renter_modifications" not in st.session_state:
+        st.session_state.allow_renter_modifications = False
+
+    # 1. Setup Data
     if st.session_state.data is None:
         try:
-            with open("data_v2.json", "r") as f: st.session_state.data = json.load(f)
+            with open("data_v2.json", "r") as f:
+                raw = json.load(f)
+                st.session_state.data = raw
         except: pass
 
     with st.sidebar:
@@ -429,7 +435,7 @@ def main():
         else:
             adv = st.checkbox("Advanced Options")
             if adv:
-                opt = st.radio("Rate", ["Standard", "Custom", "< 60 Days", "< 30 Days"])
+                opt = st.radio("Rate Logic", ["Standard", "Custom", "< 60 Days", "< 30 Days"])
                 if opt == "Custom": rate = st.number_input("Rate", value=def_rate)
                 elif opt == "< 60 Days": discount_policy = DiscountPolicy.PRESIDENTIAL
                 elif opt == "< 30 Days": discount_policy = DiscountPolicy.EXECUTIVE
@@ -442,83 +448,94 @@ def main():
     checkin = c1.date_input("Check-in", datetime(2025, 6, 12))
     nights = c2.number_input("Nights", 1, 60, 7)
 
-    # Logic: Adjust Date
     adj_in, adj_n, adj = calc.adjust_dates(r_name, checkin, nights)
     if adj: st.info(f"Adjusted to full holiday week: {adj_in} ({adj_n} nights)")
 
-    # Logic: Populate Rooms
-    # Get sample points to find valid rooms for this year
-    sample_res = repo.get_resort(r_name)
-    # Flatten all known rooms for this resort
-    rooms = set()
-    if sample_res and str(adj_in.year) in sample_res.years:
-        yd = sample_res.years[str(adj_in.year)]
-        for h in yd.holidays: rooms.update(h.room_points.keys())
-        for s in yd.seasons:
-            for d in s.day_categories: rooms.update(d.room_points.keys())
+    resort_data = repo.get_resort(r_name)
+    if not resort_data:
+        st.error("No data for this resort/year combination.")
+        st.stop()
     
-    room_opts = sorted(list(rooms))
-    if not room_opts: st.error("No room data found for this year."); st.stop()
-    
-    sel_room = st.selectbox("Room Type", room_opts)
-    comp_rooms = st.multiselect("Compare With", [r for r in room_opts if r != sel_room])
+    pts, _ = calc._get_points_map(resort_data, adj_in)
+    if not pts and resort_data.years:
+        y = str(adj_in.year)
+        if y in resort_data.years and resort_data.years[y].seasons:
+             pts = resort_data.years[y].seasons[0].day_categories[0].room_points
+
+    room_types = sorted(list(pts.keys()))
+    room_sel = st.selectbox("Room Type", room_types)
+    compare_sel = st.multiselect("Compare With", [r for r in room_types if r != room_sel])
 
     # 4. Execution
     if st.button("Calculate"):
-        # Single Breakdown
-        res = calc.calculate_single_stay(r_name, sel_room, adj_in, adj_n, rate, discount_policy, owner_params)
-        
-        st.subheader(f"{r_name} Breakdown")
-        st.dataframe(res.breakdown_df, use_container_width=True)
-        
-        m1, m2 = st.columns(2)
-        m1.metric("Total Points", f"{res.total_points:,}")
-        m2.metric("Total " + ("Cost" if mode=="Owner" else "Rent"), f"${res.financial_total:,.2f}")
-        
-        st.download_button("Download Breakdown CSV", res.breakdown_df.to_csv(index=False), "breakdown.csv")
-
-        # Comparison
-        if comp_rooms:
-            all_rooms = [sel_room] + comp_rooms
-            comp_res = calc.compare_stays(r_name, all_rooms, adj_in, adj_n, rate, discount_policy, owner_params)
+        if mode == UserMode.RENTER.value:
+            res = calc.calculate_single_stay(r_name, room_sel, adj_in, adj_n, rate, discount_policy, owner_params)
+            st.subheader("Renter Breakdown")
+            st.dataframe(res.breakdown_df, use_container_width=True)
+            st.metric("Total Points", f"{res.total_points:,}")
+            st.metric("Total Rent", f"${res.financial_total:,.2f}")
             
-            st.subheader("Comparison Table")
-            st.dataframe(comp_res.pivot_df, use_container_width=True)
-            st.download_button("Download Comparison CSV", comp_res.pivot_df.to_csv(index=False), "comparison.csv")
+            st.download_button("Download Breakdown CSV", res.breakdown_df.to_csv(index=False), "breakdown.csv")
             
-            # Charts
-            if not comp_res.daily_chart_df.empty:
-                # Daily Chart
-                y_val = "TotalCostValue" if owner_params else "RentValue"
-                title = "Daily " + ("Cost" if mode=="Owner" else "Rent")
-                day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
-                fig = px.bar(comp_res.daily_chart_df, x="Day", y=y_val, color="Room Type", barmode="group", 
-                             category_orders={"Day": day_order}, title=title)
-                st.plotly_chart(fig, use_container_width=True)
+            if compare_sel:
+                all_rooms = [room_sel] + compare_sel
+                comp_res = calc.compare_stays(r_name, all_rooms, adj_in, adj_n, rate, discount_policy, owner_params)
+                st.subheader("Comparison Table")
+                st.dataframe(comp_res.pivot_df, use_container_width=True)
+                st.download_button("Download Comparison CSV", comp_res.pivot_df.to_csv(index=False), "comparison.csv")
+                
+                if not comp_res.daily_chart_df.empty:
+                    day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+                    fig = px.bar(comp_res.daily_chart_df, x="Day", y="RentValue", color="Room Type", 
+                                 barmode="group", category_orders={"Day": day_order}, title="Daily Rent Comparison")
+                    st.plotly_chart(fig, use_container_width=True)
 
-            if not comp_res.holiday_chart_df.empty:
-                # Holiday Chart
-                h_fig = px.bar(comp_res.holiday_chart_df, x="Holiday", y=y_val, color="Room Type", barmode="group",
-                               title="Holiday Week Comparison")
-                st.plotly_chart(h_fig, use_container_width=True)
+                if not comp_res.holiday_chart_df.empty:
+                    h_fig = px.bar(comp_res.holiday_chart_df, x="Holiday", y="RentValue", color="Room Type", 
+                                   barmode="group", title="Holiday Week Comparison")
+                    st.plotly_chart(h_fig, use_container_width=True)
 
-        # Gantt Chart
+        else: # OWNER
+            res = calc.calculate_single_stay(r_name, room_sel, adj_in, adj_n, rate, discount_policy, owner_params)
+            st.subheader("Owner Breakdown")
+            st.dataframe(res.breakdown_df, use_container_width=True)
+            
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Points", f"{res.total_points:,}")
+            c2.metric("Maint.", f"${res.maintenance_cost:,.2f}")
+            c3.metric("Capital", f"${res.capital_cost:,.2f}")
+            c4.metric("Total Cost", f"${res.financial_total:,.2f}")
+            
+            st.download_button("Download Breakdown CSV", res.breakdown_df.to_csv(index=False), "breakdown.csv")
+
+            if compare_sel:
+                all_rooms = [room_sel] + compare_sel
+                comp_res = calc.compare_stays(r_name, all_rooms, adj_in, adj_n, rate, discount_policy, owner_params)
+                st.subheader("Comparison Table")
+                st.dataframe(comp_res.pivot_df, use_container_width=True)
+                
+                if not comp_res.daily_chart_df.empty:
+                    day_order = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+                    fig = px.bar(comp_res.daily_chart_df, x="Day", y="TotalCostValue", color="Room Type", 
+                                 barmode="group", category_orders={"Day": day_order}, title="Daily Cost Comparison")
+                    st.plotly_chart(fig, use_container_width=True)
+
+        # 5. Visualization (Gantt)
         st.subheader("Season Calendar")
-        # Quick Gantt generation from Repo
-        res_data = repo.get_resort(r_name)
-        if res_data:
-            g_data = []
-            yd = res_data.years.get(str(adj_in.year))
-            if yd:
-                for s in yd.seasons:
-                    for p in s.periods: g_data.append(dict(Task=s.name, Start=p.start, Finish=p.end, Type="Season"))
-                for h in yd.holidays:
-                    g_data.append(dict(Task=h.name, Start=h.start_date, Finish=h.end_date, Type="Holiday"))
-            
-            if g_data:
-                gdf = pd.DataFrame(g_data)
-                fig = px.timeline(gdf, x_start="Start", x_end="Finish", y="Task", color="Type")
-                st.plotly_chart(fig, use_container_width=True)
+        gantt_data = []
+        year_str = str(adj_in.year)
+        if year_str in resort_data.years:
+            yd = resort_data.years[year_str]
+            for s in yd.seasons:
+                for p in s.periods:
+                    gantt_data.append(dict(Task=s.name, Start=p.start, Finish=p.end, Type="Season"))
+            for h in yd.holidays:
+                 gantt_data.append(dict(Task=h.name, Start=h.start_date, Finish=h.end_date, Type="Holiday"))
+        
+        if gantt_data:
+            df_g = pd.DataFrame(gantt_data)
+            fig = px.timeline(df_g, x_start="Start", x_end="Finish", y="Task", color="Type")
+            st.plotly_chart(fig)
 
 if __name__ == "__main__":
     main()
