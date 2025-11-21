@@ -632,7 +632,7 @@ def main():
             st.markdown(f"""
             - The **Rent** amount is calculated using **${rate:.2f} per point**.
             - {discount_text}
-            - When a discount applies, both the points required AND the rent cost are reduced.
+            - When a discount applies, the points required is reduced BUT the rent cost remains the same (based on the undiscounted points).
             - **Holiday points are for the entire holiday period (not daily averages).**
             - When your stay touches a holiday week, dates expand to cover the full holiday period.
             """)
