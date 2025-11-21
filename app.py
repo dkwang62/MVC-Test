@@ -422,7 +422,7 @@ def main():
             salvage = st.number_input("Salvage Value per Point ($)", value=3.0, step=0.1) if inc_d else 0.0
             owner_params = {
                 "disc_mul": 1 - (disc/100), "inc_m": inc_m, "inc_c": inc_c, "inc_d": inc_d,
-                "cap_rate": cap * coc / 365, "dep_rate": (cap - salvage) / life / 365
+                "cap_rate": cap * coc, "dep_rate": (cap - salvage) / life
             }
         else:
             adv = st.checkbox("More Options")
@@ -527,8 +527,8 @@ def main():
             st.markdown("""
             - Points used are floor(raw points * discount multiplier).
             - Maintenance cost is ceil(points * maintenance rate).
-            - Capital cost is ceil(points * (purchase price * cost of capital / 365)).
-            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life * 365))).
+            - Capital cost is ceil(points * (purchase price * cost of capital)).
+            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life))).
             - Total cost is sum of selected costs.
             - Holidays are grouped and costs accumulated.
             """)
