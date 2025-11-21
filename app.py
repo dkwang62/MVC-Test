@@ -393,7 +393,7 @@ class MVCCalculator:
                 new_row[room] = f"${val:,.0f}"
             pivot_rows.append(new_row)
             
-        # Total Row (Bottom of Pivot)
+        # Total Row
         total_label = "Total Cost (Non-Holiday)" if is_owner else "Total Rent (Non-Holiday)"
         tot_row = {"Date": total_label}
         for r in rooms:
@@ -432,6 +432,21 @@ class MVCCalculator:
 # ==============================================================================
 # LAYER 4: UI (Streamlit)
 # ==============================================================================
+
+def setup_page():
+    st.set_page_config(page_title="MVC Calculator", layout="wide")
+    st.markdown("""
+    <style>
+        .stButton button {
+            font-size: 12px !important;
+            padding: 5px 10px !important;
+            height: auto !important;
+        }
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 def main():
     # 1. Setup & State
@@ -590,26 +605,28 @@ def main():
         
         st.subheader("Room Type Comparison")
         st.dataframe(comp_res.pivot_df, use_container_width=True)
+        st.download_button("Download Comparison CSV", comp_res.pivot_df.to_csv(index=False), "comparison.csv")
         
         if not comp_res.daily_chart_df.empty:
             y_col = "TotalCostValue" if mode == UserMode.OWNER else "RentValue"
             clean_df = comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"] == "No"]
             if not clean_df.empty:
                 fig = px.bar(clean_df, x="Day", y=y_col, color="Room Type", barmode="group", 
-                             text=y_col, category_orders={"Day": ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]})
+                             title="Daily " + ("Cost" if mode == UserMode.OWNER else "Rent"),
+                             category_orders={"Day": ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]})
                 fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
                 st.plotly_chart(fig, use_container_width=True)
 
         if not comp_res.holiday_chart_df.empty:
             y_col = "TotalCostValue" if mode == UserMode.OWNER else "RentValue"
             h_fig = px.bar(comp_res.holiday_chart_df, x="Holiday", y=y_col, color="Room Type", 
-                           barmode="group", text=y_col)
+                           barmode="group", title="Holiday Week Comparison")
             h_fig.update_traces(texttemplate="$%{text:.0f}", textposition="auto")
             st.plotly_chart(h_fig, use_container_width=True)
 
     # Gantt Chart
     if gantt_fig:
-        st.subheader("Season and Holiday Schedule")
+        st.subheader("Season Calendar")
         st.plotly_chart(gantt_fig, use_container_width=True)
 
 if __name__ == "__main__":
