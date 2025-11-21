@@ -339,11 +339,11 @@ class MVCCalculator:
                     val = next((x[val_key] for x in daily_data if x["Date"] == d_obj and x["Room Type"] == room), 0.0)
                 new_row[room] = f"${val:,.2f}"
             pivot_rows.append(new_row)
-        total_label = "Total Cost (Non-Holiday)" if is_owner else "Total Rent (Non-Holiday)"
+        total_label = "Total Cost" if is_owner else "Total Rent"
         tot_row = {"Date": total_label}
         for r in rooms:
-            non_h_sum = sum(x[val_key] for x in daily_data if x["Room Type"] == r and x["Holiday"] == "No")
-            tot_row[r] = f"${non_h_sum:,.2f}"
+            tot_sum = sum(x[val_key] for x in daily_data if x["Room Type"] == r)
+            tot_row[r] = f"${tot_sum:,.2f}"
         pivot_rows.append(tot_row)
         h_chart_rows = []
         for r, h_map in holiday_data.items():
@@ -411,11 +411,8 @@ def main():
         policy = DiscountPolicy.NONE
         rate = def_rate
         if mode == UserMode.OWNER:
-            col1, col2 = st.columns(2)
-            with col1:
-                cap = st.number_input("Purchase Price per Point ($)", value=16.0, step=0.1)
-            with col2:
-                disc = st.selectbox("Last-Minute Discount", [0, 25, 30], format_func=lambda x: f"{x}%")
+            cap = st.number_input("Purchase Price per Point ($)", value=16.0, step=0.1)
+            disc = st.selectbox("Last-Minute Discount", [0, 25, 30], format_func=lambda x: f"{x}%")
             inc_m = st.checkbox("Include Maintenance Cost", True)
             rate = st.number_input("Maintenance Rate per Point ($)", value=def_rate, step=0.01) if inc_m else 0.0
             inc_c = st.checkbox("Include Capital Cost", True)
