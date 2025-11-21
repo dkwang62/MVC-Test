@@ -602,6 +602,25 @@ def main():
         pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
         st.success(f"Discount Applied: {pct} off points ({len(res.discounted_days)} day(s): {', '.join(res.discounted_days)})")
     st.success(f"Total Points Required: {res.total_points:,} | Total {'Rent' if mode == UserMode.RENTER else 'Cost'}: ${res.financial_total:,.2f}")
+    with st.expander("How the Calculation is Done"):
+        if mode == UserMode.OWNER:
+            st.markdown("""
+            - Points used are floor(raw points * discount multiplier).
+            - Maintenance cost is ceil(points * maintenance rate).
+            - Capital cost is ceil(points * (purchase price * cost of capital)).
+            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life))).
+            - Total cost is sum of selected costs.
+            - **Holiday points are for the entire holiday period (not daily averages).**
+            - When your stay touches a holiday week, dates expand to cover the full holiday period.
+            """)
+        else:
+            st.markdown("""
+            - Points required are floor(raw points * discount multiplier if applicable).
+            - Rent cost is ceil(effective points * rate) - based on the discounted points you're using.
+            - Discounts apply if booked within 30/60 days, reducing both points needed AND the cost.
+            - **Holiday points are for the entire holiday period (not daily averages).**
+            - When your stay touches a holiday week, dates expand to cover the full holiday period.
+            """)
     if mode == UserMode.OWNER:
         if owner_params['inc_m']: st.info(f"Maintenance: ${res.m_cost:,.2f}")
         if owner_params['inc_c']: st.info(f"Capital Cost: ${res.c_cost:,.2f}")
@@ -629,25 +648,6 @@ def main():
     if gantt_fig:
         st.subheader("Season and Holiday Schedule")
         st.plotly_chart(gantt_fig, use_container_width=True)
-    with st.expander("How the Calculation is Done"):
-        if mode == UserMode.OWNER:
-            st.markdown("""
-            - Points used are floor(raw points * discount multiplier).
-            - Maintenance cost is ceil(points * maintenance rate).
-            - Capital cost is ceil(points * (purchase price * cost of capital)).
-            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life))).
-            - Total cost is sum of selected costs.
-            - **Holiday points are for the entire holiday period (not daily averages).**
-            - When your stay touches a holiday week, dates expand to cover the full holiday period.
-            """)
-        else:
-            st.markdown("""
-            - Points required are floor(raw points * discount multiplier if applicable).
-            - Rent cost is ceil(effective points * rate) - based on the discounted points you're using.
-            - Discounts apply if booked within 30/60 days, reducing both points needed AND the cost.
-            - **Holiday points are for the entire holiday period (not daily averages).**
-            - When your stay touches a holiday week, dates expand to cover the full holiday period.
-            """)
 
 if __name__ == "__main__":
     main()
