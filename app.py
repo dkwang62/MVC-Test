@@ -158,9 +158,16 @@ class MVCCalculator:
         if year_str not in resort.years:
             return {}, None
         yd = resort.years[year_str]
+        
+        # Check if date falls within a holiday
         for h in yd.holidays:
             if h.start_date <= date <= h.end_date:
-                return h.room_points, h
+                # FIXED: Holiday points are for the entire period, need to divide by days
+                holiday_days = (h.end_date - h.start_date).days + 1
+                daily_points = {room: pts // holiday_days for room, pts in h.room_points.items()}
+                return daily_points, h
+        
+        # Not a holiday, check regular seasons
         dow_map = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
         dow = dow_map[date.weekday()]
         for s in yd.seasons:
@@ -224,7 +231,6 @@ class MVCCalculator:
                     dp = math.ceil(eff * owner_config.get('dep_rate', 0.0))
                 day_cost = m + c + dp
             else:
-                # FIXED: For renters, cost should be based on effective points, not raw points
                 day_cost = math.ceil(eff * rate)
             if holiday:
                 if curr_h != holiday.name:
@@ -319,7 +325,6 @@ class MVCCalculator:
                     if owner_config['inc_d']: dp = math.ceil(eff * owner_config['dep_rate'])
                     cost = m + c + dp
                 else:
-                    # FIXED: For renters, cost should be based on effective points
                     cost = math.ceil(eff * rate)
                 h_name = h.name if h else "No"
                 daily_data.append({
@@ -533,6 +538,7 @@ def main():
             - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life))).
             - Total cost is sum of selected costs.
             - Holidays are grouped and costs accumulated.
+            - **Holiday points in JSON are weekly totals, divided by number of days in the period.**
             """)
         else:
             st.markdown("""
@@ -540,6 +546,7 @@ def main():
             - Rent cost is ceil(effective points * rate) - based on the discounted points you're using.
             - Discounts apply if booked within 30/60 days, reducing both points needed AND the cost.
             - Holidays are grouped and costs accumulated.
+            - **Holiday points in JSON are weekly totals, divided by number of days in the period.**
             """)
 
 if __name__ == "__main__":
