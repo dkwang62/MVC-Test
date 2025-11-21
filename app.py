@@ -224,7 +224,7 @@ class MVCCalculator:
                     dp = math.ceil(eff * owner_config.get('dep_rate', 0.0))
                 day_cost = m + c + dp
             else:
-                day_cost = math.ceil(eff * rate)
+                day_cost = math.ceil(raw * rate)
             if holiday:
                 if curr_h != holiday.name:
                     curr_h = holiday.name
@@ -318,7 +318,7 @@ class MVCCalculator:
                     if owner_config['inc_d']: dp = math.ceil(eff * owner_config['dep_rate'])
                     cost = m + c + dp
                 else:
-                    cost = math.ceil(eff * rate)
+                    cost = math.ceil(raw * rate)
                 h_name = h.name if h else "No"
                 daily_data.append({
                     "Day": d.strftime("%a"), "Date": d, "Room Type": room,
@@ -449,10 +449,10 @@ def main():
     if not r_name:
         st.stop()
     st.title(f"Marriott Vacation Club {'Rent' if mode == UserMode.RENTER else 'Cost'} Calculator")
-    col1, col2 = st.columns(2)
-    with col1:
+    input_cols = st.columns([2, 2, 3, 3])
+    with input_cols[0]:
         checkin = st.date_input("Check-in Date", datetime.now().date() + timedelta(days=1))
-    with col2:
+    with input_cols[1]:
         nights = st.number_input("Number of Nights", 1, 60, 7)
     adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     if adj:
@@ -469,10 +469,9 @@ def main():
     if not room_types:
         st.error("No room data found.")
         st.stop()
-    col3, col4 = st.columns(2)
-    with col3:
+    with input_cols[2]:
         room_sel = st.selectbox("Select Room Type", room_types)
-    with col4:
+    with input_cols[3]:
         comp_rooms = st.multiselect("Compare With", [r for r in room_types if r != room_sel])
     year_str = str(adj_in.year)
     res_data = repo.get_resort(r_name)
@@ -491,7 +490,7 @@ def main():
         gantt_fig = px.timeline(gdf, x_start="Start", x_end="Finish", y="Task", color="Type", color_discrete_map=c_map, title=f"{r_name} Seasons")
     res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params)
     st.subheader(f"{r_name} {'Rental' if mode == UserMode.RENTER else 'Ownership Cost'} Breakdown")
-    st.dataframe(res.breakdown_df, use_container_width=True)
+    st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
     if res.discount_applied:
         pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
         st.success(f"Discount Applied: {pct} off points ({len(res.discounted_days)} day(s): {', '.join(res.discounted_days)})")
@@ -505,7 +504,7 @@ def main():
         all_rooms = [room_sel] + comp_rooms
         comp_res = calc.compare_stays(r_name, all_rooms, adj_in, adj_n, mode, rate, policy, owner_params)
         st.subheader("Room Type Comparison")
-        st.dataframe(comp_res.pivot_df, use_container_width=True)
+        st.dataframe(comp_res.pivot_df, use_container_width=True, hide_index=True)
         if not comp_res.daily_chart_df.empty:
             y_col = "TotalCostValue" if mode == UserMode.OWNER else "RentValue"
             clean_df = comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"] == "No"]
@@ -523,14 +522,23 @@ def main():
     if gantt_fig:
         st.subheader("Season and Holiday Schedule")
         st.plotly_chart(gantt_fig, use_container_width=True)
-    with st.expander("Calculation Details"):
-        st.markdown("""
-        - **Points**: Based on season, day of week, holidays from data.
-        - **Discounts**: For renters, last-minute (30/60 days). For owners, selected % off points.
-        - **Costs (Owner)**: Maintenance = ceil(points * rate), Capital = ceil(points * cap_rate), Depreciation = ceil(points * dep_rate).
-        - **Costs (Renter)**: ceil(points * rate).
-        - Holidays grouped and accumulated.
-        """)
+    with st.expander("How the Calculation is Done"):
+        if mode == UserMode.OWNER:
+            st.markdown("""
+            - Points used are floor(raw points * discount multiplier).
+            - Maintenance cost is ceil(points * maintenance rate).
+            - Capital cost is ceil(points * (purchase price * cost of capital / 365)).
+            - Depreciation cost is ceil(points * ((purchase price - salvage) / (useful life * 365))).
+            - Total cost is sum of selected costs.
+            - Holidays are grouped and costs accumulated.
+            """)
+        else:
+            st.markdown("""
+            - Points required are floor(raw points * discount multiplier if applicable).
+            - Rent cost is ceil(raw points * rate) - discount only reduces points, not rent.
+            - Discounts apply if booked within 30/60 days.
+            - Holidays are grouped and costs accumulated.
+            """)
 
 if __name__ == "__main__":
     main()
