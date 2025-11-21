@@ -605,16 +605,11 @@ def main():
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
-            - **Maintenance Cost**  
-            - Maintenance rate per point × number of points used that day.
-
-            - **Capital Cost**  
-            - Purchase price per point × capital cost rate × number of points used that day.  
-            - *(This represents the “cost of tying up your money.”)*
-
-            - **Depreciation Cost**  
-            - (Purchase price − salvage value) ÷ useful life × number of points used that day.  
-            - *(This spreads out your ownership cost over the years.)*
+            - **Maintenance Cost** = Maintenance rate per point × number of points used that day.
+            - **Capital Cost** = Purchase price per point × capital cost rate × number of points used that day.  
+                *(This represents the “cost of tying up your money.”)*
+            - **Depreciation Cost** = (Purchase price − salvage value) ÷ useful life × number of points used that day.  
+                *(This spreads out your ownership cost over the years.)*
             """)
         else:
             st.markdown("""
