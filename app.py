@@ -224,7 +224,8 @@ class MVCCalculator:
                     dp = math.ceil(eff * owner_config.get('dep_rate', 0.0))
                 day_cost = m + c + dp
             else:
-                day_cost = math.ceil(raw * rate)
+                # FIXED: For renters, cost should be based on effective points, not raw points
+                day_cost = math.ceil(eff * rate)
             if holiday:
                 if curr_h != holiday.name:
                     curr_h = holiday.name
@@ -318,7 +319,8 @@ class MVCCalculator:
                     if owner_config['inc_d']: dp = math.ceil(eff * owner_config['dep_rate'])
                     cost = m + c + dp
                 else:
-                    cost = math.ceil(raw * rate)
+                    # FIXED: For renters, cost should be based on effective points
+                    cost = math.ceil(eff * rate)
                 h_name = h.name if h else "No"
                 daily_data.append({
                     "Day": d.strftime("%a"), "Date": d, "Room Type": room,
@@ -457,7 +459,7 @@ def main():
     adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     if adj:
         end_date = adj_in + timedelta(days=adj_n - 1)
-        st.info(f"Adjusted to full holiday week: **{fmt_date(adj_in)} – {fmt_date(end_date)}** ({adj_n} nights)")
+        st.info(f"Adjusted to full holiday week: **{fmt_date(adj_in)} — {fmt_date(end_date)}** ({adj_n} nights)")
     pts, _ = calc._get_daily_points(repo.get_resort(r_name), adj_in)
     if not pts:
         rd = repo.get_resort(r_name)
@@ -535,8 +537,8 @@ def main():
         else:
             st.markdown("""
             - Points required are floor(raw points * discount multiplier if applicable).
-            - Rent cost is ceil(raw points * rate) - discount only reduces points, not rent.
-            - Discounts apply if booked within 30/60 days.
+            - Rent cost is ceil(effective points * rate) - based on the discounted points you're using.
+            - Discounts apply if booked within 30/60 days, reducing both points needed AND the cost.
             - Holidays are grouped and costs accumulated.
             """)
 
