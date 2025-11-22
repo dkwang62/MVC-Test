@@ -472,13 +472,28 @@ class MVCCalculator:
         resort = self.repo.get_resort(resort_name)
         if not resort or str(checkin.year) not in resort.years:
             return checkin, nights, False
+        
         end = checkin + timedelta(days=nights-1)
+        
+        # Find all holidays that overlap with the stay
+        overlapping_holidays = []
         for h in resort.years[str(checkin.year)].holidays:
             if h.start_date <= end and h.end_date >= checkin:
-                s = min(checkin, h.start_date)
-                e = max(end, h.end_date)
-                return s, (e-s).days + 1, True
-        return checkin, nights, False
+                overlapping_holidays.append(h)
+        
+        if not overlapping_holidays:
+            return checkin, nights, False
+        
+        # Find the earliest start and latest end among all overlapping holidays
+        earliest_start = min(h.start_date for h in overlapping_holidays)
+        latest_end = max(h.end_date for h in overlapping_holidays)
+        
+        # Extend to cover all holidays
+        adjusted_start = min(checkin, earliest_start)
+        adjusted_end = max(end, latest_end)
+        adjusted_nights = (adjusted_end - adjusted_start).days + 1
+        
+        return adjusted_start, adjusted_nights, True
 
 # ==============================================================================
 # LAYER 4: UI (Streamlit)
