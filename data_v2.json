@@ -11,10 +11,10 @@
   },
   "configuration": {
     "maintenance_rates": {
-      "2025": 0.81,
-      "2026": 0.86,
-      "2027": 0.91,
-      "2028": 0.96
+      "2025": 0.5,
+      "2026": 0.56,
+      "2027": 0.6,
+      "2028": 0.65
     },
     "discount_policies": {},
     "default_values": {}
@@ -3856,7 +3856,51 @@
                   "end": "2025-12-18"
                 }
               ],
-              "day_categories": {}
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "2BR S": 125,
+                    "2BR IS": 150,
+                    "2BR PS": 175,
+                    "2BR UV": 200,
+                    "2BR PSH": 225,
+                    "2BR US": 225,
+                    "2BR UF": 275,
+                    "3BR S": 200,
+                    "3BR IS": 225,
+                    "3BR PS": 250,
+                    "3BR PSH": 275,
+                    "3BR PHUF": 300
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "2BR S": 375,
+                    "2BR IS": 425,
+                    "2BR PS": 475,
+                    "2BR UV": 500,
+                    "2BR PSH": 650,
+                    "2BR US": 650,
+                    "2BR UF": 800,
+                    "3BR S": 500,
+                    "3BR IS": 575,
+                    "3BR PS": 725,
+                    "3BR PSH": 825,
+                    "3BR PHUF": 900
+                  }
+                }
+              }
             }
           ],
           "holidays": [
