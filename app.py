@@ -143,7 +143,7 @@ def generate_resort_id(name: str) -> str:
 
 
 def generate_resort_code(name: str) -> str:
-    parts = [p for p in name.replace("’", "'").split() if p]
+    parts = [p for p in name.replace("'", "'").split() if p]
     initials = "".join(p[0].upper() for p in parts[:3])
     return initials or "RST"
 
@@ -377,38 +377,6 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                                 f"✅ Cloned **{src.get('display_name', current_resort_id)}** → **{name}**"
                             )
                             st.rerun()
-
-
-
-        with col2:
-            existing_names = [r.get("display_name", r.get("id")) for r in resorts]
-            source_name = st.selectbox("Clone From", [""] + existing_names, key="clone_source_resort")
-            if st.button("Clone Current", key="clone_resort_btn") and new_name and source_name:
-                name = new_name.strip()
-                if not name:
-                    st.error("Resort name cannot be empty")
-                elif is_duplicate_resort_name(name, resorts):
-                    st.error("❌ Resort name already exists")
-                else:
-                    src = None
-                    for r in resorts:
-                        if r.get("display_name") == source_name:
-                            src = r
-                            break
-                    if src is None:
-                        st.error("Source resort not found")
-                    else:
-                        rid = generate_resort_id(name)
-                        code = generate_resort_code(name)
-                        cloned = copy.deepcopy(src)
-                        cloned["id"] = rid
-                        cloned["display_name"] = name
-                        cloned["code"] = code
-                        resorts.append(cloned)
-                        st.session_state.current_resort_id = rid
-                        save_data()
-                        st.success(f"✅ Cloned **{source_name}** → **{name}**")
-                        st.rerun()
 
 
 def handle_resort_deletion_v2(data: Dict[str, Any], current_resort_id: Optional[str]):
@@ -671,8 +639,6 @@ def add_room_type_master(working: Dict[str, Any], room: str, base_year: str):
             rp.setdefault(room, 0)
 
 
-
-
 def delete_room_type_master(working: Dict[str, Any], room: str):
     """Delete a room type from all seasons and holidays in all years."""
     years = working.get("years", {})
@@ -926,6 +892,15 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     """
     st.subheader("🎄 Resort Holiday Setup (per Year)")
     all_rooms = get_all_room_types_for_resort(working)
+    
+    # Determine base year early (same logic as seasons)
+    if years:
+        if BASE_YEAR_FOR_POINTS in years:
+            base_year = BASE_YEAR_FOR_POINTS
+        else:
+            base_year = sorted(years)[0]
+    else:
+        base_year = BASE_YEAR_FOR_POINTS
 
     # -------------------------------
     # PER-YEAR HOLIDAY LISTS (no points here)
@@ -974,6 +949,7 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
                     if st.button("Delete", key=rk(resort_id, "holiday_del", year, h_idx)):
                         holidays.pop(h_idx)
                         st.rerun()
+    
     sync_holiday_room_points_across_years(working, base_year=base_year)         
 
     # -------------------------------
@@ -988,12 +964,6 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     if not years:
         st.info("No years defined yet.")
         return
-
-    # Choose base year (same logic as seasons)
-    if BASE_YEAR_FOR_POINTS in years:
-        base_year = BASE_YEAR_FOR_POINTS
-    else:
-        base_year = sorted(years)[0]
 
     base_year_obj = ensure_year_structure(working, base_year)
     base_holidays = base_year_obj.get("holidays", [])
