@@ -621,6 +621,7 @@ def main():
     st.success(f"Total Points Required: {res.total_points:,} | Total {'Rent' if mode == UserMode.RENTER else 'Cost'}: ${res.financial_total:,.2f}")
     
     
+    
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
