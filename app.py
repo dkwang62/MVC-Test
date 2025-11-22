@@ -620,6 +620,7 @@ def main():
         st.success(f"Discount Applied: {pct} off points ({len(res.discounted_days)} day(s): {', '.join(res.discounted_days)})")
     st.success(f"Total Points Required: {res.total_points:,} | Total {'Rent' if mode == UserMode.RENTER else 'Cost'}: ${res.financial_total:,.2f}")
     
+    
     with st.expander("How the Calculation is Done"):
         if mode == UserMode.OWNER:
             st.markdown("""
