@@ -539,8 +539,8 @@ def main():
         else:
             adv = st.checkbox("More Options")
             if adv:
-                opt = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate",
-                                               "Booked within 60 days", "Booked within 30 days"])
+                opt = st.radio("Rate Option", ["Based on Maintenance Rate (No Discount)", "Custom Rate (No Discount)",
+                                               "Presidential/Chairman: 30% Points Discount (Booked within 60 days)", "Executive: 25% Points Discount (Booked within 30 days)"])
                 if opt == "Custom Rate":
                     rate = st.number_input("Custom Rate per Point ($)", value=def_rate, step=0.01)
                 elif "60 days" in opt:
