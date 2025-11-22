@@ -347,7 +347,7 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
 
         # --- Clone Current (selected resort) ---
         with col2:
-            if st.button("Clone Current", key="clone_resort_btn") and new_name:
+            if st.button("Clone Current", key="clone_current_resort_action") and new_name:
                 name = new_name.strip()
                 if not name:
                     st.error("Resort name cannot be empty")
@@ -362,12 +362,14 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                             st.error("Source resort not found (maybe it was deleted).")
                         else:
                             base_id = generate_resort_id(name)
-                            rid = make_unique_resort_id(base_id, resorts)
+                            rid= make_unique_resort_id(base_id, resorts)
                             code = generate_resort_code(name)
+
                             cloned = copy.deepcopy(src)
                             cloned["id"] = rid
                             cloned["display_name"] = name
                             cloned["code"] = code
+
                             resorts.append(cloned)
                             st.session_state.current_resort_id = rid
                             save_data()
@@ -375,6 +377,7 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                                 f"✅ Cloned **{src.get('display_name', current_resort_id)}** → **{name}**"
                             )
                             st.rerun()
+
 
 
         with col2:
