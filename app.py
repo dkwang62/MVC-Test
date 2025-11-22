@@ -672,6 +672,7 @@ def add_room_type_master(working: Dict[str, Any], room: str, base_year: str):
 
 
 
+
 def delete_room_type_master(working: Dict[str, Any], room: str):
     """Delete a room type from all seasons and holidays in all years."""
     years = working.get("years", {})
@@ -813,6 +814,7 @@ def sync_holiday_room_points_across_years(working: Dict[str, Any], base_year: st
                     base_by_key[key].get("room_points", {})
                 )
 
+
 # ----------------------------------------------------------------------
 # MASTER REFERENCE POINTS EDITOR (year-independent UI)
 # ----------------------------------------------------------------------
@@ -919,19 +921,19 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     Holiday management:
 
     - Per-year section: add/remove holidays, set display name & global_reference.
-      (No points are edited here.)
     - Master section: edit holiday room_points once (base year),
       then sync to all years for matching holidays.
     """
-    # -------------------------------------------------
-    # PER-YEAR HOLIDAY LISTS (WHICH HOLIDAYS APPLY)
-    # -------------------------------------------------
-    st.subheader("🎄 Resort Holidays per Year (which holidays apply)")
+    st.subheader("🎄 Resort Holiday Setup (per Year)")
+    all_rooms = get_all_room_types_for_resort(working)
 
+    # -------------------------------
+    # PER-YEAR HOLIDAY LISTS (no points here)
+    # -------------------------------
     for year in years:
         year_obj = ensure_year_structure(working, year)
         holidays = year_obj.get("holidays", [])
-        with st.expander(f"{year} Holidays", expanded=True):
+        with st.expander(f"{year} Holidays (which holidays apply)", expanded=True):
             col1, col2 = st.columns([4, 1])
             with col1:
                 new_name = st.text_input(
@@ -948,7 +950,7 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
                     })
                     st.rerun()
 
-            # Existing holidays: only name + global_reference, no points here
+            # Existing holidays
             for h_idx, h in enumerate(holidays):
                 st.markdown(f"**{h.get('name', f'Holiday {h_idx+1}')}**")
                 coln1, coln2, coln3 = st.columns([3, 3, 1])
@@ -972,21 +974,22 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
                     if st.button("Delete", key=rk(resort_id, "holiday_del", year, h_idx)):
                         holidays.pop(h_idx)
                         st.rerun()
+    sync_holiday_room_points_across_years(working, base_year=base_year)         
 
-    # -------------------------------------------------
-    # MASTER HOLIDAY ROOM POINTS (ONE PLACE TO EDIT)
-    # -------------------------------------------------
+    # -------------------------------
+    # MASTER HOLIDAY ROOM POINTS (one source of truth)
+    # -------------------------------
     st.subheader("🎯 Master Holiday Room Points (applied to all years)")
     st.caption(
         "Edit holiday room points once here. For each holiday with the same "
-        "global_reference (or name), these values will be applied to every year."
+        "global_reference/name, these values will be applied to all years."
     )
 
     if not years:
         st.info("No years defined yet.")
         return
 
-    # Choose base year the same way we do for seasons
+    # Choose base year (same logic as seasons)
     if BASE_YEAR_FOR_POINTS in years:
         base_year = BASE_YEAR_FOR_POINTS
     else:
@@ -996,62 +999,62 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     base_holidays = base_year_obj.get("holidays", [])
 
     if not base_holidays:
-        st.info(
-            f"No holidays defined in base year {base_year}. "
-            f"Add holidays in the per-year section above first."
-        )
-        return
+        st.info(f"No holidays defined in base year {base_year}. "
+                f"Add holidays in the per-year section above first.")
+    else:
+        if not all_rooms:
+            # Even if there are no rooms yet, let user define per-holiday rooms,
+            # and they will be included in resort room set.
+            all_rooms = get_all_room_types_for_resort(working)
 
-    all_rooms = get_all_room_types_for_resort(working)
+        for h_idx, h in enumerate(base_holidays):
+            disp_name = h.get("name", f"Holiday {h_idx+1}")
+            key = (h.get("global_reference") or h.get("name") or "").strip()
+            st.markdown(f"**{disp_name}**  "
+                        f"<span style='font-size: 12px; color: #666;'>(key: {key or '—'})</span>",
+                        unsafe_allow_html=True)
 
-    for h_idx, h in enumerate(base_holidays):
-        disp_name = h.get("name", f"Holiday {h_idx+1}")
-        key = (h.get("global_reference") or h.get("name") or "").strip()
-        st.markdown(
-            f"**{disp_name}**  "
-            f"<span style='font-size: 12px; color: #666;'>(key: {key or '—'})</span>",
-            unsafe_allow_html=True
-        )
+            rp = h.setdefault("room_points", {})
+            if not isinstance(rp, dict):
+                h["room_points"] = {}
+                rp = h["room_points"]
 
-        rp = h.setdefault("room_points", {})
-        if not isinstance(rp, dict):
-            h["room_points"] = {}
-            rp = h["room_points"]
+            # If there are known resort rooms, use them; else fall back to what's in rp
+            rooms_here = sorted(all_rooms or rp.keys())
+            if not rooms_here and rp:
+                rooms_here = sorted(rp.keys())
 
-        rooms_here = sorted(all_rooms or rp.keys())
-        if not rooms_here and rp:
-            rooms_here = sorted(rp.keys())
+            cols = st.columns(4)
 
-        cols = st.columns(4)
-        for j, room in enumerate(rooms_here):
-            if room not in rp:
-                rp[room] = 0
-            with cols[j % 4]:
-                current_val = int(rp.get(room, 0) or 0)
-                new_val = st.number_input(
-                    room,
-                    value=current_val,
-                    step=25,
-                    key=rk(resort_id, "holiday_master_rp", base_year, h_idx, room)
-                )
-                if new_val != current_val:
-                    rp[room] = int(new_val)
+            for j, room in enumerate(rooms_here):
+                if room not in rp:
+                    rp[room] = 0
+                with cols[j % 4]:
+                    current_val = int(rp.get(room, 0) or 0)
+                    new_val = st.number_input(
+                        f"{room}",
+                        value=current_val,
+                        step=25,
+                        key=rk(resort_id, "holiday_master_rp", base_year, h_idx, room)
+                    )
+                    if new_val != current_val:
+                        rp[room] = int(new_val)
 
-        # Optional: add new room type to this holiday (also becomes a resort room)
-        new_h_room = st.text_input(
-            "Add Room Type to this Holiday",
-            key=rk(resort_id, "holiday_master_add_room", base_year, h_idx),
-            placeholder="e.g. 2BR OV"
-        )
-        if st.button(
-            "Add Room Type",
-            key=rk(resort_id, "holiday_master_add_room_btn", base_year, h_idx)
-        ) and new_h_room:
-            rp.setdefault(new_h_room.strip(), 1500)
-            st.rerun()
+            # Optional: allow adding a new room specific to this holiday
+            new_h_room = st.text_input(
+                "Add Room Type to this Holiday",
+                key=rk(resort_id, "holiday_master_add_room", base_year, h_idx),
+                placeholder="e.g. 2BR OV"
+            )
+            if st.button("Add Room Type", key=rk(resort_id, "holiday_master_add_room_btn", base_year, h_idx)) and new_h_room:
+                rp.setdefault(new_h_room.strip(), 1500)
+                # Also consider this a resort room
+                # (will be picked up by get_all_room_types_for_resort next run)
+                st.rerun()
 
-    # Sync master points to all years
+    # After any edits, sync holiday room points across all years
     sync_holiday_room_points_across_years(working, base_year=base_year)
+
 
 # ----------------------------------------------------------------------
 # RESORT SUMMARY – WEEKLY POINTS (7 NIGHTS) FOR V2
