@@ -147,6 +147,17 @@ def generate_resort_code(name: str) -> str:
     initials = "".join(p[0].upper() for p in parts[:3])
     return initials or "RST"
 
+def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
+    """Ensure the resort id is unique within the list of resorts."""
+    existing = {r.get("id") for r in resorts}
+    if base_id not in existing:
+        return base_id
+    i = 2
+    new_id = f"{base_id}-{i}"
+    while new_id in existing:
+        i += 1
+        new_id = f"{base_id}-{i}"
+    return new_id
 
 # ----------------------------------------------------------------------
 # FILE UPLOAD/DOWNLOAD (V2)
@@ -298,12 +309,18 @@ def is_duplicate_resort_name(name: str, resorts: List[Dict[str, Any]]) -> bool:
     return False
 
 
-def handle_resort_creation_v2(data: Dict[str, Any]):
+def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[str]):
     resorts = data.setdefault("resorts", [])
+
     with st.expander("➕ Add / Clone Resort", expanded=True):
-        new_name = st.text_input("Resort Name", placeholder="Pulse San Francisco", key="new_resort_name")
+        new_name = st.text_input(
+            "Resort Name",
+            placeholder="Pulse San Francisco",
+            key="new_resort_name"
+        )
         col1, col2 = st.columns(2)
 
+        # --- Create Blank ---
         with col1:
             if st.button("Create Blank", key="create_blank_btn") and new_name:
                 name = new_name.strip()
@@ -312,7 +329,8 @@ def handle_resort_creation_v2(data: Dict[str, Any]):
                 elif is_duplicate_resort_name(name, resorts):
                     st.error("❌ Resort name already exists")
                 else:
-                    rid = generate_resort_id(name)
+                    base_id = generate_resort_id(name)
+                    rid = make_unique_resort_id(base_id, resorts)
                     code = generate_resort_code(name)
                     new_resort = {
                         "id": rid,
@@ -326,6 +344,38 @@ def handle_resort_creation_v2(data: Dict[str, Any]):
                     st.session_state.current_resort_id = rid
                     save_data()
                     st.rerun()
+
+        # --- Clone Current (selected resort) ---
+        with col2:
+            if st.button("Clone Current", key="clone_resort_btn") and new_name:
+                name = new_name.strip()
+                if not name:
+                    st.error("Resort name cannot be empty")
+                elif is_duplicate_resort_name(name, resorts):
+                    st.error("❌ Resort name already exists")
+                else:
+                    if not current_resort_id:
+                        st.error("Select a resort from the grid to clone first.")
+                    else:
+                        src = find_resort_by_id(data, current_resort_id)
+                        if src is None:
+                            st.error("Source resort not found (maybe it was deleted).")
+                        else:
+                            base_id = generate_resort_id(name)
+                            rid = make_unique_resort_id(base_id, resorts)
+                            code = generate_resort_code(name)
+                            cloned = copy.deepcopy(src)
+                            cloned["id"] = rid
+                            cloned["display_name"] = name
+                            cloned["code"] = code
+                            resorts.append(cloned)
+                            st.session_state.current_resort_id = rid
+                            save_data()
+                            st.success(
+                                f"✅ Cloned **{src.get('display_name', current_resort_id)}** → **{name}**"
+                            )
+                            st.rerun()
+
 
         with col2:
             existing_names = [r.get("display_name", r.get("id")) for r in resorts]
@@ -1330,7 +1380,7 @@ def main():
 
     render_resort_grid(resorts, current_resort_id)
     handle_resort_switch_v2(data, current_resort_id, previous_resort_id)
-    handle_resort_creation_v2(data)
+    handle_resort_creation_v2(data, current_resort_id)
 
     working = None
     if current_resort_id:
