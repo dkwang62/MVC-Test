@@ -711,45 +711,52 @@ def compute_weekly_totals_for_season_v2(season: Dict[str, Any], room_types: List
 
 def render_resort_summary_v2(working: Dict[str, Any]):
     """
-    Compact summary:
-    - One row per unique Season name (across all years)
-    - One column per room type
-    - Value = total points for a 7-night stay (computed from the FIRST year where season appears)
-    - Ignores holidays.
+    Compact summary matching the old V1 report:
+
+    - Use a single 'reference year' for the resort (earliest year that has seasons).
+    - One row per Season (in the order they appear in that year).
+    - One column per room type.
+    - Value = total points for a 7-night stay for that season.
+    - Holidays are ignored.
     """
     st.subheader("📋 Resort Summary – Weekly Points (7 nights)")
 
-    ref_years = working.get("years", {})
-    if not ref_years:
+    resort_years = working.get("years", {})
+    if not resort_years:
         st.info("No year/season data defined yet for this resort.")
         return
 
+    # Determine reference year: earliest year that has at least one season
+    ref_year = None
+    for y in sorted(resort_years.keys()):
+        seasons = resort_years[y].get("seasons", [])
+        if seasons:
+            ref_year = y
+            break
+
+    if ref_year is None:
+        st.info("No seasons with date/rate data to summarise.")
+        return
+
+    year_obj = resort_years[ref_year]
+    seasons = year_obj.get("seasons", [])
+
+    # Collect all room types across the resort (same as V1 reference_points)
     room_types = get_all_room_types_for_resort(working)
     if not room_types:
         st.info("No room types found in this resort.")
         return
 
-    # Map season_name -> season_object (take first occurrence across years, in chronological order)
-    season_map: Dict[str, Dict[str, Any]] = {}
-    for year in sorted(ref_years.keys()):
-        for season in ref_years[year].get("seasons", []):
-            sname = season.get("name", "").strip()
-            if not sname:
-                continue
-            if sname not in season_map:
-                season_map[sname] = season
-
-    if not season_map:
-        st.info("No seasons found to summarise.")
-        return
-
+    # Build rows: one per season, in order defined for that reference year
     rows: List[Dict[str, Any]] = []
+    for season in seasons:
+        sname = season.get("name", "").strip() or "(Unnamed Season)"
 
-    for sname in sorted(season_map.keys()):
-        season = season_map[sname]
         weekly_totals, any_data = compute_weekly_totals_for_season_v2(season, room_types)
         if not any_data:
+            # If that season has no usable rate data, skip it (same behaviour as old code)
             continue
+
         row: Dict[str, Any] = {"Season": sname}
         for room in room_types:
             row[room] = "" if weekly_totals[room] == 0 else weekly_totals[room]
@@ -759,6 +766,7 @@ def render_resort_summary_v2(working: Dict[str, Any]):
         st.info("No usable rate data to compute weekly totals.")
         return
 
+    # Keep the same format: Season column first, then room types
     df = pd.DataFrame(rows, columns=["Season"] + room_types)
     st.dataframe(df, use_container_width=True)
 
@@ -1236,14 +1244,14 @@ def main():
         # Season dates
         render_season_dates_editor_v2(working, years, current_resort_id)
 
+        # Resort weekly summary (7 nights)
+        render_resort_summary_v2(working)
+
         # Season room points
         render_reference_points_editor_v2(working, years, current_resort_id)
 
         # Holiday room points per resort
         render_holiday_management_v2(working, years, current_resort_id)
-
-        # Resort weekly summary (7 nights)
-        render_resort_summary_v2(working)
 
     # Global settings at bottom
     render_global_settings_v2(data, years)
