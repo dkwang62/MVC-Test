@@ -496,17 +496,29 @@ def main():
         st.session_state.data = None
     if "current_resort" not in st.session_state:
         st.session_state.current_resort = None
+    if "uploaded_file_name" not in st.session_state:
+        st.session_state.uploaded_file_name = None
+        
+    # Try to load default file only once on first run
     if st.session_state.data is None:
         try:
             with open("data_v2.json", "r") as f:
                 st.session_state.data = json.load(f)
+                st.session_state.uploaded_file_name = "data_v2.json"
         except:
             pass
+    
     with st.sidebar:
         uploaded_file = st.file_uploader("Upload JSON file", type="json")
-        if uploaded_file:
-            st.session_state.data = json.load(uploaded_file)
-            st.rerun()
+        if uploaded_file and uploaded_file.name != st.session_state.uploaded_file_name:
+            try:
+                st.session_state.data = json.load(uploaded_file)
+                st.session_state.uploaded_file_name = uploaded_file.name
+                st.session_state.current_resort = None  # Reset resort selection
+                st.success(f"Loaded {uploaded_file.name}")
+            except Exception as e:
+                st.error(f"Error loading file: {str(e)}")
+                
     if not st.session_state.data:
         st.warning("Please upload data_v2.json or ensure it exists.")
         st.stop()
@@ -539,8 +551,8 @@ def main():
         else:
             adv = st.checkbox("More Options")
             if adv:
-                opt = st.radio("Rate Option", ["Based on Maintenance Rate (No Discount)", "Custom Rate (No Discount)",
-                                               "Presidential/Chairman: 30% Points Discount (Booked within 60 days)", "Executive: 25% Points Discount (Booked within 30 days)"])
+                opt = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate",
+                                               "Booked within 60 days", "Booked within 30 days"])
                 if opt == "Custom Rate":
                     rate = st.number_input("Custom Rate per Point ($)", value=def_rate, step=0.01)
                 elif "60 days" in opt:
