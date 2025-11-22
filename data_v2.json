@@ -20734,6 +20734,419 @@
           ]
         }
       }
+    },
+    {
+      "id": "harbour-lake-orlando",
+      "display_name": "Harbour Lake Orlando",
+      "code": "HLO",
+      "region": "Unknown",
+      "timezone": "UTC",
+      "years": {
+        "2025": {
+          "seasons": [
+            {
+              "name": "High Season",
+              "periods": [
+                {
+                  "start": "2025-01-03",
+                  "end": "2025-02-13"
+                },
+                {
+                  "start": "2025-04-11",
+                  "end": "2025-05-01"
+                },
+                {
+                  "start": "2025-06-06",
+                  "end": "2025-07-03"
+                },
+                {
+                  "start": "2025-07-11",
+                  "end": "2025-08-28"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 165,
+                    "2-BR": 275,
+                    "0-Studio": 110
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 375,
+                    "2-BR": 650,
+                    "0-Studio": 275
+                  }
+                }
+              }
+            },
+            {
+              "name": "Peak Season",
+              "periods": [
+                {
+                  "start": "2025-02-21",
+                  "end": "2025-04-10"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 185,
+                    "2-BR": 300,
+                    "0-Studio": 135
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 425,
+                    "2-BR": 700,
+                    "0-Studio": 300
+                  }
+                }
+              }
+            },
+            {
+              "name": "Low Season",
+              "periods": [
+                {
+                  "start": "2025-05-02",
+                  "end": "2025-06-05"
+                },
+                {
+                  "start": "2025-12-05",
+                  "end": "2025-12-18"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 115,
+                    "2-BR": 175,
+                    "0-Studio": 65
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 250,
+                    "2-BR": 425,
+                    "0-Studio": 180
+                  }
+                }
+              }
+            },
+            {
+              "name": "Mid Season",
+              "periods": [
+                {
+                  "start": "2025-08-29",
+                  "end": "2025-12-04"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 140,
+                    "2-BR": 225,
+                    "0-Studio": 90
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 350,
+                    "2-BR": 550,
+                    "0-Studio": 225
+                  }
+                }
+              }
+            }
+          ],
+          "holidays": [
+            {
+              "name": "Presidents Day",
+              "global_reference": "Presidents Day",
+              "room_points": {
+                "1-BR": 2175,
+                "2-BR": 3225,
+                "0-Studio": 1625
+              }
+            },
+            {
+              "name": "Independence Day",
+              "global_reference": "Independence Day",
+              "room_points": {
+                "1-BR": 1725,
+                "2-BR": 2684,
+                "0-Studio": 1025
+              }
+            },
+            {
+              "name": "Christmas",
+              "global_reference": "Christmas",
+              "room_points": {
+                "1-BR": 1950,
+                "2-BR": 2900,
+                "0-Studio": 1275
+              }
+            },
+            {
+              "name": "NewYear",
+              "global_reference": "NewYear",
+              "room_points": {
+                "1-BR": 2175,
+                "2-BR": 3234,
+                "0-Studio": 1625
+              }
+            }
+          ]
+        },
+        "2026": {
+          "seasons": [
+            {
+              "name": "High Season",
+              "periods": [
+                {
+                  "start": "2026-01-02",
+                  "end": "2026-02-12"
+                },
+                {
+                  "start": "2026-04-10",
+                  "end": "2026-04-30"
+                },
+                {
+                  "start": "2026-06-05",
+                  "end": "2026-07-02"
+                },
+                {
+                  "start": "2026-07-10",
+                  "end": "2026-08-27"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 165,
+                    "2-BR": 275,
+                    "0-Studio": 110
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 375,
+                    "2-BR": 650,
+                    "0-Studio": 275
+                  }
+                }
+              }
+            },
+            {
+              "name": "Peak Season",
+              "periods": [
+                {
+                  "start": "2026-02-20",
+                  "end": "2026-04-09"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 185,
+                    "2-BR": 300,
+                    "0-Studio": 135
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 425,
+                    "2-BR": 700,
+                    "0-Studio": 300
+                  }
+                }
+              }
+            },
+            {
+              "name": "Low Season",
+              "periods": [
+                {
+                  "start": "2026-05-01",
+                  "end": "2026-06-04"
+                },
+                {
+                  "start": "2026-12-04",
+                  "end": "2026-12-17"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 115,
+                    "2-BR": 175,
+                    "0-Studio": 65
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 250,
+                    "2-BR": 425,
+                    "0-Studio": 180
+                  }
+                }
+              }
+            },
+            {
+              "name": "Mid Season",
+              "periods": [
+                {
+                  "start": "2026-08-28",
+                  "end": "2026-12-03"
+                }
+              ],
+              "day_categories": {
+                "sun_thu": {
+                  "day_pattern": [
+                    "Sun",
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "1-BR": 140,
+                    "2-BR": 225,
+                    "0-Studio": 90
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "1-BR": 350,
+                    "2-BR": 550,
+                    "0-Studio": 225
+                  }
+                }
+              }
+            }
+          ],
+          "holidays": [
+            {
+              "name": "Presidents Day",
+              "global_reference": "Presidents Day",
+              "room_points": {
+                "1-BR": 2175,
+                "2-BR": 3225,
+                "0-Studio": 1625
+              }
+            },
+            {
+              "name": "Independence Day",
+              "global_reference": "Independence Day",
+              "room_points": {
+                "1-BR": 1725,
+                "2-BR": 2684,
+                "0-Studio": 1025
+              }
+            },
+            {
+              "name": "Christmas",
+              "global_reference": "Christmas",
+              "room_points": {
+                "1-BR": 1950,
+                "2-BR": 2900,
+                "0-Studio": 1275
+              }
+            },
+            {
+              "name": "NewYear",
+              "global_reference": "NewYear",
+              "room_points": {
+                "1-BR": 2175,
+                "2-BR": 3234,
+                "0-Studio": 1625
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "migration_notes": {
