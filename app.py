@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 # CONSTANTS
 # ----------------------------------------------------------------------
 DEFAULT_YEARS = ["2025", "2026"]  # fallback if no years found in data
+BASE_YEAR_FOR_POINTS = "2025"     # 2025 is the master year for rates
 
 DEFAULT_POINTS = {
     "Mon-Thu": 100,
@@ -525,6 +526,9 @@ def render_single_season_v2(year_obj: Dict[str, Any], year: str,
         st.rerun()
 
 
+# ----------------------------------------------------------------------
+# ROOM TYPE HELPERS
+# ----------------------------------------------------------------------
 def get_all_room_types_for_resort(working: Dict[str, Any]) -> List[str]:
     rooms: Set[str] = set()
     for year, year_obj in working.get("years", {}).items():
@@ -541,17 +545,117 @@ def get_all_room_types_for_resort(working: Dict[str, Any]) -> List[str]:
     return sorted(rooms)
 
 
+# ----------------------------------------------------------------------
+# SYNC: ENFORCE SAME ROOMS & SAME POINTS ACROSS YEARS
+# ----------------------------------------------------------------------
+def sync_season_room_points_across_years(working: Dict[str, Any], base_year: str = BASE_YEAR_FOR_POINTS):
+    """
+    Enforce:
+      1) The set of room types is the SAME for every season in every year.
+      2) Points for a given season name are copied from the base year to all other years.
+
+    Rules:
+      - Canonical room set = union of all rooms in all seasons, all years.
+      - We then ensure the base year contains all canonical rooms in all its day_categories.
+      - Finally, for other years, for each season with the same name, we deep-copy
+        the base year's day_categories (including room_points).
+    """
+    years = working.get("years", {})
+    if not years or base_year not in years:
+        return
+
+    # 1) Canonical room set from ALL seasons in ALL years
+    canonical_rooms: Set[str] = set()
+    for y_obj in years.values():
+        for season in y_obj.get("seasons", []):
+            for cat in season.get("day_categories", {}).values():
+                rp = cat.get("room_points", {})
+                if isinstance(rp, dict):
+                    canonical_rooms |= set(rp.keys())
+
+    if not canonical_rooms:
+        return
+
+    base_year_obj = years[base_year]
+    base_seasons = base_year_obj.get("seasons", [])
+
+    # Helper: find a default value for a (cat_key, room) from any base season
+    def find_default_for(cat_key: str, room: str) -> int:
+        for s in base_seasons:
+            dc2 = s.get("day_categories", {})
+            if cat_key in dc2:
+                rp2 = dc2[cat_key].get("room_points", {})
+                if isinstance(rp2, dict) and room in rp2:
+                    return int(rp2[room])
+        return 0
+
+    # 2) Ensure base-year seasons themselves have the full canonical room set
+    for season in base_seasons:
+        dc = season.setdefault("day_categories", {})
+        for cat_key, cat in dc.items():
+            rp = cat.setdefault("room_points", {})
+            if not isinstance(rp, dict):
+                cat["room_points"] = {}
+                rp = cat["room_points"]
+            # Add missing rooms
+            for room in canonical_rooms:
+                if room not in rp:
+                    rp[room] = find_default_for(cat_key, room)
+
+            # Remove stray rooms not in canonical (shouldn't really happen)
+            for room in list(rp.keys()):
+                if room not in canonical_rooms:
+                    del rp[room]
+
+    # Map base seasons by name, AFTER we have cleaned them
+    base_by_name: Dict[str, Dict[str, Any]] = {
+        s.get("name", ""): s for s in base_seasons if s.get("name")
+    }
+
+    # 3) For all other years, copy day_categories from base year for matching season names
+    for year_name, year_obj in years.items():
+        if year_name == base_year:
+            continue
+        for season in year_obj.get("seasons", []):
+            name = season.get("name", "")
+            if name in base_by_name:
+                season["day_categories"] = copy.deepcopy(
+                    base_by_name[name].get("day_categories", {})
+                )
+
+
+# ----------------------------------------------------------------------
+# REFERENCE POINTS EDITOR (V2) – ENFORCING RULES
+# ----------------------------------------------------------------------
 def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str], resort_id: str):
-    st.subheader("🎯 Season Room Points (by Year → Season → Day Category)")
-    all_rooms = get_all_room_types_for_resort(working)
+    """
+    Edit room points:
+
+    - Only BASE_YEAR_FOR_POINTS (2025) is editable.
+    - Other years are read-only and auto-synced from 2025.
+    - After any edit, sync_season_room_points_across_years() enforces:
+        • same room set for every season
+        • same points across years for same season name
+    """
+    st.subheader("🎯 Season Room Points (2025 is the master year)")
+    st.caption("Edit rates in 2025 only. All other years will automatically mirror 2025 for the same season names and room types.")
 
     for year in years:
         year_obj = ensure_year_structure(working, year)
-        with st.expander(f"{year} – Seasons & Rates", expanded=True):
-            for s_idx, season in enumerate(year_obj.get("seasons", [])):
+        seasons = year_obj.get("seasons", [])
+
+        editable = (year == BASE_YEAR_FOR_POINTS)
+
+        with st.expander(f"{year} – Seasons & Rates {'(editable)' if editable else '(mirrored from 2025)'}", expanded=(year == BASE_YEAR_FOR_POINTS)):
+            if not seasons:
+                st.info("No seasons defined yet for this year.")
+                continue
+
+            for s_idx, season in enumerate(seasons):
                 st.markdown(f"**Season: {season.get('name', f'Season {s_idx+1}')}**")
                 dc = season.setdefault("day_categories", {})
                 if not dc:
+                    # Default structure when user first adds a season
                     dc["sun_thu"] = {
                         "day_pattern": ["Sun", "Mon", "Tue", "Wed", "Thu"],
                         "room_points": {}
@@ -561,37 +665,57 @@ def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str],
                         "room_points": {}
                     }
 
-                for key, cat in dc.items():
-                    st.write(f"- **Day Category Key:** `{key}`")
-                    day_pattern = cat.setdefault("day_pattern", [])
-                    room_points = cat.setdefault("room_points", {})
-                    cols = st.columns(4)
-                    st.caption(f"Days: {', '.join(day_pattern) if day_pattern else '(not set)'}")
+                if editable:
+                    # FULL editor (number inputs, add room, etc.)
+                    all_rooms = get_all_room_types_for_resort(working)
+                    for key, cat in dc.items():
+                        st.write(f"- **Day Category Key:** `{key}`")
+                        day_pattern = cat.setdefault("day_pattern", [])
+                        room_points = cat.setdefault("room_points", {})
+                        cols = st.columns(4)
+                        st.caption(f"Days: {', '.join(day_pattern) if day_pattern else '(not set)'}")
 
-                    rooms_here = sorted(room_points.keys())
-                    if not rooms_here and all_rooms:
-                        rooms_here = all_rooms
+                        rooms_here = sorted(room_points.keys())
+                        if not rooms_here and all_rooms:
+                            rooms_here = all_rooms
 
-                    for j, room in enumerate(rooms_here):
-                        with cols[j % 4]:
-                            current_val = int(room_points.get(room, 0) or 0)
-                            new_val = st.number_input(
-                                f"{room}",
-                                value=current_val,
-                                step=25,
-                                key=rk(resort_id, "rp", year, s_idx, key, room)
+                        for j, room in enumerate(rooms_here):
+                            with cols[j % 4]:
+                                current_val = int(room_points.get(room, 0) or 0)
+                                new_val = st.number_input(
+                                    f"{room}",
+                                    value=current_val,
+                                    step=25,
+                                    key=rk(resort_id, "rp", year, s_idx, key, room)
+                                )
+                                if new_val != current_val:
+                                    room_points[room] = int(new_val)
+
+                        new_room_name = st.text_input(
+                            "Add Room Type",
+                            key=rk(resort_id, "add_room", year, s_idx, key),
+                            placeholder="e.g. 2-BDRM OV"
+                        )
+                        if st.button("Add Room", key=rk(resort_id, "btn_add_room", year, s_idx, key)) and new_room_name:
+                            room_points.setdefault(new_room_name.strip(), DEFAULT_POINTS.get("Sun-Thu", 100))
+                            st.rerun()
+                else:
+                    # READ-ONLY view for mirrored years
+                    for key, cat in dc.items():
+                        st.write(f"- **Day Category Key:** `{key}`")
+                        day_pattern = cat.get("day_pattern", [])
+                        rp = cat.get("room_points", {})
+                        st.caption(f"Days: {', '.join(day_pattern) if day_pattern else '(not set)'}")
+                        if not isinstance(rp, dict) or not rp:
+                            st.write("_No room points (will be set once 2025 is filled)._")
+                        else:
+                            df = pd.DataFrame(
+                                [{"Room": r, "Points": rp[r]} for r in sorted(rp.keys())]
                             )
-                            if new_val != current_val:
-                                room_points[room] = int(new_val)
+                            st.dataframe(df, use_container_width=True, hide_index=True)
 
-                    new_room_name = st.text_input(
-                        "Add Room Type",
-                        key=rk(resort_id, "add_room", year, s_idx, key),
-                        placeholder="e.g. 2-BDRM OV"
-                    )
-                    if st.button("Add Room", key=rk(resort_id, "btn_add_room", year, s_idx, key)) and new_room_name:
-                        room_points.setdefault(new_room_name.strip(), DEFAULT_POINTS.get("Sun-Thu", 100))
-                        st.rerun()
+    # AFTER editing 2025, enforce uniform rooms + synced points
+    sync_season_room_points_across_years(working, base_year=BASE_YEAR_FOR_POINTS)
 
 
 # ----------------------------------------------------------------------
@@ -711,9 +835,9 @@ def compute_weekly_totals_for_season_v2(season: Dict[str, Any], room_types: List
 
 def render_resort_summary_v2(working: Dict[str, Any]):
     """
-    Compact summary matching the old V1 report:
+    Compact summary:
 
-    - Use a single 'reference year' for the resort (earliest year that has seasons).
+    - Use a single 'reference year' (earliest year that has seasons).
     - One row per Season (in the order they appear in that year).
     - One column per room type.
     - Value = total points for a 7-night stay for that season.
@@ -741,20 +865,17 @@ def render_resort_summary_v2(working: Dict[str, Any]):
     year_obj = resort_years[ref_year]
     seasons = year_obj.get("seasons", [])
 
-    # Collect all room types across the resort (same as V1 reference_points)
     room_types = get_all_room_types_for_resort(working)
     if not room_types:
         st.info("No room types found in this resort.")
         return
 
-    # Build rows: one per season, in order defined for that reference year
     rows: List[Dict[str, Any]] = []
     for season in seasons:
         sname = season.get("name", "").strip() or "(Unnamed Season)"
 
         weekly_totals, any_data = compute_weekly_totals_for_season_v2(season, room_types)
         if not any_data:
-            # If that season has no usable rate data, skip it (same behaviour as old code)
             continue
 
         row: Dict[str, Any] = {"Season": sname}
@@ -766,7 +887,6 @@ def render_resort_summary_v2(working: Dict[str, Any]):
         st.info("No usable rate data to compute weekly totals.")
         return
 
-    # Keep the same format: Season column first, then room types
     df = pd.DataFrame(rows, columns=["Season"] + room_types)
     st.dataframe(df, use_container_width=True)
 
@@ -872,8 +992,9 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
 
             year_start = datetime(int(year), 1, 1)
             year_end = datetime(int(year), 12, 31) + timedelta(days=1)
-            if all_ranges[0][1] > year_start:
-                gaps.insert(0, (year_start, all_ranges[0][1] - timedelta(days=1)))
+
+            # NOTE: we now ignore gaps before the first defined block,
+            # to allow Jan 1–2 to belong to previous year's schedule.
             if merged_end < year_end:
                 gaps.append((merged_end, year_end - timedelta(days=1)))
 
@@ -1192,7 +1313,7 @@ def main():
         show_save_indicator()
 
     st.title("MVC Resort Editor – V2 Schema")
-    st.caption("Edit seasons, holidays, and room points directly in V2 format")
+    st.caption("Edit seasons, holidays, and room points directly in V2 format • 2025 is the master year for rates")
 
     if not st.session_state.data:
         st.info("📁 Upload your V2 data.json file to start editing")
@@ -1244,21 +1365,21 @@ def main():
         # Season dates
         render_season_dates_editor_v2(working, years, current_resort_id)
 
-        # Resort weekly summary (7 nights)
-        render_resort_summary_v2(working)
-
-        # Season room points
+        # Season room points (enforces your two rules)
         render_reference_points_editor_v2(working, years, current_resort_id)
 
         # Holiday room points per resort
         render_holiday_management_v2(working, years, current_resort_id)
+
+        # Resort weekly summary (7 nights)
+        render_resort_summary_v2(working)
 
     # Global settings at bottom
     render_global_settings_v2(data, years)
 
     st.markdown("""
     <div class='success-box'>
-        V2 MODE • Editing resorts, seasons, holidays & weekly summaries directly in schema 2.0 • Widget keys fully resort-scoped
+        V2 MODE • 2025 as master rate year • Same room types across all seasons • Points synced across years
     </div>
     """, unsafe_allow_html=True)
 
