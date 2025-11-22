@@ -529,6 +529,9 @@ def main():
         st.header("Mode & Parameters")
         mode_sel = st.selectbox("User Mode", [m.value for m in UserMode])
         mode = UserMode(mode_sel)
+        
+        # Get year from check-in date (will be updated when user selects date)
+        # For now, use current year as default
         year = datetime.now().year
         def_rate = repo.get_config_val(year)
         owner_params = None
@@ -582,6 +585,20 @@ def main():
         checkin = st.date_input("Check-in Date", datetime.now().date() + timedelta(days=1))
     with input_cols[1]:
         nights = st.number_input("Number of Nights", 1, 60, 7)
+    
+    # Get the correct maintenance rate based on check-in year
+    checkin_year = checkin.year
+    maintenance_rate_for_year = repo.get_config_val(checkin_year)
+    
+    # Update rate if using maintenance rate (not custom)
+    if mode == UserMode.RENTER:
+        if policy == DiscountPolicy.NONE and rate == def_rate:
+            rate = maintenance_rate_for_year
+    elif mode == UserMode.OWNER and owner_params:
+        if owner_params.get('inc_m', False):
+            # Update the maintenance rate in calculations
+            rate = maintenance_rate_for_year
+    
     adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     if adj:
         end_date = adj_in + timedelta(days=adj_n - 1)
