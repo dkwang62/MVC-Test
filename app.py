@@ -673,6 +673,97 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
 
 
 # ----------------------------------------------------------------------
+# RESORT SUMMARY – WEEKLY POINTS (7 NIGHTS) FOR V2
+# ----------------------------------------------------------------------
+def compute_weekly_totals_for_season_v2(season: Dict[str, Any], room_types: List[str]) -> Tuple[Dict[str, int], bool]:
+    """
+    Compute total points for a 7-night week for a single season using V2 schema.
+
+    We look at season["day_categories"], each with:
+      - "day_pattern": ["Sun", "Mon", ...]
+      - "room_points": { room_type: nightly_points }
+
+    For each category:
+      weekly_points += nightly_points * len(day_pattern)
+
+    This works for arbitrary patterns (Sun/Mon-Thu/Fri-Sat/etc).
+    """
+    weekly_totals = {room: 0 for room in room_types}
+    any_data = False
+    valid_days = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+
+    day_cats = season.get("day_categories", {})
+    for cat in day_cats.values():
+        pattern = cat.get("day_pattern", [])
+        rp = cat.get("room_points", {})
+        if not isinstance(rp, dict):
+            continue
+        n_days = len([d for d in pattern if d in valid_days])
+        if n_days <= 0:
+            continue
+        for room in room_types:
+            if room in rp and rp[room] is not None:
+                weekly_totals[room] += int(rp[room]) * n_days
+                any_data = True
+
+    return weekly_totals, any_data
+
+
+def render_resort_summary_v2(working: Dict[str, Any]):
+    """
+    Compact summary:
+    - One row per unique Season name (across all years)
+    - One column per room type
+    - Value = total points for a 7-night stay (computed from the FIRST year where season appears)
+    - Ignores holidays.
+    """
+    st.subheader("📋 Resort Summary – Weekly Points (7 nights)")
+
+    ref_years = working.get("years", {})
+    if not ref_years:
+        st.info("No year/season data defined yet for this resort.")
+        return
+
+    room_types = get_all_room_types_for_resort(working)
+    if not room_types:
+        st.info("No room types found in this resort.")
+        return
+
+    # Map season_name -> season_object (take first occurrence across years, in chronological order)
+    season_map: Dict[str, Dict[str, Any]] = {}
+    for year in sorted(ref_years.keys()):
+        for season in ref_years[year].get("seasons", []):
+            sname = season.get("name", "").strip()
+            if not sname:
+                continue
+            if sname not in season_map:
+                season_map[sname] = season
+
+    if not season_map:
+        st.info("No seasons found to summarise.")
+        return
+
+    rows: List[Dict[str, Any]] = []
+
+    for sname in sorted(season_map.keys()):
+        season = season_map[sname]
+        weekly_totals, any_data = compute_weekly_totals_for_season_v2(season, room_types)
+        if not any_data:
+            continue
+        row: Dict[str, Any] = {"Season": sname}
+        for room in room_types:
+            row[room] = "" if weekly_totals[room] == 0 else weekly_totals[room]
+        rows.append(row)
+
+    if not rows:
+        st.info("No usable rate data to compute weekly totals.")
+        return
+
+    df = pd.DataFrame(rows, columns=["Season"] + room_types)
+    st.dataframe(df, use_container_width=True)
+
+
+# ----------------------------------------------------------------------
 # VALIDATION (V2)
 # ----------------------------------------------------------------------
 def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
@@ -1151,12 +1242,15 @@ def main():
         # Holiday room points per resort
         render_holiday_management_v2(working, years, current_resort_id)
 
+        # Resort weekly summary (7 nights)
+        render_resort_summary_v2(working)
+
     # Global settings at bottom
     render_global_settings_v2(data, years)
 
     st.markdown("""
     <div class='success-box'>
-        V2 MODE • Editing resorts, seasons & holidays directly in schema 2.0 • Widget keys fully resort-scoped
+        V2 MODE • Editing resorts, seasons, holidays & weekly summaries directly in schema 2.0 • Widget keys fully resort-scoped
     </div>
     """, unsafe_allow_html=True)
 
