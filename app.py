@@ -551,13 +551,17 @@ def main():
         else:
             adv = st.checkbox("More Options")
             if adv:
-                opt = st.radio("Rate Option", ["Based on Maintenance Rate", "Custom Rate",
-                                               "Booked within 60 days", "Booked within 30 days"])
-                if opt == "Custom Rate":
+                opt = st.radio("Rate Option", [
+                    "Based on Maintenance Rate (No Discount)", 
+                    "Custom Rate (No Discount)",
+                    "Executive: 25% Points Discount (Booked within 30 days)", 
+                    "Presidential: 30% Points Discount (Booked within 60 days)"
+                ])
+                if opt == "Custom Rate (No Discount)":
                     rate = st.number_input("Custom Rate per Point ($)", value=def_rate, step=0.01)
-                elif "60 days" in opt:
+                elif "Presidential" in opt:
                     policy = DiscountPolicy.PRESIDENTIAL
-                elif "30 days" in opt:
+                elif "Executive" in opt:
                     policy = DiscountPolicy.EXECUTIVE
     st.subheader("Select Resort")
     cols = st.columns(6)
