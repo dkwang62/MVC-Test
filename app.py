@@ -643,16 +643,33 @@ def get_all_room_types_for_resort(working: Dict[str, Any]) -> List[str]:
 
 
 def add_room_type_master(working: Dict[str, Any], room: str, base_year: str):
-    """Add a room type to all seasons in the base year (sync will propagate to others)."""
-    years = working.get("years", {})
-    if base_year not in years:
+    """
+    Add a room type to all seasons in the base year,
+    and also to all holidays in all years.
+    sync_season_room_points_across_years() + sync_holiday_room_points_across_years()
+    will then propagate / normalize.
+    """
+    room = room.strip()
+    if not room:
         return
-    base_year_obj = ensure_year_structure(working, base_year)
-    for season in base_year_obj.get("seasons", []):
-        dc = season.setdefault("day_categories", {})
-        for cat in dc.values():
-            rp = cat.setdefault("room_points", {})
+
+    years = working.get("years", {})
+
+    # 1) Add to seasons in base year
+    if base_year in years:
+        base_year_obj = ensure_year_structure(working, base_year)
+        for season in base_year_obj.get("seasons", []):
+            dc = season.setdefault("day_categories", {})
+            for cat in dc.values():
+                rp = cat.setdefault("room_points", {})
+                rp.setdefault(room, 0)
+
+    # 2) Add to holidays in ALL years
+    for year_obj in years.values():
+        for h in year_obj.get("holidays", []):
+            rp = h.setdefault("room_points", {})
             rp.setdefault(room, 0)
+
 
 
 def delete_room_type_master(working: Dict[str, Any], room: str):
@@ -735,6 +752,66 @@ def sync_season_room_points_across_years(working: Dict[str, Any], base_year: str
                     base_by_name[name].get("day_categories", {})
                 )
 
+def sync_holiday_room_points_across_years(working: Dict[str, Any], base_year: str):
+    """
+    Enforce that holiday room_points are the same for all years
+    for a given holiday (matched by global_reference, then name).
+
+    Master values are taken from base_year.
+    """
+    years = working.get("years", {})
+    if not years or base_year not in years:
+        return
+
+    base_year_obj = ensure_year_structure(working, base_year)
+    base_holidays = base_year_obj.get("holidays", [])
+
+    # Build canonical key -> holiday object for base year
+    base_by_key: Dict[str, Dict[str, Any]] = {}
+    for h in base_holidays:
+        key = (h.get("global_reference") or h.get("name") or "").strip()
+        if not key:
+            continue
+        base_by_key[key] = h
+
+    if not base_by_key:
+        return
+
+    # Normalize base-year holiday room sets (use all resort rooms)
+    all_rooms = get_all_room_types_for_resort(working)
+    for h in base_holidays:
+        key = (h.get("global_reference") or h.get("name") or "").strip()
+        if not key:
+            continue
+        rp = h.setdefault("room_points", {})
+        if not isinstance(rp, dict):
+            h["room_points"] = {}
+            rp = h["room_points"]
+        # Ensure all canonical rooms exist
+        for room in all_rooms:
+            rp.setdefault(room, 0)
+        # Remove stray rooms that no longer exist
+        for room in list(rp.keys()):
+            if room not in all_rooms:
+                del rp[room]
+
+    # Refresh mapping after normalization
+    base_by_key = {
+        (h.get("global_reference") or h.get("name") or "").strip(): h
+        for h in base_holidays
+        if (h.get("global_reference") or h.get("name") or "").strip()
+    }
+
+    # Copy master room_points to all other years for matching holidays
+    for year_name, year_obj in years.items():
+        if year_name == base_year:
+            continue
+        for h in year_obj.get("holidays", []):
+            key = (h.get("global_reference") or h.get("name") or "").strip()
+            if key and key in base_by_key:
+                h["room_points"] = copy.deepcopy(
+                    base_by_key[key].get("room_points", {})
+                )
 
 # ----------------------------------------------------------------------
 # MASTER REFERENCE POINTS EDITOR (year-independent UI)
