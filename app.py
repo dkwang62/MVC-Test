@@ -578,10 +578,11 @@ def create_download_button_v2(data: Dict[str, Any]):
             if "resort_name" in keys and "code" in keys and keys.index("resort_name") != keys.index("code") + 1:
                 st.sidebar.warning(f"⚠️ resort_name position shifted in {resort.get('id')}")
         
-        st.sidebar.markdown("### 📥 Download Data")
+        st.sidebar.markdown("### 📥 Save Data")
+
         json_data = json.dumps(data, indent=2, ensure_ascii=False)
         st.sidebar.download_button(
-            label="💾 Download V2 JSON",
+            label="💾 Save",
             data=json_data,
             file_name="data_v2.json",
             mime="application/json",
@@ -591,7 +592,7 @@ def create_download_button_v2(data: Dict[str, Any]):
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
-            "Upload to verify",
+            "Verify",
             type="json",
             key="verify_uploader"
         )
@@ -606,10 +607,12 @@ def handle_file_verification():
                     st.error("❌ Files differ")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+
+        st.sidebar.markdown("### 📥 Merge Data")
 def handle_merge_from_another_file_v2(data: Dict[str, Any]):
-    with st.sidebar.expander("🔀 Merge Resorts", expanded=False):
+    with st.sidebar.expander("🔀 Merge", expanded=False):
         merge_upload = st.file_uploader(
-            "Upload V2 file to merge",
+            "Upload to merge resorts",
             type="json",
             key="merge_uploader_v2"
         )
@@ -1466,9 +1469,19 @@ def main():
                 <p style='color: #64748b !important; margin: 8px 0 0 0; font-size: 14px;'>Resort Management System</p>
             </div>
         """, unsafe_allow_html=True)
-       
+
+        with st.expander("ℹ️ How File Operations Work", expanded=False):
+            st.markdown(
+            """
+            - Data are pre-loaded into memory and can be edited.
+            - Option: Loading another file will replace data in memory 
+            - Edits in memory are temporary — SAVE or they may be lost on refresh.
+            - Verify by matching saved file to what’s in memory.
+            - Upload a different file to merge selected resorts to memory.
+            """)
+
         handle_file_upload()
-       
+
         if st.session_state.data:
             st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
             create_download_button_v2(st.session_state.data)
@@ -1476,6 +1489,7 @@ def main():
             handle_merge_from_another_file_v2(st.session_state.data)
                    
         show_save_indicator()
+    
     # Main content
     st.markdown("<div class='big-font'>MVC Resort Editor V2</div>", unsafe_allow_html=True)
     if not st.session_state.data:
