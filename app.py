@@ -1528,7 +1528,6 @@ def main():
 
     render_resort_grid(resorts, current_resort_id)
     handle_resort_switch_v2(data, current_resort_id, previous_resort_id)
-    handle_resort_creation_v2(data, current_resort_id)
 
     # Working resort
     working = load_and_render_resort(data, current_resort_id)
@@ -1536,6 +1535,7 @@ def main():
     if working:
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
+        handle_resort_creation_v2(data, current_resort_id)
         handle_resort_deletion_v2(data, current_resort_id)
 
         tab1, tab2, tab3, tab4, tab5 = st.tabs([
