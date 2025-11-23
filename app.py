@@ -398,6 +398,50 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
     return f"{base_id}-{i}"
 
 # ----------------------------------------------------------------------
+# BASIC RESORT NAME / TIMEZONE HELPERS (needed for loading files)
+# ----------------------------------------------------------------------
+def detect_timezone_from_name(name: str) -> str:
+    """
+    Very simple placeholder timezone detector.
+    You can expand this later if you want per-country timezones.
+    """
+    return "UTC"
+
+
+def get_resort_full_name(resort_id: str, display_name: str) -> str:
+    """
+    For new resorts, treat the display name as the full resort name.
+    Existing resorts coming from JSON usually already have 'resort_name'
+    set, and we leave that alone.
+    """
+    return display_name
+
+
+def auto_populate_resort_name(resort: Dict[str, Any]) -> None:
+    """
+    Ensure each resort dict has a 'resort_name' field.
+
+    Priority:
+      1. keep existing 'resort_name' if present
+      2. use 'name_resort' if present
+      3. otherwise fall back to 'display_name'
+      4. finally fall back to 'id'
+    """
+    if not isinstance(resort, dict):
+        return
+
+    # If already has a resort_name, do nothing
+    if resort.get("resort_name"):
+        return
+
+    if resort.get("name_resort"):
+        resort["resort_name"] = resort["name_resort"]
+    elif resort.get("display_name"):
+        resort["resort_name"] = resort["display_name"]
+    elif resort.get("id"):
+        resort["resort_name"] = resort["id"]
+
+# ----------------------------------------------------------------------
 # ADDRESS INJECTION HELPERS (SCHEMA CHANGE)
 # ----------------------------------------------------------------------
 def inject_address_into_resort(resort: Dict[str, Any]):
