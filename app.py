@@ -1501,10 +1501,6 @@ def main():
         st.markdown(f"""
             <div class='card'>
                 <h2 style='margin: 0; color: #667eea;'>🏨 {name}</h2>
-#                <p style='color: #64748b; margin: 8px 0 0 0;'>
-#                    Resort ID: <code>{current_resort_id}</code> |
-#                    Code: <code>{working.get('code', 'N/A')}</code>
-#                </p>
             </div>
         """, unsafe_allow_html=True)
 
