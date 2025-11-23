@@ -1259,23 +1259,26 @@ def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], ye
 
 
 # ----------------------------------------------------------------------
-# WORKING RESORT LOADER + HEADER RENDERER
+# WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
 # ----------------------------------------------------------------------
-def get_working_resort_and_render_header(
+def load_and_render_resort(
     data: Dict[str, Any],
     current_resort_id: Optional[str]
 ) -> Optional[Dict[str, Any]]:
     """
-    Loads (or creates) the in-memory working copy of the currently selected resort
-    and renders the clean header card with just the display name.
+    Ensures a mutable working copy of the selected resort exists in session_state,
+    creates it from the main data if needed, renders the clean header card,
+    and returns the working resort dict.
 
-    Returns the working resort dict (or None if nothing is selected).
+    Returns:
+        Dict | None – the working resort dictionary (or None if no resort selected)
     """
     if not current_resort_id:
         return None
 
-    # Ensure we have a mutable working copy
+    # Ensure we have a working copy in memory
     working_resorts = st.session_state.working_resorts
+
     if current_resort_id not in working_resorts:
         if resort_obj := find_resort_by_id(data, current_resort_id):
             working_resorts[current_resort_id] = copy.deepcopy(resort_obj)
@@ -1285,7 +1288,7 @@ def get_working_resort_and_render_header(
         return None
 
     # ------------------------------------------------------------------
-    # Clean header – only display name (no editable fields any more)
+    # Render clean, professional header
     # ------------------------------------------------------------------
     name = working.get("display_name", current_resort_id)
     code = working.get("code", "N/A")
@@ -1300,7 +1303,6 @@ def get_working_resort_and_render_header(
     """, unsafe_allow_html=True)
 
     return working
-
 
 
 
@@ -1533,17 +1535,9 @@ def main():
     handle_resort_creation_v2(data, current_resort_id)
 
     # Working resort
-    working = None
-    if current_resort_id:
-        working_resorts = st.session_state.working_resorts
-        if current_resort_id not in working_resorts:
-            if resort_obj := find_resort_by_id(data, current_resort_id):
-                working_resorts[current_resort_id] = copy.deepcopy(resort_obj)
-        working = working_resorts.get(current_resort_id)
+    working = load_and_render_resort(data, current_resort_id)
 
     if working:
-        working = get_working_resort_and_render_header(data, current_resort_id)
-
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
         handle_resort_deletion_v2(data, current_resort_id)
