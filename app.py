@@ -541,35 +541,42 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
 def handle_file_upload():
+    # Section heading stays in the helper
     st.sidebar.markdown("### 📤 Upload Data")
-    uploaded = st.sidebar.file_uploader(
-        "Choose V2 JSON file",
-        type="json",
-        key="file_uploader",
-        help="Upload your MVC V2 data file"
-    )
-    if uploaded:
-        size = getattr(uploaded, "size", 0)
-        current_sig = f"{uploaded.name}:{size}"
-        if current_sig != st.session_state.last_upload_sig:
-            try:
-                raw_data = json.load(uploaded)
-                if "schema_version" not in raw_data or not raw_data.get("resorts"):
-                    st.sidebar.error("❌ Invalid V2 file format")
-                    return
-                reset_state_for_new_file()
-               
-                # Auto-populate resort_name for all resorts
-                for resort in raw_data.get("resorts", []):
-                    auto_populate_resort_name(resort)
-               
-                st.session_state.data = raw_data
-                st.session_state.last_upload_sig = current_sig
-                resorts_list = get_resort_list(raw_data)
-                st.sidebar.success(f"✅ Loaded {len(resorts_list)} resorts")
-                st.rerun()
-            except Exception as e:
-                st.sidebar.error(f"❌ Error: {str(e)}")
+
+    # New: wrap the uploader in an expander, like Save/Verify/Merge style
+    with st.sidebar.expander("📤 Upload V2 JSON file", expanded=True):
+        uploaded = st.file_uploader(
+            "Choose V2 JSON file",
+            type="json",
+            key="file_uploader",
+            help="Upload your MVC V2 data file"
+        )
+
+        if uploaded:
+            size = getattr(uploaded, "size", 0)
+            current_sig = f"{uploaded.name}:{size}"
+            if current_sig != st.session_state.last_upload_sig:
+                try:
+                    raw_data = json.load(uploaded)
+                    if "schema_version" not in raw_data or not raw_data.get("resorts"):
+                        st.error("❌ Invalid V2 file format")
+                        return
+
+                    reset_state_for_new_file()
+
+                    # Auto-populate resort_name for all resorts
+                    for resort in raw_data.get("resorts", []):
+                        auto_populate_resort_name(resort)
+
+                    st.session_state.data = raw_data
+                    st.session_state.last_upload_sig = current_sig
+                    resorts_list = get_resort_list(raw_data)
+                    st.success(f"✅ Loaded {len(resorts_list)} resorts")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
 def create_download_button_v2(data: Dict[str, Any]):
     if data:
         # Optional: Quick check for resort_name position
