@@ -545,12 +545,12 @@ def handle_file_upload():
     st.sidebar.markdown("### 📤 Upload Data")
 
     # New: wrap the uploader in an expander, like Save/Verify/Merge style
-    with st.sidebar.expander("📤 Upload V2 JSON file", expanded=True):
+    with st.sidebar.expander("📤 Upload JSON file", expanded=True):
         uploaded = st.file_uploader(
-            "Choose V2 JSON file",
+            "Choose JSON file",
             type="json",
             key="file_uploader",
-            help="Upload your MVC V2 data file"
+            help="Upload your MVC data file"
         )
 
         if uploaded:
@@ -560,7 +560,7 @@ def handle_file_upload():
                 try:
                     raw_data = json.load(uploaded)
                     if "schema_version" not in raw_data or not raw_data.get("resorts"):
-                        st.error("❌ Invalid V2 file format")
+                        st.error("❌ Invalid file format")
                         return
 
                     reset_state_for_new_file()
@@ -578,12 +578,6 @@ def handle_file_upload():
                     st.error(f"❌ Error: {str(e)}")
 
 def create_download_button_v2(data: Dict[str, Any]):
-    if data:
-        # Optional: Quick check for resort_name position
-        for resort in data.get("resorts", []):
-            keys = list(resort.keys())
-            if "resort_name" in keys and "code" in keys and keys.index("resort_name") != keys.index("code") + 1:
-                st.sidebar.warning(f"⚠️ resort_name position shifted in {resort.get('id')}")
         
         st.sidebar.markdown("### 📥 Save Data")
 
