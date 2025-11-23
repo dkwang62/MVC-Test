@@ -1468,7 +1468,15 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        # Editable timezone and address
+        # Editable resort_name, timezone and address
+        new_resort_name = st.text_input(
+            "Full Resort Name (resort_name)",
+            value=resort_name or "",
+            key=rk(current_resort_id, "resort_name_edit"),
+            help="This is stored in the 'resort_name' key in the JSON file"
+        )
+        working["resort_name"] = new_resort_name
+
         col_tz, col_addr = st.columns(2)
         with col_tz:
             new_timezone = st.text_input(
@@ -1487,6 +1495,7 @@ def main():
                 help="Resort street address"
             )
             working["address"] = new_address
+
 
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
