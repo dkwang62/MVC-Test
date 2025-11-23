@@ -1290,15 +1290,11 @@ def load_and_render_resort(
     # ------------------------------------------------------------------
     # Render clean, professional header
     # ------------------------------------------------------------------
-    name = working.get("display_name", current_resort_id)
-    code = working.get("code", "N/A")
+    name = working.get("resort_name", current_resort_id)
 
     st.markdown(f"""
         <div class='card'>
             <h2 style='margin: 0; color: #667eea;'>Resort: {name}</h2>
-            <p style='color: #64748b; margin: 8px 0 0 0;'>
-                ID: <code>{current_resort_id}</code> • Code: <code>{code}</code>
-            </p>
         </div>
     """, unsafe_allow_html=True)
 
