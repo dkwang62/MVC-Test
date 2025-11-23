@@ -922,6 +922,51 @@ def sync_holiday_room_points_across_years(working: Dict[str, Any], base_year: st
                     h["room_points"] = copy.deepcopy(base_by_key[key].get("room_points", {}))
 
 # ----------------------------------------------------------------------
+# RESORT BASIC INFO EDITOR (helper)
+# ----------------------------------------------------------------------
+def edit_resort_basics(working: Dict[str, Any], resort_id: str):
+    """
+    Renders editable fields for resort_name, timezone and address.
+    Returns nothing – directly mutates the working dict.
+    """
+    st.markdown("### Basic Resort Information")
+
+    # Current values (with fallbacks)
+    current_name = working.get("resort_name", "")
+    current_tz   = working.get("timezone", "UTC")
+    current_addr = working.get("address", "")
+
+    # Full Resort Name
+    new_name = st.text_input(
+        "Full Resort Name (resort_name)",
+        value=current_name,
+        key=rk(resort_id, "resort_name_edit"),
+        help="Official name stored in the 'resort_name' field"
+    )
+    working["resort_name"] = new_name.strip()
+
+    # Timezone & Address side-by-side
+    col_tz, col_addr = st.columns(2)
+    with col_tz:
+        new_tz = st.text_input(
+            "Timezone",
+            value=current_tz,
+            key=rk(resort_id, "timezone_edit"),
+            help="e.g. America/New_York, Europe/London, etc."
+        )
+        working["timezone"] = new_tz.strip() or "UTC"
+
+    with col_addr:
+        new_addr = st.text_area(   # text_area gives a bit more space for addresses
+            "Address",
+            value=current_addr,
+            height=80,
+            key=rk(resort_id, "address_edit"),
+            help="Full street address of the resort"
+        )
+        working["address"] = new_addr.strip()
+
+# ----------------------------------------------------------------------
 # MASTER POINTS EDITOR
 # ----------------------------------------------------------------------
 def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str], resort_id: str):
@@ -1451,50 +1496,17 @@ def main():
 
     if working:
         name = working.get("display_name", current_resort_id)
-        resort_name = working.get("resort_name", "")
-        timezone = working.get("timezone", "UTC")
-        address = working.get("address", "")
 
+        # Clean header – no editable fields here anymore
         st.markdown(f"""
             <div class='card'>
                 <h2 style='margin: 0; color: #667eea;'>🏨 {name}</h2>
                 <p style='color: #64748b; margin: 8px 0 0 0;'>
                     Resort ID: <code>{current_resort_id}</code> |
-                    Code: <code>{working.get('code', 'N/A')}</code> |
-                    Full Name: <strong>{resort_name or 'Not set'}</strong> |
-                    🕒 Timezone: <strong>{timezone}</strong> |
-                    📍 Address: <strong>{address}</strong>
+                    Code: <code>{working.get('code', 'N/A')}</code>
                 </p>
             </div>
         """, unsafe_allow_html=True)
-
-        # Editable resort_name, timezone and address
-        new_resort_name = st.text_input(
-            "Full Resort Name (resort_name)",
-            value=resort_name or "",
-            key=rk(current_resort_id, "resort_name_edit"),
-            help="This is stored in the 'resort_name' key in the JSON file"
-        )
-        working["resort_name"] = new_resort_name
-
-        col_tz, col_addr = st.columns(2)
-        with col_tz:
-            new_timezone = st.text_input(
-                "Timezone",
-                value=timezone or "",
-                key=rk(current_resort_id, "timezone_edit"),
-                help="e.g. America/New_York"
-            )
-            working["timezone"] = new_timezone
-
-        with col_addr:
-            new_address = st.text_input(
-                "Address",
-                value=address or "",
-                key=rk(current_resort_id, "address_edit"),
-                help="Resort street address"
-            )
-            working["address"] = new_address
 
 
         render_validation_panel_v2(working, data, years)
@@ -1509,8 +1521,9 @@ def main():
             "📈 Summary"
         ])
         with tab1:
-            render_gantt_charts_v2(working, years, data)
+            edit_resort_basics(working, current_resort_id)
         with tab2:
+            render_gantt_charts_v2(working, years, data)
             render_season_dates_editor_v2(working, years, current_resort_id)
         with tab3:
             render_reference_points_editor_v2(working, years, current_resort_id)
