@@ -1257,6 +1257,53 @@ def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], ye
         else:
             st.success("✅ All validation checks passed!")
 
+
+# ----------------------------------------------------------------------
+# WORKING RESORT LOADER + HEADER RENDERER
+# ----------------------------------------------------------------------
+def get_working_resort_and_render_header(
+    data: Dict[str, Any],
+    current_resort_id: Optional[str]
+) -> Optional[Dict[str, Any]]:
+    """
+    Loads (or creates) the in-memory working copy of the currently selected resort
+    and renders the clean header card with just the display name.
+
+    Returns the working resort dict (or None if nothing is selected).
+    """
+    if not current_resort_id:
+        return None
+
+    # Ensure we have a mutable working copy
+    working_resorts = st.session_state.working_resorts
+    if current_resort_id not in working_resorts:
+        if resort_obj := find_resort_by_id(data, current_resort_id):
+            working_resorts[current_resort_id] = copy.deepcopy(resort_obj)
+
+    working = working_resorts.get(current_resort_id)
+    if not working:
+        return None
+
+    # ------------------------------------------------------------------
+    # Clean header – only display name (no editable fields any more)
+    # ------------------------------------------------------------------
+    name = working.get("display_name", current_resort_id)
+    code = working.get("code", "N/A")
+
+    st.markdown(f"""
+        <div class='card'>
+            <h2 style='margin: 0; color: #667eea;'>Resort: {name}</h2>
+            <p style='color: #64748b; margin: 8px 0 0 0;'>
+                ID: <code>{current_resort_id}</code> • Code: <code>{code}</code>
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    return working
+
+
+
+
 # ----------------------------------------------------------------------
 # GANTT CHART
 # ----------------------------------------------------------------------
@@ -1495,15 +1542,7 @@ def main():
         working = working_resorts.get(current_resort_id)
 
     if working:
-        name = working.get("display_name", current_resort_id)
-
-        # Clean header – no editable fields here anymore
-        st.markdown(f"""
-            <div class='card'>
-                <h2 style='margin: 0; color: #667eea;'>🏨 {name}</h2>
-            </div>
-        """, unsafe_allow_html=True)
-
+        working = get_working_resort_and_render_header(data, current_resort_id)
 
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
