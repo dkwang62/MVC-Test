@@ -1294,7 +1294,7 @@ def load_and_render_resort(
 
     st.markdown(f"""
         <div class='card'>
-            <h2 style='margin: 0; color: #667eea;'>Current 🏨 : {name}</h2>
+            <h2 style='margin: 0; color: #667eea;'>Current 🏨 {name}</h2>
         </div>
     """, unsafe_allow_html=True)
 
