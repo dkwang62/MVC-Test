@@ -545,7 +545,7 @@ def handle_file_upload():
     st.sidebar.markdown("### 📤 Upload Data")
 
     # New: wrap the uploader in an expander, like Save/Verify/Merge style
-    with st.sidebar.expander("📤 Upload JSON file", expanded=True):
+    with st.sidebar.expander("📤 Upload JSON file", expanded=False):
         uploaded = st.file_uploader(
             "Choose JSON file",
             type="json",
