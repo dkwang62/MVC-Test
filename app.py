@@ -16,60 +16,6 @@ DEFAULT_YEARS = ["2025", "2026"]
 BASE_YEAR_FOR_POINTS = "2025"
 
 # ----------------------------------------------------------------------
-# RESORT ADDRESS MAPPING (BY FULL RESORT NAME)
-# ----------------------------------------------------------------------
-ADDRESS_BY_RESORT_NAME = {
-    "Marriott's Aruba Ocean Club": "L.G. Smith Boulevard 99, Palm Beach, Aruba",
-    "Marriott's Aruba Surf Club": "L.G. Smith Boulevard 103, Palm Beach, Aruba",
-    "Marriott's Bali Nusa Dua Gardens": "Kawasan Pariwisata Lot SW1, Nusa Dua, Bali 80363, Indonesia",
-    "Marriott's Bali Nusa Dua Terrace": "Kawasan Pariwisata ITDC Lot SW 4-5, Nusa Dua, Bali 80363, Indonesia",
-    "Marriott's StreamSide Birch at Vail": "2284 South Frontage Road West, Vail, CO 81657, USA",
-    "Marriott Vacation Club at Custom House, Boston": "3 McKinley Square, Boston, MA 02109, USA",
-    "Marriott's Canyon Villas": "5220 East Marriott Drive, Phoenix, AZ 85054, USA",
-    "Marriott's Grand Chateau": "75 East Harmon Avenue, Las Vegas, NV 89109, USA",
-    "Marriott's Crystal Shores": "600 South Collier Boulevard, Marco Island, FL 34145, USA",
-    "Marriott's Cypress Harbour": "11251 Harbour Villa Road, Orlando, FL 32821, USA",
-    "Marriott's Desert Springs Villas II": "1091 Pinehurst Lane, Palm Desert, CA 92260, USA",
-    "Marriott's Villas at Doral": "4101 NW 87th Avenue, Miami, FL 33178, USA",
-    "Marriott's BeachPlace Towers": "21 South Fort Lauderdale Beach Boulevard, Fort Lauderdale, FL 33316, USA",
-    "Marriott's Frenchman's Cove": "7338 Estate Bakkeroe, St. Thomas, VI 00802, U.S. Virgin Islands",
-    "Marriott's Grande Vista": "5925 Avenida Vista, Orlando, FL 32821, USA",
-    "Marriott's Imperial Palms Villas": "8404 Vacation Way, Orlando, FL 32821, USA",
-    "Marriott's Kaua'i Beach Club": "3610 Rice Street, Lihue, HI 96766, USA",
-    "Marriott Vacation Club, Khao Lak Beach Resort": "43/17 Moo 3, Khuk Khak, Takua Pa, Phang Nga 82220, Thailand",
-    "Marriott's Ko Olina Beach Club": "92-161 Waipahe Place, Kapolei, HI 96707, USA",
-    "Marriott's Lakeshore Reserve": "11248 Lakeshore Reserve Drive, Orlando, FL 32837, USA",
-    "Marriott's Maui Ocean Club": "100 Nohea Kai Drive, Lahaina, HI 96761, USA",
-    "Marriott's Marbella Beach Resort": "Carretera de Cádiz, Km 193, 29604 Marbella, Málaga, Spain",
-    "Marriott's MountainSide": "1305 Lowell Avenue, Park City, UT 84060, USA",
-    "Marriott's Newport Coast Villas": "23000 Newport Coast Drive, Newport Coast, CA 92657, USA",
-    "Marriott's Ocean Pointe": "71 Ocean Avenue, Palm Beach Shores, FL 33404, USA",
-    "Marriott's Legends Edge at Bay Point": "4000 Marriott Drive, Panama City, FL 32408, USA",
-    "Marriott's Phuket Beach Club": "230 Moo 3, Mai Khao, Phuket 83110, Thailand",
-    "Marriott's Playa Andaluza": "Carretera de Cádiz, Km 168, 29680 Estepona, Málaga, Spain",
-    "Marriott Vacation Club, New York City": "33 West 37th Street, New York, NY 10018, USA",
-    "Marriott Vacation Club, San Diego": "701 A Street, San Diego, CA 92101, USA",
-    "Marriott Vacation Club, San Francisco": "780 Mission Street, San Francisco, CA 94103, USA",
-    "Marriott Grand Residence Club, Lake Tahoe": "1001 Heavenly Village Way, South Lake Tahoe, CA 96150, USA",
-    "The Ritz-Carlton Club, San Francisco": "690 Market Street, San Francisco, CA 94104, USA",
-    "The Ritz-Carlton Club, Lake Tahoe": "13051 Ritz-Carlton Highlands Drive, Truckee, CA 96161, USA",
-    "The Ritz-Carlton Club, Vail": "728 West Lionshead Circle, Vail, CO 81657, USA",
-    "Marriott's Sabal Palms": "8805 World Center Drive, Orlando, FL 32821, USA",
-    "Marriott's Shadow Ridge": "9003 Shadow Ridge Road, Palm Desert, CA 92211, USA",
-    "Sheraton Kauai Resort Villas": "2440 Hoonani Road, Koloa, HI 96756, USA",
-    "Sheraton Desert Oasis, Scottsdale": "17700 North Hayden Road, Scottsdale, AZ 85255, USA",
-    "Marriott Vacation Club at Los Sueños": "800 meters west of Herradura Entrance, Playa Herradura, Garabito, Puntarenas, Costa Rica",
-    "Marriott Vacation Club at Surfers Paradise": "158 Ferny Avenue, Surfers Paradise, QLD 4217, Australia",
-    "Marriott's Village d'Ile-de-France": "1 Allée de l'Orme Rond, 77700 Bailly-Romainvilliers, France",
-    "Marriott's Waikoloa Ocean Club": "69-275 Waikoloa Beach Drive, Waikoloa, HI 96738, USA",
-    "The Westin Kā'anapali Ocean Resort Villas": "6 Kai Ala Drive, Lahaina, HI 96761, USA",
-    "Marriott's Willow Ridge Lodge": "2929 Green Mountain Drive, Branson, MO 65616, USA",
-    "Marriott's Harbour Lake": "7102 Grand Horizons Boulevard, Orlando, FL 32821, USA",
-    "Marriott Vacation Club at The Mayflower, Washington, D.C.": "1127 Connecticut Avenue NW, Washington, DC 20036, USA"
-}
-
-
-# ----------------------------------------------------------------------
 # WIDGET KEY HELPER (RESORT-SCOPED)
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=1024)
@@ -348,6 +294,17 @@ def reset_state_for_new_file():
         st.session_state[k] = {} if k == "working_resorts" else None
 
 # ----------------------------------------------------------------------
+# BASIC RESORT NAME / TIMEZONE HELPERS
+# ----------------------------------------------------------------------
+def detect_timezone_from_name(name: str) -> str:
+    """Simple placeholder timezone detector; keep as UTC or customise later."""
+    return "UTC"
+
+def get_resort_full_name(resort_id: str, display_name: str) -> str:
+    """For new resorts, treat display_name as full resort name."""
+    return display_name
+
+# ----------------------------------------------------------------------
 # OPTIMIZED HELPER FUNCTIONS
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
@@ -399,126 +356,6 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
     return f"{base_id}-{i}"
 
 # ----------------------------------------------------------------------
-# BASIC RESORT NAME / TIMEZONE HELPERS (needed for loading files)
-# ----------------------------------------------------------------------
-def detect_timezone_from_name(name: str) -> str:
-    """
-    Very simple placeholder timezone detector.
-    You can expand this later if you want per-country timezones.
-    """
-    return "UTC"
-
-
-def get_resort_full_name(resort_id: str, display_name: str) -> str:
-    """
-    For new resorts, treat the display name as the full resort name.
-    Existing resorts coming from JSON usually already have 'resort_name'
-    set, and we leave that alone.
-    """
-    return display_name
-
-
-def auto_populate_resort_name(resort: Dict[str, Any]) -> None:
-    """
-    Ensure each resort dict has a 'resort_name' field.
-
-    Priority:
-      1. keep existing 'resort_name' if present
-      2. use 'name_resort' if present
-      3. otherwise fall back to 'display_name'
-      4. finally fall back to 'id'
-    """
-    if not isinstance(resort, dict):
-        return
-
-    # If already has a resort_name, do nothing
-    if resort.get("resort_name"):
-        return
-
-    if resort.get("name_resort"):
-        resort["resort_name"] = resort["name_resort"]
-    elif resort.get("display_name"):
-        resort["resort_name"] = resort["display_name"]
-    elif resort.get("id"):
-        resort["resort_name"] = resort["id"]
-def populate_resort_address(resort: Dict[str, Any]) -> None:
-    """
-    Fill resort['address'] based on resort_name/display_name if we know it.
-    Does nothing if we don't have a mapping or address is already set.
-    """
-    if not isinstance(resort, dict):
-        return
-
-    # we rely on auto_populate_resort_name having run first
-    name = resort.get("resort_name") or resort.get("display_name")
-    if not name:
-        return
-
-    if resort.get("address"):  # already has something, don't overwrite
-        return
-
-    addr = ADDRESS_BY_RESORT_NAME.get(name)
-    if addr:
-        resort["address"] = addr
-
-# ----------------------------------------------------------------------
-# ADDRESS INJECTION HELPERS (SCHEMA CHANGE)
-# ----------------------------------------------------------------------
-def inject_address_into_resort(resort: Dict[str, Any]):
-    """
-    Ensure each resort has an 'address' key in schema, placed immediately
-    after the resort name field in insertion order.
-
-    Name priority:
-      1. 'name_resort'
-      2. 'resort_name'
-      3. 'display_name'
-    """
-    if not isinstance(resort, dict):
-        return
-
-    # Determine which key holds the resort's full name
-    name_key = None
-    if "name_resort" in resort:
-        name_key = "name_resort"
-    elif "resort_name" in resort:
-        name_key = "resort_name"
-    elif "display_name" in resort:
-        name_key = "display_name"
-
-    # Get resort name
-    name_val = resort.get(name_key) if name_key else None
-    if not isinstance(name_val, str):
-        name_val = None
-
-    # Look up mapped address, or fallback to existing/empty string
-    mapped_address = ADDRESS_BY_RESORT_NAME.get(name_val) if name_val else None
-    existing_address = resort.get("address")
-    final_address = mapped_address if mapped_address is not None else (existing_address or "")
-
-    # If we have no name field at all, just ensure 'address' key exists
-    if not name_key:
-        if "address" not in resort:
-            resort["address"] = final_address
-        return
-
-    # Rebuild dict to control insertion order: put 'address' right after name_key
-    new_resort = {}
-    for k, v in resort.items():
-        new_resort[k] = v
-        if k == name_key:
-            new_resort["address"] = final_address
-
-    resort.clear()
-    resort.update(new_resort)
-
-def inject_resort_addresses(data: Dict[str, Any]):
-    """Apply address injection to all resorts in top-level data."""
-    resorts = data.get("resorts", [])
-    for r in resorts:
-        inject_address_into_resort(r)
-
-# ----------------------------------------------------------------------
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
 def handle_file_upload():
@@ -540,13 +377,6 @@ def handle_file_upload():
                         st.error("❌ Invalid file format")
                         return
                     reset_state_for_new_file()
-                    for resort in raw_data.get("resorts", []):
-                        auto_populate_resort_name(resort)
-                        populate_resort_address(resort)
-
-                    # ensure schema includes 'address' for each resort
-                    inject_resort_addresses(raw_data)
-
                     st.session_state.data = raw_data
                     st.session_state.last_upload_sig = current_sig
                     resorts_list = get_resort_list(raw_data)
@@ -600,10 +430,6 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
                 if "resorts" not in merge_data:
                     st.error("❌ Invalid V2 schema")
                     return
-
-                # make sure merged data also has 'address' schema
-                inject_resort_addresses(merge_data)
-
                 target_resorts = data.setdefault("resorts", [])
                 existing_ids = {r.get("id") for r in target_resorts}
                 merge_resorts = merge_data.get("resorts", [])
@@ -628,8 +454,6 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
                         if rid in existing_ids:
                             skipped.append(resort_obj.get("display_name", rid))
                             continue
-                        auto_populate_resort_name(resort_obj)
-                        inject_address_into_resort(resort_obj)
                         target_resorts.append(copy.deepcopy(resort_obj))
                         existing_ids.add(rid)
                         merged_count += 1
@@ -697,12 +521,10 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                         "display_name": name,
                         "code": code,
                         "resort_name": full_name,
-                        "address": ADDRESS_BY_RESORT_NAME.get(full_name, ""),
+                        "address": "",
                         "timezone": detected_timezone,
                         "years": {}
                     }
-                    populate_resort_address(new_resort)
-                    inject_address_into_resort(new_resort)
                     resorts.append(new_resort)
                     st.session_state.current_resort_id = rid
                     save_data()
@@ -732,7 +554,6 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                         cloned["code"] = code
                         cloned["resort_name"] = get_resort_full_name(rid, name)
                         cloned["timezone"] = detected_timezone
-                        inject_address_into_resort(cloned)
                         resorts.append(cloned)
                         st.session_state.current_resort_id = rid
                         save_data()
@@ -898,7 +719,7 @@ def render_season_dates_editor_v2(working: Dict[str, Any], years: List[str], res
     st.markdown("<div class='section-header'>📅 Season Dates</div>", unsafe_allow_html=True)
     st.caption("Define season date ranges for each year. Season names apply across all years.")
 
-    # NEW: Season rename panel
+    # Season rename panel
     render_season_rename_panel_v2(working, resort_id)
 
     all_names = get_all_season_names_for_resort(working)
@@ -1170,7 +991,7 @@ def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str],
             st.success(f"✅ Deleted {del_room}")
             st.rerun()
 
-    # NEW: Room rename panel
+    # Room rename panel
     all_rooms_list = get_all_room_types_for_resort(working)
     if all_rooms_list:
         st.markdown("**✏️ Rename Room Type (applies everywhere)**")
@@ -1311,7 +1132,7 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 
     rows = []
 
-    # ---- Seasons: compute 7-night totals from nightly points ----
+    # Seasons: compute 7-night totals from nightly points
     for season in resort_years[ref_year].get("seasons", []):
         sname = season.get("name", "").strip() or "(Unnamed)"
         weekly_totals, any_data = compute_weekly_totals_for_season_v2(season, room_types)
@@ -1320,7 +1141,7 @@ def render_resort_summary_v2(working: Dict[str, Any]):
             row.update({room: (total if total else "—") for room, total in weekly_totals.items()})
             rows.append(row)
 
-    # ---- Holidays: use weekly totals directly from LAST year only ----
+    # Holidays: use weekly totals directly from LAST year only
     last_holiday_year = None
     for y in reversed(sorted_years):
         if resort_years.get(y, {}).get("holidays"):
@@ -1555,17 +1376,12 @@ def main():
     setup_page()
     initialize_session_state()
 
-    # Auto-load data file
+    # Auto-load data file (optional)
     if st.session_state.data is None:
         try:
             with open("data_v2.json", "r") as f:
                 raw_data = json.load(f)
                 if "schema_version" in raw_data and "resorts" in raw_data:
-                    for resort in raw_data.get("resorts", []):
-                        auto_populate_resort_name(resort)
-                        populate_resort_address(resort)
-                    # ensure address schema too
-                    inject_resort_addresses(raw_data)
                     st.session_state.data = raw_data
                     st.toast(f"✅ Auto-loaded {len(raw_data.get('resorts', []))} resorts", icon="✅")
         except FileNotFoundError:
@@ -1631,9 +1447,6 @@ def main():
         if current_resort_id not in working_resorts:
             if resort_obj := find_resort_by_id(data, current_resort_id):
                 working_resorts[current_resort_id] = copy.deepcopy(resort_obj)
-                auto_populate_resort_name(working_resorts[current_resort_id])
-                populate_resort_address(working_resorts[current_resort_id])
-                inject_address_into_resort(working_resorts[current_resort_id])
         working = working_resorts.get(current_resort_id)
 
     if working:
@@ -1641,12 +1454,6 @@ def main():
         resort_name = working.get("resort_name", "")
         timezone = working.get("timezone", "UTC")
         address = working.get("address", "")
-
-        if timezone in ["UTC", "Unknown", ""]:
-            detected_tz = detect_timezone_from_name(name)
-            if detected_tz != "UTC":
-                working["timezone"] = detected_tz
-                timezone = detected_tz
 
         st.markdown(f"""
             <div class='card'>
@@ -1660,6 +1467,26 @@ def main():
                 </p>
             </div>
         """, unsafe_allow_html=True)
+
+        # Editable timezone and address
+        col_tz, col_addr = st.columns(2)
+        with col_tz:
+            new_timezone = st.text_input(
+                "Timezone",
+                value=timezone or "",
+                key=rk(current_resort_id, "timezone_edit"),
+                help="e.g. America/New_York"
+            )
+            working["timezone"] = new_timezone
+
+        with col_addr:
+            new_address = st.text_input(
+                "Address",
+                value=address or "",
+                key=rk(current_resort_id, "address_edit"),
+                help="Resort street address"
+            )
+            working["address"] = new_address
 
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
