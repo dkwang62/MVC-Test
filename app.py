@@ -68,6 +68,7 @@ ADDRESS_BY_RESORT_NAME = {
     "Marriott Vacation Club at The Mayflower, Washington, D.C.": "1127 Connecticut Avenue NW, Washington, DC 20036, USA"
 }
 
+
 # ----------------------------------------------------------------------
 # WIDGET KEY HELPER (RESORT-SCOPED)
 # ----------------------------------------------------------------------
@@ -440,6 +441,25 @@ def auto_populate_resort_name(resort: Dict[str, Any]) -> None:
         resort["resort_name"] = resort["display_name"]
     elif resort.get("id"):
         resort["resort_name"] = resort["id"]
+def populate_resort_address(resort: Dict[str, Any]) -> None:
+    """
+    Fill resort['address'] based on resort_name/display_name if we know it.
+    Does nothing if we don't have a mapping or address is already set.
+    """
+    if not isinstance(resort, dict):
+        return
+
+    # we rely on auto_populate_resort_name having run first
+    name = resort.get("resort_name") or resort.get("display_name")
+    if not name:
+        return
+
+    if resort.get("address"):  # already has something, don't overwrite
+        return
+
+    addr = ADDRESS_BY_RESORT_NAME.get(name)
+    if addr:
+        resort["address"] = addr
 
 # ----------------------------------------------------------------------
 # ADDRESS INJECTION HELPERS (SCHEMA CHANGE)
