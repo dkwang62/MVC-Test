@@ -542,6 +542,7 @@ def handle_file_upload():
                     reset_state_for_new_file()
                     for resort in raw_data.get("resorts", []):
                         auto_populate_resort_name(resort)
+                        populate_resort_address(resort)
 
                     # ensure schema includes 'address' for each resort
                     inject_resort_addresses(raw_data)
@@ -700,6 +701,7 @@ def handle_resort_creation_v2(data: Dict[str, Any], current_resort_id: Optional[
                         "timezone": detected_timezone,
                         "years": {}
                     }
+                    populate_resort_address(new_resort)
                     inject_address_into_resort(new_resort)
                     resorts.append(new_resort)
                     st.session_state.current_resort_id = rid
@@ -1561,6 +1563,7 @@ def main():
                 if "schema_version" in raw_data and "resorts" in raw_data:
                     for resort in raw_data.get("resorts", []):
                         auto_populate_resort_name(resort)
+                        populate_resort_address(resort)
                     # ensure address schema too
                     inject_resort_addresses(raw_data)
                     st.session_state.data = raw_data
@@ -1629,6 +1632,7 @@ def main():
             if resort_obj := find_resort_by_id(data, current_resort_id):
                 working_resorts[current_resort_id] = copy.deepcopy(resort_obj)
                 auto_populate_resort_name(working_resorts[current_resort_id])
+                populate_resort_address(working_resorts[current_resort_id])
                 inject_address_into_resort(working_resorts[current_resort_id])
         working = working_resorts.get(current_resort_id)
 
