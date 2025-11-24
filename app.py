@@ -1065,6 +1065,38 @@ def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str],
 def render_holiday_management_v2(working: Dict[str, Any], years: List[str], resort_id: str):
     st.markdown("<div class='section-header'>🎄 Holiday Management</div>", unsafe_allow_html=True)
     base_year = BASE_YEAR_FOR_POINTS if BASE_YEAR_FOR_POINTS in years else (sorted(years)[0] if years else BASE_YEAR_FOR_POINTS)
+    
+    sync_holiday_room_points_across_years(working, base_year=base_year)
+    st.markdown("---")
+    st.markdown("**💰 Master Holiday Points**")
+    st.caption("Edit holiday room points once. Applied to all years automatically.")
+    base_year_obj = ensure_year_structure(working, base_year)
+    base_holidays = base_year_obj.get("holidays", [])
+    if not base_holidays:
+        st.info(f"💡 No holidays defined in {base_year}. Add holidays above first.")
+    else:
+        all_rooms = get_all_room_types_for_resort(working)
+        for h_idx, h in enumerate(base_holidays):
+            disp_name = h.get("name", f"Holiday {h_idx+1}")
+            key = (h.get("global_reference") or h.get("name") or "").strip()
+            with st.expander(f"🎊 {disp_name}", expanded=False):
+                st.caption(f"Reference key: {key}")
+                rp = h.setdefault("room_points", {})
+                rooms_here = sorted(all_rooms or rp.keys())
+                cols = st.columns(4)
+                for j, room in enumerate(rooms_here):
+                    rp.setdefault(room, 0)
+                    with cols[j % 4]:
+                        current_val = int(rp.get(room, 0) or 0)
+                        new_val = st.number_input(
+                            room,
+                            value=current_val,
+                            step=25,
+                            key=rk(resort_id, "holiday_master_rp", base_year, h_idx, room)
+                        )
+                        if new_val != current_val:
+                            rp[room] = int(new_val)
+    
     st.markdown("**📋 Assign Holidays to Years**")
     for year in years:
         year_obj = ensure_year_structure(working, year)
@@ -1105,36 +1137,7 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
                     if st.button("❌", key=rk(resort_id, "holiday_del", year, h_idx)):
                         holidays.pop(h_idx)
                         st.rerun()
-    sync_holiday_room_points_across_years(working, base_year=base_year)
-    st.markdown("---")
-    st.markdown("**💰 Master Holiday Points**")
-    st.caption("Edit holiday room points once. Applied to all years automatically.")
-    base_year_obj = ensure_year_structure(working, base_year)
-    base_holidays = base_year_obj.get("holidays", [])
-    if not base_holidays:
-        st.info(f"💡 No holidays defined in {base_year}. Add holidays above first.")
-    else:
-        all_rooms = get_all_room_types_for_resort(working)
-        for h_idx, h in enumerate(base_holidays):
-            disp_name = h.get("name", f"Holiday {h_idx+1}")
-            key = (h.get("global_reference") or h.get("name") or "").strip()
-            with st.expander(f"🎊 {disp_name}", expanded=False):
-                st.caption(f"Reference key: {key}")
-                rp = h.setdefault("room_points", {})
-                rooms_here = sorted(all_rooms or rp.keys())
-                cols = st.columns(4)
-                for j, room in enumerate(rooms_here):
-                    rp.setdefault(room, 0)
-                    with cols[j % 4]:
-                        current_val = int(rp.get(room, 0) or 0)
-                        new_val = st.number_input(
-                            room,
-                            value=current_val,
-                            step=25,
-                            key=rk(resort_id, "holiday_master_rp", base_year, h_idx, room)
-                        )
-                        if new_val != current_val:
-                            rp[room] = int(new_val)
+    
     sync_holiday_room_points_across_years(working, base_year=base_year)
 
 # ----------------------------------------------------------------------
