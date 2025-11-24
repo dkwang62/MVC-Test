@@ -9,6 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from functools import lru_cache
 import pytz
+from collections import defaultdict
 
 # ----------------------------------------------------------------------
 # CONSTANTS
@@ -17,60 +18,59 @@ DEFAULT_YEARS = ["2025", "2026"]
 BASE_YEAR_FOR_POINTS = "2025"
 
 # ----------------------------------------------------------------------
-# TIMEZONE SORTING HELPERS
+# TIMEZONE SORTING HELPERS (UPDATED FOR WEST TO EAST)
 # ----------------------------------------------------------------------
 COMMON_TZ_ORDER = [
-    "America/New_York",
-    "America/Chicago",
-    "America/Denver",
-    "America/Los_Angeles",
-    "America/Anchorage",
-    "Pacific/Honolulu",
-    "America/Halifax",
-    "America/St_Johns",
-    "America/Toronto",
-    "America/Winnipeg",
-    "America/Edmonton",
-    "America/Vancouver",
-    "US/Eastern",
-    "US/Central",
-    "US/Mountain",
-    "US/Pacific",
-    "US/Alaska",
-    "US/Hawaii",
-    "Canada/Eastern",
-    "Canada/Central",
-    "Canada/Mountain",
-    "Canada/Pacific",
-    "Canada/Atlantic",
-    "Canada/Newfoundland",
+    "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
+    "America/Chicago", "America/New_York", "America/Vancouver", "America/Edmonton",
+    "America/Winnipeg", "America/Toronto", "America/Halifax", "America/St_Johns",
+    "US/Hawaii", "US/Alaska", "US/Pacific", "US/Mountain", "US/Central", "US/Eastern",
 ]
+
+TZ_TO_REGION = {
+    "Pacific/Honolulu": "Hawaii",
+    "US/Hawaii": "Hawaii",
+    "America/Anchorage": "Alaska",
+    "US/Alaska": "Alaska",
+    "America/Los_Angeles": "West Coast",
+    "US/Pacific": "West Coast",
+    "America/Denver": "Mountain",
+    "US/Mountain": "Mountain",
+    "America/Chicago": "Central",
+    "US/Central": "Central",
+    "America/New_York": "East Coast",
+    "US/Eastern": "East Coast",
+    "America/Aruba": "Caribbean",
+    "America/St_Thomas": "Caribbean",  # Virgin Islands
+    # Add more as needed
+}
 
 def get_timezone_offset(tz_name: str) -> float:
     """Return UTC offset in hours (negative for west of UTC)"""
     try:
         tz = pytz.timezone(tz_name)
-        # Use a fixed date to avoid DST issues in some zones
         dt = datetime(2025, 1, 1)
         return tz.utcoffset(dt).total_seconds() / 3600
     except:
-        return 0  # fallback
+        return 0
 
-def sort_resorts_east_to_west(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort resorts East → West using timezone offset, then address"""
+def get_region_label(tz: str) -> str:
+    return TZ_TO_REGION.get(tz, tz.split("/")[-1] if "/" in tz else tz)
+
+def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Sort resorts West → East using timezone offset, then address"""
     def sort_key(r):
         tz = r.get("timezone", "UTC")
-        # Prioritize known common zones
         if tz in COMMON_TZ_ORDER:
-            priority = -COMMON_TZ_ORDER.index(tz)  # higher index = more west = lower priority
+            priority = COMMON_TZ_ORDER.index(tz)  # Lower index for West
         else:
-            priority = -1000  # unknown goes to end
+            priority = 1000  # Unknown to end
         
-        offset = get_timezone_offset(tz)  # e.g., -5 for EST, -8 for PST
+        offset = get_timezone_offset(tz)
         address = (r.get("address") or r.get("resort_name") or r.get("display_name") or "").lower()
         return (priority, offset, address)
     
-    return sorted(resorts, key=sort_key, reverse=True)  # reverse so East first
+    return sorted(resorts, key=sort_key)
 
 # ----------------------------------------------------------------------
 # WIDGET KEY HELPER (RESORT-SCOPED)
@@ -354,11 +354,9 @@ def reset_state_for_new_file():
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
-    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
-    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 # ----------------------------------------------------------------------
@@ -366,11 +364,9 @@ def get_resort_full_name(resort_id: str, display_name: str) -> str:
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
 def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
-    """Cached version of get_years_from_data"""
     return tuple(sorted(get_years_from_data(st.session_state.data)))
 
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
-    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -527,29 +523,43 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
 # RESORT MANAGEMENT WITH ENHANCED UI
 # ----------------------------------------------------------------------
 def render_resort_grid(resorts: List[Dict[str, Any]], current_resort_id: Optional[str]):
-    st.markdown("<div class='section-header'>🏨 Resort Selection (East to West)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-header'>🏨 Resort Selection (West to East)</div>", unsafe_allow_html=True)
     if not resorts:
         st.info("No resorts available. Create one below!")
         return
-    # Sort East to West
-    sorted_resorts = sort_resorts_east_to_west(resorts)
-    cols = st.columns(6)
-    for i, resort in enumerate(sorted_resorts):
-        rid = resort.get("id")
-        name = resort.get("display_name", rid or f"Resort {i+1}")
-        tz = resort.get("timezone", "UTC")
-        with cols[i % 6]:
-            button_type = "primary" if current_resort_id == rid else "secondary"
-            if st.button(
-                f"🏨 {name}\n{tz}",
-                key=f"resort_btn_{rid}",
-                type=button_type,
-                use_container_width=True,
-                help=resort.get("address", "No address")
-            ):
-                st.session_state.current_resort_id = rid
-                st.session_state.delete_confirm = False
-                st.rerun()
+    # Sort West to East
+    sorted_resorts = sort_resorts_west_to_east(resorts)
+    # Group by offset (to group same time zones, e.g., Virgin Islands and Aruba at -4.0)
+    groups = defaultdict(list)
+    for resort in sorted_resorts:
+        offset = get_timezone_offset(resort.get("timezone", "UTC"))
+        groups[offset].append(resort)
+    # Sort groups by offset ascending (West first, more negative)
+    sorted_groups = sorted(groups.items(), key=lambda x: x[0])
+    # Create columns for each group
+    cols = st.columns(len(sorted_groups))
+    for col_idx, (offset, group_resorts) in enumerate(sorted_groups):
+        with cols[col_idx]:
+            # Get label from first resort's tz
+            if group_resorts:
+                first_tz = group_resorts[0].get("timezone", "UTC")
+                region = get_region_label(first_tz)
+                st.markdown(f"**{region} (UTC{offset:+})**")
+            # Sort resorts in group by address
+            sorted_group = sorted(group_resorts, key=lambda r: (r.get("address") or "").lower())
+            for resort in sorted_group:
+                rid = resort.get("id")
+                name = resort.get("display_name", rid or "Resort")
+                button_type = "primary" if current_resort_id == rid else "secondary"
+                if st.button(
+                    f"🏨 {name}",
+                    key=f"resort_btn_{rid}",
+                    type=button_type,
+                    use_container_width=True
+                ):
+                    st.session_state.current_resort_id = rid
+                    st.session_state.delete_confirm = False
+                    st.rerun()
 
 def is_duplicate_resort_name(name: str, resorts: List[Dict[str, Any]]) -> bool:
     target = name.strip().lower()
@@ -1279,7 +1289,7 @@ def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], ye
             st.success("✅ All validation checks passed!")
 
 # ----------------------------------------------------------------------
-# WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
+# WORKING RESORT LOADER + HEADER RENDERER
 # ----------------------------------------------------------------------
 def load_resort(
     data: Dict[str, Any],
@@ -1482,6 +1492,7 @@ def render_global_settings_v2(data: Dict[str, Any], years: List[str]):
 def main():
     setup_page()
     initialize_session_state()
+    # Auto-load data file (optional)
     if st.session_state.data is None:
         try:
             with open("data_v2.json", "r") as f:
@@ -1493,6 +1504,7 @@ def main():
             pass
         except Exception as e:
             st.toast(f"⚠️ Auto-load error: {str(e)}", icon="⚠️")
+    # Sidebar
     with st.sidebar:
         st.markdown("""
             <div style='text-align: center; padding: 20px; margin-bottom: 20px;'>
@@ -1516,6 +1528,7 @@ def main():
             handle_file_verification()
             handle_merge_from_another_file_v2(st.session_state.data)
         show_save_indicator()
+    # Main content
     st.markdown("<div class='big-font'>MVC Resort Editor V2</div>", unsafe_allow_html=True)
     if not st.session_state.data:
         st.markdown("""
@@ -1532,6 +1545,7 @@ def main():
     previous_resort_id = st.session_state.previous_resort_id
     render_resort_grid(resorts, current_resort_id)
     handle_resort_switch_v2(data, current_resort_id, previous_resort_id)
+    # Working resort
     working = load_resort(data, current_resort_id)
    
     if working:
