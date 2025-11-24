@@ -1067,7 +1067,6 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     base_year = BASE_YEAR_FOR_POINTS if BASE_YEAR_FOR_POINTS in years else (sorted(years)[0] if years else BASE_YEAR_FOR_POINTS)
     
     sync_holiday_room_points_across_years(working, base_year=base_year)
-    st.markdown("---")
     st.markdown("**💰 Master Holiday Points**")
     st.caption("Edit holiday room points once. Applied to all years automatically.")
     base_year_obj = ensure_year_structure(working, base_year)
@@ -1264,7 +1263,7 @@ def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], ye
 # ----------------------------------------------------------------------
 # WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
 # ----------------------------------------------------------------------
-def load_and_render_resort(
+def load_resort(
     data: Dict[str, Any],
     current_resort_id: Optional[str]
 ) -> Optional[Dict[str, Any]]:
@@ -1289,18 +1288,6 @@ def load_and_render_resort(
     working = working_resorts.get(current_resort_id)
     if not working:
         return None
-
-    # ------------------------------------------------------------------
-    # Render clean, professional header
-    # ------------------------------------------------------------------
-#    name = working.get("resort_name", current_resort_id)
-
-#    st.markdown(f"""
-#        <div class='card'>
-#            <h2 style='margin: 0; color: #667eea;'>Current 🏨 {name}</h2>
-#        </div>
-#    """, unsafe_allow_html=True)
-#
     return working
 
 
@@ -1558,7 +1545,7 @@ def main():
     handle_resort_switch_v2(data, current_resort_id, previous_resort_id)
 
     # Working resort
-    working = load_and_render_resort(data, current_resort_id)
+    working = load_resort(data, current_resort_id)
     
     if working:
 # Extract the info we need for the header card
