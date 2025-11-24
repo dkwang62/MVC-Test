@@ -1290,16 +1290,41 @@ def load_and_render_resort(
     # ------------------------------------------------------------------
     # Render clean, professional header
     # ------------------------------------------------------------------
-    name = working.get("resort_name", current_resort_id)
+#    name = working.get("resort_name", current_resort_id)
 
-    st.markdown(f"""
-        <div class='card'>
-            <h2 style='margin: 0; color: #667eea;'>Current 🏨 {name}</h2>
-        </div>
-    """, unsafe_allow_html=True)
-
+#    st.markdown(f"""
+#        <div class='card'>
+#            <h2 style='margin: 0; color: #667eea;'>Current 🏨 {name}</h2>
+#        </div>
+#    """, unsafe_allow_html=True)
+#
     return working
 
+
+
+def render_resort_card(resort_name: str, timezone: str, address: str):
+    """Render an enhanced resort information card"""
+    st.markdown(f"""
+        <div style="
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border-left: 4px solid var(--primary-color);
+            transition: all 0.2s ease;
+        ">
+            <h2 style="margin:0; color: var(--primary-color); font-size: 28px; font-weight: 700;">
+                🖖️ {resort_name}
+            </h2>
+            <p style="margin: 8px 0 0 0; color: #64748b; font-size: 16px;">
+                🕒 Timezone: {timezone}
+            </p>
+            <p style="margin: 4px 0 0 0; color: #64748b; font-size: 14px;">
+                📍 {address}
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
 
 
 # ----------------------------------------------------------------------
@@ -1531,8 +1556,9 @@ def main():
 
     # Working resort
     working = load_and_render_resort(data, current_resort_id)
-
+    
     if working:
+        render_resort_card(resort_info["full_name"], resort_info["timezone"], resort_info["address"])
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
         handle_resort_creation_v2(data, current_resort_id)
