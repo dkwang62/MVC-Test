@@ -1552,8 +1552,7 @@ def main():
         resort_name = working.get("resort_name") or working.get("display_name") or current_resort_id
         timezone = working.get("timezone", "UTC")
         address = working.get("address", "No address provided")
-        render_resort_card(resort_name, address)
-        # render_resort_card(resort_name, timezone, address)
+        render_resort_card(resort_name, timezone, address)
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
         handle_resort_creation_v2(data, current_resort_id)
