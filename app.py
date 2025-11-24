@@ -549,7 +549,7 @@ def render_resort_grid(resorts: List[Dict[str, Any]], current_resort_id: Optiona
                     region = get_region_label(tz)
                     button_type = "primary" if current_resort_id == rid else "secondary"
                     if st.button(
-                        f"🏨 {name}\n{region} ({tz})",
+                        f"🏨 {name}",
                         key=f"resort_btn_{rid}",
                         type=button_type,
                         use_container_width=True,
