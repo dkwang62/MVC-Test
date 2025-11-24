@@ -1558,7 +1558,7 @@ def main():
     working = load_and_render_resort(data, current_resort_id)
     
     if working:
-        render_resort_card(resort_info["full_name"], resort_info["timezone"], resort_info["address"])
+        render_resort_card(resort_info["resort_name"], resort_info["timezone"], resort_info["address"])
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
         handle_resort_creation_v2(data, current_resort_id)
