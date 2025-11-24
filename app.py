@@ -1558,6 +1558,10 @@ def main():
     working = load_and_render_resort(data, current_resort_id)
     
     if working:
+        # Extract the info we need for the header card
+        resort_name = working.get("resort_name") or working.get("display_name") or current_resort_id
+        timezone = working.get("timezone", "UTC")
+        address = working.get("address", "No address provided")
         render_resort_card(resort_info["resort_name"], resort_info["timezone"], resort_info["address"])
         render_validation_panel_v2(working, data, years)
         render_save_button_v2(data, working, current_resort_id)
