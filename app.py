@@ -9,7 +9,6 @@ import plotly.express as px
 import plotly.graph_objects as go
 from functools import lru_cache
 import pytz
-from collections import defaultdict
 
 # ----------------------------------------------------------------------
 # CONSTANTS
@@ -25,6 +24,7 @@ COMMON_TZ_ORDER = [
     "America/Chicago", "America/New_York", "America/Vancouver", "America/Edmonton",
     "America/Winnipeg", "America/Toronto", "America/Halifax", "America/St_Johns",
     "US/Hawaii", "US/Alaska", "US/Pacific", "US/Mountain", "US/Central", "US/Eastern",
+    "America/Aruba", "America/St_Thomas", "Asia/Denpasar",  # Added for Aruba, Virgin Islands, Bali
 ]
 
 TZ_TO_REGION = {
@@ -41,7 +41,8 @@ TZ_TO_REGION = {
     "America/New_York": "East Coast",
     "US/Eastern": "East Coast",
     "America/Aruba": "Caribbean",
-    "America/St_Thomas": "Caribbean",  # Virgin Islands
+    "America/St_Thomas": "Caribbean",
+    "Asia/Denpasar": "Bali/Indonesia",
     # Add more as needed
 }
 
@@ -354,9 +355,11 @@ def reset_state_for_new_file():
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
+    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
+    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 # ----------------------------------------------------------------------
@@ -364,9 +367,11 @@ def get_resort_full_name(resort_id: str, display_name: str) -> str:
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
 def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
+    """Cached version of get_years_from_data"""
     return tuple(sorted(get_years_from_data(st.session_state.data)))
 
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
+    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -527,39 +532,32 @@ def render_resort_grid(resorts: List[Dict[str, Any]], current_resort_id: Optiona
     if not resorts:
         st.info("No resorts available. Create one below!")
         return
-    # Sort West to East
     sorted_resorts = sort_resorts_west_to_east(resorts)
-    # Group by offset (to group same time zones, e.g., Virgin Islands and Aruba at -4.0)
-    groups = defaultdict(list)
-    for resort in sorted_resorts:
-        offset = get_timezone_offset(resort.get("timezone", "UTC"))
-        groups[offset].append(resort)
-    # Sort groups by offset ascending (West first, more negative)
-    sorted_groups = sorted(groups.items(), key=lambda x: x[0])
-    # Create columns for each group
-    cols = st.columns(len(sorted_groups))
-    for col_idx, (offset, group_resorts) in enumerate(sorted_groups):
-        with cols[col_idx]:
-            # Get label from first resort's tz
-            if group_resorts:
-                first_tz = group_resorts[0].get("timezone", "UTC")
-                region = get_region_label(first_tz)
-                st.markdown(f"**{region} (UTC{offset:+})**")
-            # Sort resorts in group by address
-            sorted_group = sorted(group_resorts, key=lambda r: (r.get("address") or "").lower())
-            for resort in sorted_group:
-                rid = resort.get("id")
-                name = resort.get("display_name", rid or "Resort")
-                button_type = "primary" if current_resort_id == rid else "secondary"
-                if st.button(
-                    f"🏨 {name}",
-                    key=f"resort_btn_{rid}",
-                    type=button_type,
-                    use_container_width=True
-                ):
-                    st.session_state.current_resort_id = rid
-                    st.session_state.delete_confirm = False
-                    st.rerun()
+    num_cols = 6
+    cols = st.columns(num_cols)
+    num_resorts = len(sorted_resorts)
+    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division
+    for col_idx, col in enumerate(cols):
+        with col:
+            for row in range(num_rows):
+                idx = col_idx * num_rows + row
+                if idx < num_resorts:
+                    resort = sorted_resorts[idx]
+                    rid = resort.get("id")
+                    name = resort.get("display_name", rid or f"Resort {idx+1}")
+                    tz = resort.get("timezone", "UTC")
+                    region = get_region_label(tz)
+                    button_type = "primary" if current_resort_id == rid else "secondary"
+                    if st.button(
+                        f"🏨 {name}\n{region} ({tz})",
+                        key=f"resort_btn_{rid}",
+                        type=button_type,
+                        use_container_width=True,
+                        help=resort.get("address", "No address")
+                    ):
+                        st.session_state.current_resort_id = rid
+                        st.session_state.delete_confirm = False
+                        st.rerun()
 
 def is_duplicate_resort_name(name: str, resorts: List[Dict[str, Any]]) -> bool:
     target = name.strip().lower()
@@ -981,10 +979,16 @@ def sync_holiday_room_points_across_years(working: Dict[str, Any], base_year: st
 # RESORT BASIC INFO EDITOR (helper)
 # ----------------------------------------------------------------------
 def edit_resort_basics(working: Dict[str, Any], resort_id: str):
+    """
+    Renders editable fields for resort_name, timezone and address.
+    Returns nothing – directly mutates the working dict.
+    """
     st.markdown("### Basic Resort Information")
+    # Current values (with fallbacks)
     current_name = working.get("resort_name", "")
     current_tz = working.get("timezone", "UTC")
     current_addr = working.get("address", "")
+    # Full Resort Name
     new_name = st.text_input(
         "Full Resort Name (resort_name)",
         value=current_name,
@@ -992,6 +996,7 @@ def edit_resort_basics(working: Dict[str, Any], resort_id: str):
         help="Official name stored in the 'resort_name' field"
     )
     working["resort_name"] = new_name.strip()
+    # Timezone & Address side-by-side
     col_tz, col_addr = st.columns(2)
     with col_tz:
         new_tz = st.text_input(
@@ -1002,7 +1007,7 @@ def edit_resort_basics(working: Dict[str, Any], resort_id: str):
         )
         working["timezone"] = new_tz.strip() or "UTC"
     with col_addr:
-        new_addr = st.text_area(
+        new_addr = st.text_area( # text_area gives a bit more space for addresses
             "Address",
             value=current_addr,
             height=80,
@@ -1079,6 +1084,7 @@ def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str],
             delete_room_type_master(working, del_room)
             st.success(f"✅ Deleted {del_room}")
             st.rerun()
+    # Room rename panel
     all_rooms_list = get_all_room_types_for_resort(working)
     if all_rooms_list:
         st.markdown("**✏️ Rename Room Type (applies everywhere)**")
@@ -1289,7 +1295,7 @@ def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], ye
             st.success("✅ All validation checks passed!")
 
 # ----------------------------------------------------------------------
-# WORKING RESORT LOADER + HEADER RENDERER
+# WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
 # ----------------------------------------------------------------------
 def load_resort(
     data: Dict[str, Any],
@@ -1297,6 +1303,7 @@ def load_resort(
 ) -> Optional[Dict[str, Any]]:
     if not current_resort_id:
         return None
+    # Ensure we have a working copy in memory
     working_resorts = st.session_state.working_resorts
     if current_resort_id not in working_resorts:
         if resort_obj := find_resort_by_id(data, current_resort_id):
@@ -1307,6 +1314,7 @@ def load_resort(
     return working
 
 def render_resort_card(resort_name: str, timezone: str, address: str):
+    """Render an enhanced resort information card"""
     st.markdown(f"""
         <div style="
             background: var(--card-bg);
