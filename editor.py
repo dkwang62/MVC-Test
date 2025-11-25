@@ -1506,83 +1506,18 @@ def render_resort_card(resort_name: str, timezone: str, address: str):
 # ----------------------------------------------------------------------
 # GANTT CHART
 # ----------------------------------------------------------------------
-def create_gantt_chart_v2(working: Dict[str, Any], year: str, data: Dict[str, Any]) -> go.Figure:
-    rows = []
-    year_obj = working.get("years", {}).get(year, {})
-    for season in year_obj.get("seasons", []):
-        sname = season.get("name", "(Unnamed)")
-        for i, p in enumerate(season.get("periods", []), 1):
-            try:
-                start_dt = datetime.strptime(p.get("start"), "%Y-%m-%d")
-                end_dt = datetime.strptime(p.get("end"), "%Y-%m-%d")
-                if start_dt <= end_dt:
-                    rows.append({
-                        "Task": f"{sname} #{i}",
-                        "Start": start_dt,
-                        "Finish": end_dt,
-                        "Type": sname
-                    })
-            except:
-                continue
-    gh_year = data.get("global_holidays", {}).get(year, {})
-    for h in year_obj.get("holidays", []):
-        global_ref = h.get("global_reference") or h.get("name")
-        if gh := gh_year.get(global_ref):
-            try:
-                start_dt = datetime.strptime(gh.get("start_date"), "%Y-%m-%d")
-                end_dt = datetime.strptime(gh.get("end_date"), "%Y-%m-%d")
-                if start_dt <= end_dt:
-                    rows.append({
-                        "Task": h.get("name", "(Unnamed)"),
-                        "Start": start_dt,
-                        "Finish": end_dt,
-                        "Type": "Holiday"
-                    })
-            except:
-                continue
-    if not rows:
-        today = datetime.now()
-        rows.append({
-            "Task": "No Data",
-            "Start": today,
-            "Finish": today + timedelta(days=1),
-            "Type": "No Data"
-        })
-    df = pd.DataFrame(rows)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["Finish"] = pd.to_datetime(df["Finish"])
-    fig = px.timeline(
-        df,
-        x_start="Start",
-        x_end="Finish",
-        y="Task",
-        color="Type",
-        title=f"{working.get('display_name', 'Resort')} – {year} Timeline",
-        height=max(400, len(df) * 35)
-    )
-    fig.update_yaxes(autorange="reversed")
-    fig.update_xaxes(tickformat="%d %b %Y")
-    fig.update_traces(
-        hovertemplate="<b>%{y}</b><br>Start: %{base|%d %b %Y}<br>End: %{x|%d %b %Y}<extra></extra>"
-    )
-    fig.update_layout(
-        showlegend=True,
-        xaxis_title="Date",
-        yaxis_title="Period",
-        font=dict(size=12),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    return fig
+# Remove the old create_gantt_chart_v2 function entirely
+# And replace the render_gantt_charts_v2 function with:
 
 def render_gantt_charts_v2(working: Dict[str, Any], years: List[str], data: Dict[str, Any]):
+    from common.charts import create_gantt_chart_from_working
+    
     st.markdown("<div class='section-header'>📊 Visual Timeline</div>", unsafe_allow_html=True)
     tabs = st.tabs([f"📅 {year}" for year in years])
     for tab, year in zip(tabs, years):
         with tab:
-            fig = create_gantt_chart_v2(working, year, data)
+            fig = create_gantt_chart_from_working(working, year, data, height=max(400, len(working.get("years", {}).get(year, {}).get("seasons", [])) * 35 + 150))
             st.plotly_chart(fig, use_container_width=True)
-
 # ----------------------------------------------------------------------
 # GLOBAL SETTINGS
 # ----------------------------------------------------------------------
