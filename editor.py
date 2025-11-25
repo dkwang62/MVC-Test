@@ -8,7 +8,7 @@ import json
 from functools import lru_cache
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
