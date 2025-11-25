@@ -1,29 +1,26 @@
-# common/data.py
-import json
-import streamlit as st
-from typing import Dict, Any, Optional
+# common/utils.py
+import pytz
 from datetime import datetime
+from typing import List, Dict, Any
 
-def load_data() -> Dict[str, Any]:
-    if "data" not in st.session_state or st.session_state.data is None:
-        try:
-            with open("data_v2.json", "r") as f:
-                st.session_state.data = json.load(f)
-                st.session_state.uploaded_file_name = "data_v2.json"
-        except FileNotFoundError:
-            st.session_state.data = None
-    return st.session_state.data
+COMMON_TZ_ORDER = [
+    "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
+    "America/Chicago", "America/New_York", "America/Vancouver", "America/Edmonton",
+    "America/Winnipeg", "America/Toronto", "America/Halifax", "America/St_Johns",
+    "US/Hawaii", "US/Alaska", "US/Pacific", "US/Mountain", "US/Central", "US/Eastern",
+    "America/Aruba", "America/St_Thomas", "Asia/Denpasar",
+]
 
-def save_data(data: Dict[str, Any]):
-    with open("data_v2.json", "w") as f:
-        json.dump(data, f, indent=2)
-    st.session_state.last_save_time = datetime.now()
+def get_timezone_offset(tz_name: str) -> float:
+    try:
+        tz = pytz.timezone(tz_name)
+        return tz.utcoffset(datetime(2025, 1, 1)).total_seconds() / 3600
+    except:
+        return 0
 
-def get_resorts(data: Dict[str, Any]) -> list:
-    return data.get("resorts", []) if data else []
-
-def get_resort_by_display_name(data: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
-    return next((r for r in get_resorts(data) if r.get("display_name") == name), None)
-
-def get_maintenance_rate(data: Dict[str, Any], year: int) -> float:
-    return float(data.get("configuration", {}).get("maintenance_rates", {}).get(str(year), 0.86))
+def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def key(r):
+        tz = r.get("timezone", "UTC")
+        priority = COMMON_TZ_ORDER.index(tz) if tz in COMMON_TZ_ORDER else 9999
+        return (priority, get_timezone_offset(tz), (r.get("address") or r.get("display_name", "")).lower())
+    return sorted(resorts, key=key)
