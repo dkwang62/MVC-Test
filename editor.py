@@ -1024,20 +1024,20 @@ def edit_resort_basics(working: Dict[str, Any], resort_id: str):
 def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
     ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-    
-    # Safely get all room types – this function already exists in your code
+
+    # Safely get all room types – your helper already returns a list, so we make it a set
     try:
         all_rooms = set(get_all_room_types_for_resort(working))
-    except:
+    except Exception:
         all_rooms = set()
 
     global_holidays = data.get("global_holidays", {})
 
     for year in years:
         year_obj = working.get("years", {}).get(year, {})
-        seasons = year_obj.get("seasons", [])
+        seasons = year_obj.get("seasons", []) or []
 
-        # 1. No seasons defined
+        # 1. No seasons at all
         if not seasons:
             issues.append(f"[{year}] No seasons defined")
             continue
@@ -1048,9 +1048,9 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
 
             # Day coverage & overlap
             covered_days: set = set()
-            day_categories = season.get("day_categories", {}) or {}
+            day_categories = season.get("day_categories") or {}
             for cat in day_categories.values():
-                pattern = cat.get("day_pattern", []) or []
+                pattern = cat.get("day_pattern") or []
                 valid_days = {d for d in pattern if d in ALL_DAYS}
 
                 if overlap := covered_days & valid_days:
@@ -1073,7 +1073,7 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
                         issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
 
         # 3. Holiday validation
-        holidays = year_obj.get("holidays", []) or []
+        holidays = year_obj.get("holidays") or []
         for h in holidays:
             hname = h.get("name") or "(unnamed holiday)"
             key = (h.get("global_reference") or h.get("name") or "").strip()
@@ -1093,13 +1093,17 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
 
 def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]):
     with st.expander("Data Validation", expanded=False):
-        issues = validate_resort_data_v2(working, data, years)
-        if issues:
-            st.error(f"Found {len(issues)} issue(s):")
-            for issue in issues:
-                st.write(f"• {issue}")
-        else:
-            st.success("All checks passed – data is valid!")
+        try:
+            issues = validate_resort_data_v2(working, data, years)
+            if issues:
+                st.error(f"Found {len(issues)} validation issue(s):")
+                for issue in issues:
+                    st.write(f"• {issue}")
+            else:
+                st.success("All validation checks passed!")
+        except Exception as e:
+            st.error("Validation crashed (this shouldn't happen)")
+            st.exception(e)
 # ----------------------------------------------------------------------
 # HOLIDAY MANAGEMENT
 # ----------------------------------------------------------------------
