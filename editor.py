@@ -1,7 +1,11 @@
 # calculator.py
 import streamlit as st
+from common.ui import setup_page, render_resort_card, render_resort_grid
+from common.data import load_data, get_resorts, get_resort_by_display_name, get_maintenance_rate
+from common.utils import sort_resorts_west_to_east
 import math
 import json
+from functools import lru_cache
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
@@ -10,9 +14,7 @@ from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 import pytz
 
-from common.ui import setup_page, render_resort_card, render_resort_grid
-from common.data import load_data, get_resorts, get_resort_by_display_name, get_maintenance_rate
-from common.utils import sort_resorts_west_to_east
+
 
 # ----------------------------------------------------------------------
 # CONSTANTS
