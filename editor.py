@@ -1345,11 +1345,10 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
     ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-    
-    # Safely get room types as a set — this is the key fix
+
+    # Safely get all room types as a set
     try:
-        all_rooms_raw = get_all_room_types_for_resort(working)
-        all_rooms = set(all_rooms_raw) if all_rooms_raw else set()
+        all_rooms = set(get_all_room_types_for_resort(working))
     except:
         all_rooms = set()
 
@@ -1359,54 +1358,57 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
         year_obj = working.get("years", {}).get(year, {}) or {}
         seasons = year_obj.get("seasons", []) or []
 
-        # No seasons defined
+        # CRITICAL: If ANY year has ZERO seasons → fail immediately
         if not seasons:
-            issues.append(f"[{year}] No seasons defined")
-            continue
+            issues.append(f"[{year}] NO SEASONS DEFINED — THIS IS INVALID")
+            continue  # Skip further checks for this year
 
-        # Validate each season
+        # Validate every season that exists
         for s_idx, season in enumerate(seasons):
             sname = season.get("name") or f"Season {s_idx + 1}"
 
-            # Day coverage
+            # === Day coverage check (must cover all 7 days, no overlaps) ===
             covered_days: set = set()
             day_categories = season.get("day_categories") or {}
-            for cat in day_categories.values():
+
+            for cat_name, cat in day_categories.items():
                 pattern = cat.get("day_pattern") or []
                 valid_days = {d for d in pattern if d in ALL_DAYS}
+
+                # Overlap detection
                 if overlap := covered_days & valid_days:
-                    issues.append(f"[{year}] {sname} → overlapping days: {', '.join(sorted(overlap))}")
+                    issues.append(f"[{year}] {sname} → OVERLAPPING days in '{cat_name}': {', '.join(sorted(overlap))}")
+
                 covered_days.update(valid_days)
 
-            if missing := ALL_DAYS - covered_days:
-                issues.append(f"[{year}] {sname} → missing days: {', '.join(sorted(missing))}")
+            # Missing days?
+            if missing_days := ALL_DAYS - covered_days:
+                issues.append(f"[{year}] {sname} → MISSING days: {', '.join(sorted(missing_days))}")
 
-            # Room points check — now 100% safe
+            # === Room points check ===
             if all_rooms:
-                for cat in day_categories.values():
+                for cat_name, cat in day_categories.items():
                     rp = cat.get("room_points")
                     if not isinstance(rp, dict):
                         continue
-                    current_rooms = set(rp.keys())
-                    missing_rooms = all_rooms - current_rooms
+                    missing_rooms = all_rooms - set(rp.keys())
                     if missing_rooms:
-                        issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
+                        issues.append(f"[{year}] {sname} → missing room points in '{cat_name}': {', '.join(sorted(missing_rooms))}")
 
-        # Holiday validation
-        holidays = year_obj.get("holidays", []) or []
-        for h in holidays:
-            hname = h.get("name") or "(unnamed holiday)"
+        # === Holiday validation ===
+        for h in year_obj.get("holidays", []) or []:
+            hname = h.get("name") or "(unnamed)"
             key = (h.get("global_reference") or h.get("name") or "").strip()
 
             if key and key not in global_holidays.get(year, {}):
-                issues.append(f"[{year}] Holiday '{hname}' references missing global key → '{key}'")
+                issues.append(f"[{year}] Holiday '{hname}' → references missing global holiday: '{key}'")
 
             if all_rooms:
                 rp = h.get("room_points")
                 if isinstance(rp, dict):
-                    missing_rooms = all_rooms - set(rp.keys())
-                    if missing_rooms:
-                        issues.append(f"[{year}] Holiday '{hname}' → missing room points for: {', '.join(sorted(missing_rooms))}")
+                    missing = all_rooms - set(rp.keys())
+                    if missing:
+                        issues.append(f"[{year}] Holiday '{hname}' → missing room points: {', '.join(sorted(missing))}")
 
     return issues
 
