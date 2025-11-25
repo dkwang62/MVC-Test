@@ -1344,7 +1344,7 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 # ----------------------------------------------------------------------
 # VALIDATION
 # ----------------------------------------------------------------------
-ddef validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
+def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
     all_days = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
     all_rooms = set(get_all_room_types_for_resort(working))
