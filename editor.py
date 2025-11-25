@@ -1193,29 +1193,31 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     
     if current_holidays:
         st.markdown("**Current Holidays:**")
-        for idx, h in enumerate(current_holidays):
+        for h in current_holidays:
+            # Use global_reference as the stable unique key
+            unique_key = h.get("global_reference", "")
             col1, col2, col3 = st.columns([3, 3, 1])
             with col1:
                 new_display = st.text_input(
                     "Display Name",
                     value=h.get("name", ""),
-                    key=rk(resort_id, "holiday_display", idx)
+                    key=rk(resort_id, "holiday_display", unique_key)
                 )
             with col2:
                 new_global = st.text_input(
                     "Global Reference",
                     value=h.get("global_reference", ""),
-                    key=rk(resort_id, "holiday_ref", idx)
+                    key=rk(resort_id, "holiday_ref", unique_key)
                 )
             with col3:
-                if st.button("🗑️", key=rk(resort_id, "holiday_del_global", idx)):
-                    if delete_holiday_from_all_years(working, h["global_reference"]):
+                if st.button("🗑️", key=rk(resort_id, "holiday_del_global", unique_key)):
+                    if delete_holiday_from_all_years(working, unique_key):
                         st.success(f"✅ Deleted '{h['name']}' from all years")
                         st.rerun()
             
             # Check if values changed and update across all years
             if new_display != h["name"] or new_global != h["global_reference"]:
-                if rename_holiday_across_years(working, h["global_reference"], new_display, new_global):
+                if rename_holiday_across_years(working, unique_key, new_display, new_global):
                     # Silently update - will be saved when user clicks Save button
                     pass
     else:
