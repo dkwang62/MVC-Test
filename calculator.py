@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 import pytz
 
