@@ -1111,81 +1111,115 @@ def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str],
 # ----------------------------------------------------------------------
 # HOLIDAY MANAGEMENT
 # ----------------------------------------------------------------------
+def get_all_holidays_for_resort(working: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Get unique list of holidays across all years (by global_reference)"""
+    holidays_map = {}
+    for year_obj in working.get("years", {}).values():
+        for h in year_obj.get("holidays", []):
+            key = (h.get("global_reference") or h.get("name") or "").strip()
+            if key and key not in holidays_map:
+                holidays_map[key] = {
+                    "name": h.get("name", key),
+                    "global_reference": key
+                }
+    return list(holidays_map.values())
+
+def add_holiday_to_all_years(working: Dict[str, Any], holiday_name: str, global_ref: str):
+    """Add a holiday to all years in the resort"""
+    holiday_name = holiday_name.strip()
+    global_ref = (global_ref or holiday_name).strip()
+    if not holiday_name or not global_ref:
+        return False
+    
+    years = working.get("years", {})
+    for year_obj in years.values():
+        holidays = year_obj.setdefault("holidays", [])
+        # Check if already exists
+        if any((h.get("global_reference") or h.get("name") or "").strip() == global_ref for h in holidays):
+            continue
+        holidays.append({
+            "name": holiday_name,
+            "global_reference": global_ref,
+            "room_points": {}
+        })
+    return True
+
+def delete_holiday_from_all_years(working: Dict[str, Any], global_ref: str):
+    """Delete a holiday from all years in the resort"""
+    global_ref = (global_ref or "").strip()
+    if not global_ref:
+        return False
+    
+    changed = False
+    for year_obj in working.get("years", {}).values():
+        holidays = year_obj.get("holidays", [])
+        original_len = len(holidays)
+        year_obj["holidays"] = [
+            h for h in holidays 
+            if (h.get("global_reference") or h.get("name") or "").strip() != global_ref
+        ]
+        if len(year_obj["holidays"]) < original_len:
+            changed = True
+    return changed
+
 def render_holiday_management_v2(working: Dict[str, Any], years: List[str], resort_id: str):
     st.markdown("<div class='section-header'>🎄 Holiday Management</div>", unsafe_allow_html=True)
     base_year = BASE_YEAR_FOR_POINTS if BASE_YEAR_FOR_POINTS in years else (sorted(years)[0] if years else BASE_YEAR_FOR_POINTS)
-    st.markdown("**📋 Assign Holidays to Years**")
-    for year in years:
-        year_obj = ensure_year_structure(working, year)
-        holidays = year_obj.get("holidays", [])
-        with st.expander(f"🎉 {year} Holidays", expanded=False):
-            col1, col2 = st.columns([4, 1])
+    
+    st.markdown("**📋 Manage Holidays (applies to all years)**")
+    st.caption("Holidays are automatically synchronized across all years. Changes here affect every year.")
+    
+    # Show current holidays
+    current_holidays = get_all_holidays_for_resort(working)
+    
+    if current_holidays:
+        st.markdown("**Current Holidays:**")
+        for h in current_holidays:
+            col1, col2, col3 = st.columns([3, 3, 1])
             with col1:
-                new_name = st.text_input(
-                    "Holiday name",
-                    key=rk(resort_id, "new_holiday_name", year),
-                    placeholder="e.g., Christmas Week"
+                st.text_input(
+                    "Display Name",
+                    value=h.get("name", ""),
+                    key=rk(resort_id, "holiday_display", h["global_reference"]),
+                    disabled=True
                 )
             with col2:
-                if st.button("➕ Add", key=rk(resort_id, "btn_add_holiday", year), use_container_width=True) and new_name:
-                    holidays.append({
-                        "name": new_name.strip(),
-                        "global_reference": new_name.strip(),
-                        "room_points": {}
-                    })
-                    st.rerun()
-            for h_idx, h in enumerate(holidays):
-                col1, col2, col3 = st.columns([3, 3, 1])
-                with col1:
-                    new_disp = st.text_input(
-                        "Display name",
-                        value=h.get("name", ""),
-                        key=rk(resort_id, "holiday_name", year, h_idx)
-                    )
-                    h["name"] = new_disp
-                with col2:
-                    new_global = st.text_input(
-                        "Global reference",
-                        value=h.get("global_reference", ""),
-                        key=rk(resort_id, "holiday_global", year, h_idx)
-                    )
-                    h["global_reference"] = new_global
-                with col3:
-                    if st.button("❌", key=rk(resort_id, "holiday_del", year, h_idx)):
-                        holidays.pop(h_idx)
+                st.text_input(
+                    "Global Reference",
+                    value=h.get("global_reference", ""),
+                    key=rk(resort_id, "holiday_ref", h["global_reference"]),
+                    disabled=True
+                )
+            with col3:
+                if st.button("🗑️", key=rk(resort_id, "holiday_del_global", h["global_reference"])):
+                    if delete_holiday_from_all_years(working, h["global_reference"]):
+                        st.success(f"✅ Deleted '{h['name']}' from all years")
                         st.rerun()
-    sync_holiday_room_points_across_years(working, base_year=base_year)
-    st.markdown("---")
-    st.markdown("**💰 Master Holiday Points**")
-    st.caption("Edit holiday room points once. Applied to all years automatically.")
-    base_year_obj = ensure_year_structure(working, base_year)
-    base_holidays = base_year_obj.get("holidays", [])
-    if not base_holidays:
-        st.info(f"💡 No holidays defined in {base_year}. Add holidays above first.")
     else:
-        all_rooms = get_all_room_types_for_resort(working)
-        for h_idx, h in enumerate(base_holidays):
-            disp_name = h.get("name", f"Holiday {h_idx+1}")
-            key = (h.get("global_reference") or h.get("name") or "").strip()
-            with st.expander(f"🎊 {disp_name}", expanded=False):
-                st.caption(f"Reference key: {key}")
-                rp = h.setdefault("room_points", {})
-                rooms_here = sorted(all_rooms or rp.keys())
-                cols = st.columns(4)
-                for j, room in enumerate(rooms_here):
-                    rp.setdefault(room, 0)
-                    with cols[j % 4]:
-                        current_val = int(rp.get(room, 0) or 0)
-                        new_val = st.number_input(
-                            room,
-                            value=current_val,
-                            step=25,
-                            key=rk(resort_id, "holiday_master_rp", base_year, h_idx, room)
-                        )
-                        if new_val != current_val:
-                            rp[room] = int(new_val)
+        st.info("💡 No holidays assigned yet. Add one below.")
+    
+    st.markdown("---")
+    st.markdown("**➕ Add New Holiday**")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        new_name = st.text_input(
+            "Holiday name (will be added to all years)",
+            key=rk(resort_id, "new_holiday_name"),
+            placeholder="e.g., Christmas Week"
+        )
+    with col2:
+        if st.button("➕ Add to All Years", key=rk(resort_id, "btn_add_holiday_global"), use_container_width=True) and new_name:
+            name = new_name.strip()
+            if not name:
+                st.error("❌ Name cannot be empty")
+            elif any(h["global_reference"].lower() == name.lower() for h in current_holidays):
+                st.error("❌ Holiday already exists")
+            else:
+                if add_holiday_to_all_years(working, name, name):
+                    st.success(f"✅ Added '{name}' to all years")
+                    st.rerun()
+    
     sync_holiday_room_points_across_years(working, base_year=base_year)
-
 # ----------------------------------------------------------------------
 # RESORT SUMMARY
 # ----------------------------------------------------------------------
