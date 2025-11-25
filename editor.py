@@ -243,7 +243,7 @@ def run():
     with col1:
         year = st.selectbox("Year", options=sorted([int(y) for y in repo.get_resort(current_resort_name).years.keys()], reverse=True))
         start_date = st.date_input("Check-in Date (Friday/Saturday/Sunday)", value=datetime(year, 3, 1))
-    with sympy2:
+    with col2:
         room_type = st.selectbox("Room Type", ["Studio", "1 Bedroom", "2 Bedroom", "3 Bedroom"])
         mode_str = st.radio("You are", ["Renter", "Owner"], horizontal=True)
         mode = UserMode.RENTER if mode_str == "Renter" else UserMode.OWNER
