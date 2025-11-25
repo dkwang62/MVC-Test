@@ -1344,38 +1344,40 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 # ----------------------------------------------------------------------
 def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
-    all_days = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-    all_rooms = get_all_room_types_for_resort(working)          # ← from your existing helper
+    ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}   # ← fixed name
+    all_rooms = get_all_room_types_for_resort(working)
     global_holidays = data.get("global_holidays", {})
 
     for year in years:
         year_obj = working.get("years", {}).get(year, {})
         seasons = year_obj.get("seasons", [])
 
-        # ── 1. No seasons at all for this year ─────────────────────
+        # 1. No seasons at all
         if not seasons:
             issues.append(f"[{year}] No seasons defined")
             continue
 
-        # ── 2. Check every season individually ─────────────────────
+        # 2. Validate every season
         for s_idx, season in enumerate(seasons):
             sname = season.get("name", f"Season {s_idx+1}")
 
-            # Day-pattern coverage (must cover all 7 days without overlap)
+            # Day coverage & overlap check
             covered_days: Set[str] = set()
             for cat in season.get("day_categories", {}).values():
                 pattern = cat.get("day_pattern", [])
-                valid_days_in_cat = {d for d in pattern if d in _days}
+                valid_days_in_cat = {d for d in pattern if d in ALL_DAYS}
+
                 overlap = covered_days & valid_days_in_cat
                 if overlap:
                     issues.append(f"[{year}] {sname} → overlapping days: {', '.join(sorted(overlap))}")
+
                 covered_days.update(valid_days_in_cat)
 
-            missing_days = _days - covered_days
+            missing_days = ALL_DAYS - covered_days
             if missing_days:
                 issues.append(f"[{year}] {sname} → missing days: {', '.join(sorted(missing_days))}")
 
-            # Room points present in every day_category
+            # Room points completeness
             if all_rooms:
                 for cat in season.get("day_categories", {}).values():
                     rp = cat.get("room_points", {})
@@ -1384,15 +1386,14 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
                         if missing_rooms:
                             issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
 
-        # ── 3. Holiday validation ───────────────────────────────────
+        # 3. Holiday validation
         for h in year_obj.get("holidays", []):
             hname = h.get("name", "(unnamed holiday)")
             key = (h.get("global_reference") or h.get("name") or "").strip()
 
             if key and key not in global_holidays.get(year, {}):
-                issues.append(f"[{year}] Holiday '{hname}' references missing global holiday key → '{key}'")
+                issues.append(f"[{year}] Holiday '{hname}' references missing global key → '{key}'")
 
-            # Holiday must have points for every room type
             if all_rooms:
                 rp = h.get("room_points", {})
                 if isinstance(rp, dict):
@@ -1402,15 +1403,16 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
 
     return issues
 
+
 def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]):
-    with st.expander("🔍 Data Validation", expanded=False):
+    with st.expander("Data Validation", expanded=False):
         issues = validate_resort_data_v2(working, data, years)
         if issues:
-            st.error(f"**Found {len(issues)} issue(s):**")
+            st.error(f"Found {len(issues)} issue(s):")
             for issue in issues:
                 st.write(f"• {issue}")
         else:
-            st.success("✅ All validation checks passed!")
+            st.success("All checks passed – data is valid!")
 
 # ----------------------------------------------------------------------
 # WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
