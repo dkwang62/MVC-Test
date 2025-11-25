@@ -1021,89 +1021,93 @@ def edit_resort_basics(working: Dict[str, Any], resort_id: str):
 # ----------------------------------------------------------------------
 # MASTER POINTS EDITOR
 # ----------------------------------------------------------------------
-def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
-    issues = []
-    ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-
-    # Safely get all room types – your helper already returns a list, so we make it a set
-    try:
-        all_rooms = set(get_all_room_types_for_resort(working))
-    except Exception:
-        all_rooms = set()
-
-    global_holidays = data.get("global_holidays", {})
-
-    for year in years:
-        year_obj = working.get("years", {}).get(year, {})
-        seasons = year_obj.get("seasons", []) or []
-
-        # 1. No seasons at all
-        if not seasons:
-            issues.append(f"[{year}] No seasons defined")
-            continue
-
-        # 2. Validate each season
-        for s_idx, season in enumerate(seasons):
-            sname = season.get("name") or f"Season {s_idx + 1}"
-
-            # Day coverage & overlap
-            covered_days: set = set()
-            day_categories = season.get("day_categories") or {}
-            for cat in day_categories.values():
-                pattern = cat.get("day_pattern") or []
-                valid_days = {d for d in pattern if d in ALL_DAYS}
-
-                if overlap := covered_days & valid_days:
-                    issues.append(f"[{year}] {sname} → overlapping days: {', '.join(sorted(overlap))}")
-
-                covered_days.update(valid_days)
-
-            if missing := ALL_DAYS - covered_days:
-                issues.append(f"[{year}] {sname} → missing days: {', '.join(sorted(missing))}")
-
-            # Room points completeness
-            if all_rooms:
-                for cat in day_categories.values():
-                    rp = cat.get("room_points")
-                    if not isinstance(rp, dict):
-                        continue
-                    current_rooms = set(rp.keys())
-                    missing_rooms = all_rooms - current_rooms
-                    if missing_rooms:
-                        issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
-
-        # 3. Holiday validation
-        holidays = year_obj.get("holidays") or []
-        for h in holidays:
-            hname = h.get("name") or "(unnamed holiday)"
-            key = (h.get("global_reference") or h.get("name") or "").strip()
-
-            if key and key not in global_holidays.get(year, {}):
-                issues.append(f"[{year}] Holiday '{hname}' references missing global key → '{key}'")
-
-            if all_rooms:
-                rp = h.get("room_points")
-                if isinstance(rp, dict):
-                    missing_rooms = all_rooms - set(rp.keys())
-                    if missing_rooms:
-                        issues.append(f"[{year}] Holiday '{hname}' → missing room points for: {', '.join(sorted(missing_rooms))}")
-
-    return issues
-
-
-def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]):
-    with st.expander("Data Validation", expanded=False):
-        try:
-            issues = validate_resort_data_v2(working, data, years)
-            if issues:
-                st.error(f"Found {len(issues)} validation issue(s):")
-                for issue in issues:
-                    st.write(f"• {issue}")
-            else:
-                st.success("All validation checks passed!")
-        except Exception as e:
-            st.error("Validation crashed (this shouldn't happen)")
-            st.exception(e)
+def render_reference_points_editor_v2(working: Dict[str, Any], years: List[str], resort_id: str):
+    st.markdown("<div class='section-header'>🎯 Master Room Points</div>", unsafe_allow_html=True)
+    st.caption("Edit nightly points for each season. Changes apply to all years automatically.")
+    base_year = BASE_YEAR_FOR_POINTS if BASE_YEAR_FOR_POINTS in years else (sorted(years)[0] if years else BASE_YEAR_FOR_POINTS)
+    base_year_obj = ensure_year_structure(working, base_year)
+    seasons = base_year_obj.get("seasons", [])
+    if not seasons:
+        st.info(f"💡 No seasons defined yet. Add seasons in the Season Dates section first.")
+        return
+    canonical_rooms = get_all_room_types_for_resort(working)
+    for s_idx, season in enumerate(seasons):
+        with st.expander(f"🏖️ {season.get('name', f'Season {s_idx+1}')}", expanded=True):
+            dc = season.setdefault("day_categories", {})
+            if not dc:
+                dc["sun_thu"] = {
+                    "day_pattern": ["Sun", "Mon", "Tue", "Wed", "Thu"],
+                    "room_points": {}
+                }
+                dc["fri_sat"] = {
+                    "day_pattern": ["Fri", "Sat"],
+                    "room_points": {}
+                }
+            for key, cat in dc.items():
+                day_pattern = cat.setdefault("day_pattern", [])
+                st.markdown(f"**📅 {key}** – {', '.join(day_pattern) if day_pattern else 'No days set'}")
+                room_points = cat.setdefault("room_points", {})
+                rooms_here = canonical_rooms or sorted(room_points.keys())
+                for room in rooms_here:
+                    room_points.setdefault(room, 0)
+                cols = st.columns(4)
+                for j, room in enumerate(sorted(room_points.keys())):
+                    with cols[j % 4]:
+                        current_val = int(room_points.get(room, 0) or 0)
+                        new_val = st.number_input(
+                            room,
+                            value=current_val,
+                            step=25,
+                            key=rk(resort_id, "master_rp", base_year, s_idx, key, room),
+                            help=f"Nightly points for {room}"
+                        )
+                        if new_val != current_val:
+                            room_points[room] = int(new_val)
+    st.markdown("---")
+    st.markdown("**🏠 Manage Room Types**")
+    col1, col2 = st.columns(2)
+    with col1:
+        new_room = st.text_input(
+            "Add room type (applies to all seasons/years)",
+            key=rk(resort_id, "room_add_master"),
+            placeholder="e.g., 2BR Ocean View"
+        )
+        if st.button("➕ Add Room", key=rk(resort_id, "room_add_btn_master"), use_container_width=True) and new_room:
+            add_room_type_master(working, new_room.strip(), base_year)
+            st.success(f"✅ Added {new_room}")
+            st.rerun()
+    with col2:
+        del_room = st.selectbox(
+            "Delete room type",
+            [""] + get_all_room_types_for_resort(working),
+            key=rk(resort_id, "room_del_master")
+        )
+        if del_room and st.button("🗑️ Delete Room", key=rk(resort_id, "room_del_btn_master"), use_container_width=True):
+            delete_room_type_master(working, del_room)
+            st.success(f"✅ Deleted {del_room}")
+            st.rerun()
+    # Room rename panel
+    all_rooms_list = get_all_room_types_for_resort(working)
+    if all_rooms_list:
+        st.markdown("**✏️ Rename Room Type (applies everywhere)**")
+        col3, col4 = st.columns(2)
+        with col3:
+            old_room = st.selectbox(
+                "Room to rename",
+                [""] + all_rooms_list,
+                key=rk(resort_id, "room_rename_old")
+            )
+        with col4:
+            new_room_name = st.text_input(
+                "New name",
+                key=rk(resort_id, "room_rename_new")
+            )
+        if st.button("✅ Apply Rename", key=rk(resort_id, "room_rename_apply"), use_container_width=True):
+            if old_room and new_room_name:
+                rename_room_type_across_resort(working, old_room, new_room_name)
+                st.rerun()
+    sync_season_room_points_across_years(working, base_year=base_year)
+          
 # ----------------------------------------------------------------------
 # HOLIDAY MANAGEMENT
 # ----------------------------------------------------------------------
@@ -1340,58 +1344,65 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 # ----------------------------------------------------------------------
 def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
-    ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}   # ← fixed name
-    all_rooms = get_all_room_types_for_resort(working)
-    global_holidays = data.get("global_holidays", {})
+    ALL_DAYS = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+    
+    # Safely get room types as a set — this is the key fix
+    try:
+        all_rooms_raw = get_all_room_types_for_resort(working)
+        all_rooms = set(all_rooms_raw) if all_rooms_raw else set()
+    except:
+        all_rooms = set()
+
+    global_holidays = data.get("global_holidays", {}) or {}
 
     for year in years:
-        year_obj = working.get("years", {}).get(year, {})
-        seasons = year_obj.get("seasons", [])
+        year_obj = working.get("years", {}).get(year, {}) or {}
+        seasons = year_obj.get("seasons", []) or []
 
-        # 1. No seasons at all
+        # No seasons defined
         if not seasons:
             issues.append(f"[{year}] No seasons defined")
             continue
 
-        # 2. Validate every season
+        # Validate each season
         for s_idx, season in enumerate(seasons):
-            sname = season.get("name", f"Season {s_idx+1}")
+            sname = season.get("name") or f"Season {s_idx + 1}"
 
-            # Day coverage & overlap check
-            covered_days: Set[str] = set()
-            for cat in season.get("day_categories", {}).values():
-                pattern = cat.get("day_pattern", [])
-                valid_days_in_cat = {d for d in pattern if d in ALL_DAYS}
-
-                overlap = covered_days & valid_days_in_cat
-                if overlap:
+            # Day coverage
+            covered_days: set = set()
+            day_categories = season.get("day_categories") or {}
+            for cat in day_categories.values():
+                pattern = cat.get("day_pattern") or []
+                valid_days = {d for d in pattern if d in ALL_DAYS}
+                if overlap := covered_days & valid_days:
                     issues.append(f"[{year}] {sname} → overlapping days: {', '.join(sorted(overlap))}")
+                covered_days.update(valid_days)
 
-                covered_days.update(valid_days_in_cat)
+            if missing := ALL_DAYS - covered_days:
+                issues.append(f"[{year}] {sname} → missing days: {', '.join(sorted(missing))}")
 
-            missing_days = ALL_DAYS - covered_days
-            if missing_days:
-                issues.append(f"[{year}] {sname} → missing days: {', '.join(sorted(missing_days))}")
-
-            # Room points completeness
+            # Room points check — now 100% safe
             if all_rooms:
-                for cat in season.get("day_categories", {}).values():
-                    rp = cat.get("room_points", {})
-                    if isinstance(rp, dict):
-                        missing_rooms = all_rooms - set(rp.keys())
-                        if missing_rooms:
-                            issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
+                for cat in day_categories.values():
+                    rp = cat.get("room_points")
+                    if not isinstance(rp, dict):
+                        continue
+                    current_rooms = set(rp.keys())
+                    missing_rooms = all_rooms - current_rooms
+                    if missing_rooms:
+                        issues.append(f"[{year}] {sname} → missing room points for: {', '.join(sorted(missing_rooms))}")
 
-        # 3. Holiday validation
-        for h in year_obj.get("holidays", []):
-            hname = h.get("name", "(unnamed holiday)")
+        # Holiday validation
+        holidays = year_obj.get("holidays", []) or []
+        for h in holidays:
+            hname = h.get("name") or "(unnamed holiday)"
             key = (h.get("global_reference") or h.get("name") or "").strip()
 
             if key and key not in global_holidays.get(year, {}):
                 issues.append(f"[{year}] Holiday '{hname}' references missing global key → '{key}'")
 
             if all_rooms:
-                rp = h.get("room_points", {})
+                rp = h.get("room_points")
                 if isinstance(rp, dict):
                     missing_rooms = all_rooms - set(rp.keys())
                     if missing_rooms:
@@ -1402,13 +1413,18 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
 
 def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]):
     with st.expander("Data Validation", expanded=False):
-        issues = validate_resort_data_v2(working, data, years)
-        if issues:
-            st.error(f"Found {len(issues)} issue(s):")
-            for issue in issues:
-                st.write(f"• {issue}")
-        else:
-            st.success("All checks passed – data is valid!")
+        try:
+            issues = validate_resort_data_v2(working, data, years)
+            if issues:
+                st.error(f"Found {len(issues)} issue(s):")
+                for issue in issues:
+                    st.write(f"• {issue}")
+            else:
+                st.success("All validation checks passed!")
+        except Exception as e:
+            st.error("Validation error occurred")
+            st.write("This usually means data is corrupted or missing keys.")
+            st.code(str(e))
 
 # ----------------------------------------------------------------------
 # WORKING RESORT LOADER + HEADER RENDERER (single combined helper)
