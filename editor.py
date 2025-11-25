@@ -1344,13 +1344,16 @@ def render_resort_summary_v2(working: Dict[str, Any]):
 # ----------------------------------------------------------------------
 # VALIDATION
 # ----------------------------------------------------------------------
-def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
+ddef validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]) -> List[str]:
     issues = []
     all_days = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
     all_rooms = set(get_all_room_types_for_resort(working))
     global_holidays = data.get("global_holidays", {})
+    
     for year in years:
         year_obj = working.get("years", {}).get(year, {})
+        
+        # Check day pattern coverage within each season
         for season in year_obj.get("seasons", []):
             sname = season.get("name", "(Unnamed)")
             covered_days = set()
@@ -1361,6 +1364,8 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
                 covered_days |= pattern_days
             if missing := all_days - covered_days:
                 issues.append(f"[{year}] Season '{sname}' missing days: {', '.join(sorted(missing))}")
+            
+            # Check room coverage
             if all_rooms:
                 season_rooms = set()
                 for cat in season.get("day_categories", {}).values():
@@ -1368,6 +1373,8 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
                         season_rooms |= set(rp.keys())
                 if missing_rooms := all_rooms - season_rooms:
                     issues.append(f"[{year}] Season '{sname}' missing rooms: {', '.join(sorted(missing_rooms))}")
+        
+        # Check holiday references and room coverage
         for h in year_obj.get("holidays", []):
             hname = h.get("name", "(Unnamed)")
             global_ref = h.get("global_reference") or hname
@@ -1376,6 +1383,71 @@ def validate_resort_data_v2(working: Dict[str, Any], data: Dict[str, Any], years
             if all_rooms and isinstance(rp := h.get("room_points", {}), dict):
                 if missing_rooms := all_rooms - set(rp.keys()):
                     issues.append(f"[{year}] Holiday '{hname}' missing rooms: {', '.join(sorted(missing_rooms))}")
+        
+        # NEW: Check for date range gaps in the year
+        try:
+            year_start = date(int(year), 1, 1)
+            year_end = date(int(year), 12, 31)
+        except:
+            continue  # Skip invalid years
+        
+        # Collect all covered date ranges
+        covered_ranges = []
+        
+        # Add season date ranges
+        for season in year_obj.get("seasons", []):
+            for period in season.get("periods", []):
+                try:
+                    start = datetime.strptime(period.get("start", ""), "%Y-%m-%d").date()
+                    end = datetime.strptime(period.get("end", ""), "%Y-%m-%d").date()
+                    if start <= end:
+                        covered_ranges.append((start, end, f"Season '{season.get('name', '(Unnamed)')}'"))
+                except:
+                    continue
+        
+        # Add holiday date ranges from global holidays
+        gh_year = global_holidays.get(year, {})
+        for h in year_obj.get("holidays", []):
+            global_ref = h.get("global_reference") or h.get("name")
+            if gh := gh_year.get(global_ref):
+                try:
+                    start = datetime.strptime(gh.get("start_date", ""), "%Y-%m-%d").date()
+                    end = datetime.strptime(gh.get("end_date", ""), "%Y-%m-%d").date()
+                    if start <= end:
+                        covered_ranges.append((start, end, f"Holiday '{h.get('name', '(Unnamed)')}'"))
+                except:
+                    continue
+        
+        # Sort ranges by start date
+        covered_ranges.sort(key=lambda x: x[0])
+        
+        # Check for gaps
+        if covered_ranges:
+            # Check gap before first range
+            if covered_ranges[0][0] > year_start:
+                gap_days = (covered_ranges[0][0] - year_start).days
+                issues.append(f"[{year}] GAP: {gap_days} days from {year_start} to {covered_ranges[0][0] - timedelta(days=1)} (before first range)")
+            
+            # Check gaps between ranges
+            for i in range(len(covered_ranges) - 1):
+                current_end = covered_ranges[i][1]
+                next_start = covered_ranges[i+1][0]
+                
+                # Gap exists if there's more than 1 day between ranges
+                if next_start > current_end + timedelta(days=1):
+                    gap_start = current_end + timedelta(days=1)
+                    gap_end = next_start - timedelta(days=1)
+                    gap_days = (next_start - current_end - timedelta(days=1)).days
+                    issues.append(f"[{year}] GAP: {gap_days} days from {gap_start} to {gap_end} (between {covered_ranges[i][2]} and {covered_ranges[i+1][2]})")
+            
+            # Check gap after last range
+            if covered_ranges[-1][1] < year_end:
+                gap_days = (year_end - covered_ranges[-1][1]).days
+                issues.append(f"[{year}] GAP: {gap_days} days from {covered_ranges[-1][1] + timedelta(days=1)} to {year_end} (after last range)")
+        else:
+            # No ranges at all for this year
+            issues.append(f"[{year}] No date ranges defined (entire year is uncovered)")
+    
     return issues
 
 def render_validation_panel_v2(working: Dict[str, Any], data: Dict[str, Any], years: List[str]):
