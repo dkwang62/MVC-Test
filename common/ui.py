@@ -1,29 +1,47 @@
-# common/data.py
-import json
+# common/ui.py
 import streamlit as st
-from typing import Dict, Any, Optional
-from datetime import datetime
 
-def load_data() -> Dict[str, Any]:
-    if "data" not in st.session_state or st.session_state.data is None:
-        try:
-            with open("data_v2.json", "r") as f:
-                st.session_state.data = json.load(f)
-                st.session_state.uploaded_file_name = "data_v2.json"
-        except FileNotFoundError:
-            st.session_state.data = None
-    return st.session_state.data
+def setup_page():
+    st.set_page_config(
+        page_title="MVC Tools",
+        page_icon="handshake",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    st.markdown("""
+    <style>
+        .main {padding-top: 1rem;}
+        .stButton>button {width: 100%; border-radius: 8px; font-weight: 500; transition: all 0.3s ease;}
+        .stButton>button:hover {transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.15);}
+        div[data-testid="stMetricValue"] {font-size: 28px; font-weight: 600;}
+        div[data-testid="metric-container"] {background-color: #f8f9fa; padding: 1rem; border-radius: 10px; border-left: 4px solid #0d6efd;}
+        .section-header {font-size: 22px; font-weight: 700; color: #1e3a8a; border-bottom: 3px solid #008080; padding-bottom: 8px; margin: 30px 0 20px 0;}
+        .card {background: white; border-radius: 12px; padding: 22px; box-shadow: 0 4px 15px rgba(0,0,0,0.07); border-left: 5px solid #008080; margin-bottom: 25px;}
+        .card h2 {margin: 0; color: #008080;}
+    </style>
+    """, unsafe_allow_html=True)
 
-def save_data(data: Dict[str, Any]):
-    with open("data_v2.json", "w") as f:
-        json.dump(data, f, indent=2)
-    st.session_state.last_save_time = datetime.now()
+def render_resort_card(resort_name: str, timezone: str, address: str):
+    st.markdown(f"""
+        <div class="card">
+            <h2>handshake {resort_name}</h2>
+            <p style="margin:6px 0 0 0; color:#64748b;">clock Timezone: {timezone}</p>
+            <p style="margin:4px 0 0 0; color:#64748b;">location {address or "No address provided"}</p>
+        </div>
+    """, unsafe_allow_html=True)
 
-def get_resorts(data: Dict[str, Any]) -> list:
-    return data.get("resorts", []) if data else []
-
-def get_resort_by_display_name(data: Dict[str, Any], name: str) -> Optional[Dict[str, Any]]:
-    return next((r for r in get_resorts(data) if r.get("display_name") == name), None)
-
-def get_maintenance_rate(data: Dict[str, Any], year: int) -> float:
-    return float(data.get("configuration", {}).get("maintenance_rates", {}).get(str(year), 0.86))
+def render_resort_grid(resorts: list, current_resort: str | None):
+    from common.utils import sort_resorts_west_to_east
+    st.markdown("<div class='section-header'>hotel Resort Selection (West to East)</div>", unsafe_allow_html=True)
+    if not resorts:
+        st.info("No resorts loaded.")
+        return
+    sorted_resorts = sort_resorts_west_to_east(resorts)
+    cols = st.columns(6)
+    for i, r in enumerate(sorted_resorts):
+        with cols[i % 6]:
+            name = r.get("display_name", r.get("id", "Unknown"))
+            btn_type = "primary" if current_resort == name else "secondary"
+            if st.button(f"hotel {name}", key=f"resort_{r.get('id','')}_{i}", type=btn_type, use_container_width=True):
+                st.session_state.current_resort = name
+                st.rerun()
