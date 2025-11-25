@@ -1305,6 +1305,8 @@ def main():
             </p>
         </div>
     """, unsafe_allow_html=True)
+def run():
+    main()
 
 if __name__ == "__main__":
     main()
