@@ -1,19 +1,15 @@
-# calculator.py
 import streamlit as st
-from common.ui import setup_page, render_resort_card, render_resort_grid
-from common.data import load_data, get_resorts, get_resort_by_display_name, get_maintenance_rate
+from common.ui import setup_page, render_resort_card
+from common.data import load_data, save_data
 from common.utils import sort_resorts_west_to_east
-import math
-import json
 from functools import lru_cache
+import json
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import copy                          # ← ADD THIS LINE
 from datetime import datetime, timedelta, date
-from dataclasses import dataclass
 from typing import Dict, List, Any, Optional, Tuple, Set
-from enum import Enum
-import pytz
 
 
 
