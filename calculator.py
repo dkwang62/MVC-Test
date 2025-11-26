@@ -823,24 +823,20 @@ def main() -> None:
                 step=0.01,
                 min_value=0.0,
             )
-            show_advanced = st.checkbox("Show Advanced Options", value=False)
-            if show_advanced:
-                opt = st.radio(
-                    "Discount Option",
-                    [
-                        "No Discount",
-                        "Executive: 25% Points Discount (within 30 days)",
-                        "Presidential: 30% Points Discount (within 60 days)",
-                    ],
-                    help="Select discount options.",
-                )
-                if "Presidential" in opt:
-                    policy = DiscountPolicy.PRESIDENTIAL
-                elif "Executive" in opt:
-                    policy = DiscountPolicy.EXECUTIVE
-                # "No Discount" uses NONE
-            else:
-                st.info("💡 Using no discount.")
+            opt = st.radio(
+                "Discount Option",
+                [
+                    "No Discount",
+                    "Executive: 25% Points Discount (within 30 days)",
+                    "Presidential: 30% Points Discount (within 60 days)",
+                ],
+                help="Select discount options.",
+            )
+            if "Presidential" in opt:
+                policy = DiscountPolicy.PRESIDENTIAL
+            elif "Executive" in opt:
+                policy = DiscountPolicy.EXECUTIVE
+            # "No Discount" uses NONE
 
         # Set disc_mul for owners
         disc_mul = 1.0
