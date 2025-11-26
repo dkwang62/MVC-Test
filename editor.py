@@ -157,8 +157,8 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
 def handle_file_upload():
-    st.sidebar.markdown("### 📤 Upload Data")
-    with st.sidebar.expander("📤 Upload JSON file", expanded=False):
+    st.sidebar.markdown("### 📤 Load File")
+    with st.sidebar.expander("📤 Load file", expanded=False):
         uploaded = st.file_uploader(
             "Choose JSON file",
             type="json",
@@ -185,7 +185,7 @@ def handle_file_upload():
 
 
 def create_download_button_v2(data: Dict[str, Any]):
-    st.sidebar.markdown("### 📥 Save Data")
+    st.sidebar.markdown("### 📥 Save to File")
     json_data = json.dumps(data, indent=2, ensure_ascii=False)
     st.sidebar.download_button(
         label="💾 Save",
@@ -213,7 +213,7 @@ def handle_file_verification():
                     st.error("❌ Files differ")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
-        st.sidebar.markdown("### 📥 Merge Data")
+        st.sidebar.markdown("### 📥 Merge Resorts")
 
 
 def handle_merge_from_another_file_v2(data: Dict[str, Any]):
