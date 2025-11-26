@@ -4,6 +4,7 @@ import math
 import json
 import pandas as pd
 import plotly.express as px
+from common.charts import create_gantt_chart_from_resort_data
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple, Any
@@ -1167,68 +1168,23 @@ def main():
                 )
                 st.plotly_chart(h_fig, use_container_width=True)
    
-    # Season/Holiday timeline
-    st.divider()
-    year_str = str(adj_in.year)
-    res_data = repo.get_resort(r_name)
-    g_rows = []
-   
-    if res_data and year_str in res_data.years:
-        yd = res_data.years[year_str]
-       
-        for h in yd.holidays:
-            g_rows.append({
-                "Task": h.name,
-                "Start": h.start_date,
-                "Finish": h.end_date + timedelta(days=1),
-                "Type": "Holiday"
-            })
-       
-        for s in yd.seasons:
-            for i, p in enumerate(s.periods, 1):
-                g_rows.append({
-                    "Task": f"{s.name} #{i}",
-                    "Start": p.start,
-                    "Finish": p.end + timedelta(days=1),
-                    "Type": s.name
-                })
-   
-    if g_rows:
-        with st.expander("📅 Season and Holiday Calendar", expanded=False):
-            gdf = pd.DataFrame(g_rows)
-           
-            c_map = {
-                "Holiday": "#6A0DAD",
-                "Mid Season": "#56B4E9",
-                "Low Season": "#009E73",
-                "High Season": "#E69F00",
-                "Peak Season": "#AA0044"
-            }
-           
-            gantt_fig = px.timeline(
-                gdf,
-                x_start="Start",
-                x_end="Finish",
-                y="Task",
-                color="Type",
-                color_discrete_map=c_map,
-                title=f"{resort_info['full_name']} - {year_str} Calendar Overview"
-            )
-           
-            gantt_fig.update_layout(
-                height=500,
-                xaxis_title="Date",
-                yaxis_title="Period",
-                showlegend=True,
-                hovermode="closest"
-            )
-           
-            gantt_fig.update_xaxes(
-                tickformat="%b %d",
-                tickangle=-45
-            )
-           
-            st.plotly_chart(gantt_fig, use_container_width=True)
+# NEW CODE:
+# Season/Holiday timeline
+from common.charts import create_gantt_chart_from_resort_data
+
+st.divider()
+year_str = str(adj_in.year)
+res_data = repo.get_resort(r_name)
+
+if res_data and year_str in res_data.years:
+    with st.expander("📅 Season and Holiday Calendar", expanded=False):
+        gantt_fig = create_gantt_chart_from_resort_data(
+            resort_data=res_data,
+            year=year_str,
+            global_holidays=st.session_state.data.get("global_holidays", {}),
+            height=500
+        )
+        st.plotly_chart(gantt_fig, use_container_width=True)
    
     # Help section
     if st.session_state.show_help:
