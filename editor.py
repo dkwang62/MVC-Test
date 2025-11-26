@@ -1,5 +1,5 @@
 import streamlit as st
-from common.ui import render_resort_card, render_resort_grid
+from common.ui import render_resort_card, render_resort_grid, render_page_header
 from common.data import load_data, save_data  # save_data is shadowed below but kept for compatibility
 from functools import lru_cache
 import json
@@ -1793,9 +1793,10 @@ def main():
         show_save_indicator()
 
     # Main content
-    st.markdown(
-        "<div class='big-font'>MVC Resort Editor V2</div>",
-        unsafe_allow_html=True,
+    render_page_header(
+        "MVC Resort Editor V2",
+        subtitle="Master data management for MVC resorts",
+        icon="🏨",
     )
 
     if not st.session_state.data:
