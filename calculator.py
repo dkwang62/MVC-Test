@@ -802,9 +802,16 @@ def main() -> None:
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
 
-    # Ensure shared data state is initialised and auto-loaded if possible
+    # 1) Shared data auto-load (no uploader here)
     ensure_data_in_session()
 
+    # 2) If no data, bail out early
+    if not st.session_state.data:
+        st.warning("⚠️ Please load data in the Editor first.")
+        return
+
+    # 3) Sidebar: user settings only
+    with st.sidebar:
         st.divider()
         st.markdown("### 👤 User Settings")
 
