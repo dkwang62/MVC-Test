@@ -980,7 +980,7 @@ def main() -> None:
     # =========================
     # Main content
     # =========================
-    st.title("🖖 Marriott Vacation Club Calculator")
+    st.title("🖖 Calculator")
 
     # Mode badge
     if mode == UserMode.OWNER:
