@@ -1821,18 +1821,12 @@ def main():
         show_save_indicator()
     
     # Main content
-    st.title("🖖 Editor")
-    st.markdown(
-        """
-        <div style="display: inline-block; background-color: #f43f5e; color: white;
-                    padding: 8px 16px; border-radius: 20px; font-weight: 600;
-                    margin-bottom: 16px;">
-            👤 Master data management for MVC resorts
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+    render_page_header(
+    "MVC Editor",
+    "Master data management for MVC resorts",
+    icon="🖖",
+    badge_color="#EF4444"  # Adjust to match the red color in the image, e.g., #DC2626 or #EF4444
+)
 
     if not st.session_state.data:
         st.markdown(
