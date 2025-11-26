@@ -856,7 +856,7 @@ def main() -> None:
 
     # ===== Main content =====
     render_page_header(
-        "Marriott Vacation Club Calculator",
+        "MVC Calculator",
         f"👤 {mode.value} Mode: {'Ownership' if mode == UserMode.OWNER else 'Rental'} Cost Analysis",
         icon="🖖",
         badge_color="#059669" if mode == UserMode.OWNER else "#2563eb"
