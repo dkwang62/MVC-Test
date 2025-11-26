@@ -212,6 +212,12 @@ def create_download_button_v2(data: Dict[str, Any]):
         use_container_width=True,
     )
 
+    # Informational hint about where it goes
+    st.sidebar.caption(
+        f"File will be downloaded as **{filename}** "
+        "to your browser’s default download folder (usually **Downloads**)."
+    )
+
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
