@@ -106,7 +106,7 @@ def render_resort_grid(
     resorts: List[Dict[str, Any]],
     current_resort_key: Optional[str],
     *,
-    title: str = "🏨 Resorts in Memory (West to East) 🏖 Select Resort",
+    title: str = "🏨 Resorts in Memory (West to East)            🏖 Select Resort",
 ) -> None:
     """
     Shared resort grid, sorted West → East, laid out COLUMN-first.
