@@ -9,6 +9,42 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # ======================================================================
+# COLOUR MAP: Peak / High / Mid / Low / Holiday
+# ======================================================================
+
+COLOR_MAP: Dict[str, str] = {
+    "Peak": "#D73027",     # Hot red
+    "High": "#FC8D59",     # Orange
+    "Mid": "#FEE08B",      # Gold / yellow
+    "Low": "#1F78B4",      # Cool blue
+    "Holiday": "#6A3D9A",  # Purple
+    "No Data": "#A6CEE3",  # Soft blue fallback
+}
+
+
+def _season_bucket(season_name: str) -> str:
+    """
+    Map an arbitrary season name to one of:
+        Peak, High, Mid, Low, No Data
+
+    Uses simple keyword heuristics based on the season name string.
+    """
+    name = (season_name or "").strip().lower()
+
+    if "peak" in name:
+        return "Peak"
+    if "high" in name:
+        return "High"
+    if "mid" in name or "shoulder" in name:
+        return "Mid"
+    if "low" in name:
+        return "Low"
+
+    # If nothing matches, fall back
+    return "No Data"
+
+
+# ======================================================================
 # CALCULATOR-SIDE GANTT (ResortData / YearData objects)
 # ======================================================================
 
@@ -37,7 +73,7 @@ def create_gantt_chart_from_resort_data(
     rows: List[Dict[str, Any]] = []
 
     if not hasattr(resort_data, "years") or year not in resort_data.years:
-        # Fallback: a trivial "No Data" bar so the chart area still renders
+        # Fallback: trivial "No Data" bar so the chart area still renders
         today = datetime.now()
         rows.append(
             {
@@ -53,12 +89,12 @@ def create_gantt_chart_from_resort_data(
         # Seasons
         for season in getattr(yd, "seasons", []):
             sname = getattr(season, "name", "(Unnamed)")
+            bucket = _season_bucket(sname)
             periods = getattr(season, "periods", [])
             for i, p in enumerate(periods, 1):
                 start: date = getattr(p, "start", None)
                 end: date = getattr(p, "end", None)
                 if isinstance(start, date) and isinstance(end, date) and start <= end:
-                    # Convert to datetime for consistency with editor chart
                     start_dt = datetime(start.year, start.month, start.day)
                     end_dt = datetime(end.year, end.month, end.day)
                     rows.append(
@@ -66,7 +102,7 @@ def create_gantt_chart_from_resort_data(
                             "Task": f"{sname} #{i}",
                             "Start": start_dt,
                             "Finish": end_dt,
-                            "Type": sname,
+                            "Type": bucket,
                         }
                     )
 
@@ -110,6 +146,7 @@ def create_gantt_chart_from_resort_data(
         color="Type",
         title=f"{getattr(resort_data, 'name', 'Resort')} – {year} Timeline",
         height=height if height is not None else max(400, len(df) * 35),
+        color_discrete_map=COLOR_MAP,
     )
 
     fig.update_yaxes(autorange="reversed")
@@ -144,9 +181,9 @@ def create_gantt_chart_from_working(
     """
     Build a season + holiday Gantt chart for the editor UI.
 
-    This implementation follows your original create_gantt_chart_v2 logic,
-    with an extra `height` parameter that, if provided, overrides the
-    auto-calculated height.
+    This follows your original create_gantt_chart_v2 logic, but the
+    `Type` field is now a semantic bucket (Peak/High/Mid/Low/Holiday/No Data)
+    so we can apply a consistent colour scheme.
 
     Parameters
     ----------
@@ -167,9 +204,10 @@ def create_gantt_chart_from_working(
 
     year_obj = working.get("years", {}).get(year, {})
 
-    # Seasons: use periods directly from working
+    # Seasons – dates from working
     for season in year_obj.get("seasons", []):
         sname = season.get("name", "(Unnamed)")
+        bucket = _season_bucket(sname)
         for i, p in enumerate(season.get("periods", []), 1):
             try:
                 start_dt = datetime.strptime(p.get("start"), "%Y-%m-%d")
@@ -180,13 +218,13 @@ def create_gantt_chart_from_working(
                             "Task": f"{sname} #{i}",
                             "Start": start_dt,
                             "Finish": end_dt,
-                            "Type": sname,
+                            "Type": bucket,
                         }
                     )
             except Exception:
                 continue
 
-    # Holidays: dates come from global_holidays in `data`
+    # Holidays – dates from global_holidays in `data`
     gh_year = data.get("global_holidays", {}).get(year, {})
     for h in year_obj.get("holidays", []):
         global_ref = h.get("global_reference") or h.get("name")
@@ -232,6 +270,7 @@ def create_gantt_chart_from_working(
         color="Type",
         title=f"{working.get('display_name', 'Resort')} – {year} Timeline",
         height=fig_height,
+        color_discrete_map=COLOR_MAP,
     )
 
     fig.update_yaxes(autorange="reversed")
