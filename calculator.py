@@ -793,6 +793,8 @@ def render_metrics_grid(
 # MAIN PAGE LOGIC
 # ==============================================================================
 
+
+
 def main() -> None:
     # Initialise session state (calculator-specific keys)
     if "current_resort" not in st.session_state:
@@ -801,6 +803,16 @@ def main() -> None:
         st.session_state.current_resort_id = None
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
+
+
+    if not st.session_state.data:
+    st.warning("⚠️ Please open the Editor and upload/merge data_v2.json first.")
+    st.info(
+        "The calculator reads the same in-memory data as the Editor. "
+        "Once the Editor has loaded your JSON file, you can use the calculator here."
+    )
+    return
+
 
     # 1) Shared data auto-load (no uploader here)
     ensure_data_in_session()
