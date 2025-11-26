@@ -76,7 +76,7 @@ def render_page_header(title: str, subtitle: str | None = None, icon: str | None
     st.markdown(
         f"""
         <div style='display: flex; align-items: center; margin-bottom: 8px; margin-top: 0;'>
-            <h1 style='color: #0f172a; margin: 0; font-size: 36px; margin-right: 12px;'>{icon_html}{title}</h1>
+            <h1 style='color: #0f172a; margin: 0; font-size: 50px; margin-right: 12px;'>{icon_html}{title}</h1>
             {subtitle_html}
         </div>
         """,
