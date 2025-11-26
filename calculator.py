@@ -14,6 +14,7 @@ from common.ui import render_resort_card, render_resort_grid
 from common.charts import create_gantt_chart_from_resort_data
 from common.data import ensure_data_in_session, render_data_file_uploader
 
+# from common.data import ensure_data_in_session
 
 # ==============================================================================
 # LAYER 1: DOMAIN MODELS (Type-Safe Data Structures)
@@ -797,24 +798,14 @@ def render_metrics_grid(
 
 def main() -> None:
 
-    # Initialise session state
+    # Initialise session state (calculator-specific keys)
     if "current_resort" not in st.session_state:
         st.session_state.current_resort = None
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
-    if "uploaded_file_name" not in st.session_state:
-        st.session_state.uploaded_file_name = None
 
-    # Ensure data is present in session (auto-load data_v2.json if available)
-    ensure_data_in_session(
-        default_filename="data_v2.json",
-        session_key="data",
-        uploaded_name_key="uploaded_file_name",
-    )
-
-
-
-
+    # Ensure shared data state is initialised and auto-loaded if possible
+    ensure_data_in_session()
     
     # Sidebar: data upload
 #    with st.sidebar:
