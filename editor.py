@@ -1794,17 +1794,17 @@ def main():
 
     # Main content
 
-    st.title("🖖 Vacation Resort Editor")
-        st.markdown(
-            """
-            <div style="display: inline-block; background-color: #059669; color: white;
-                        padding: 8px 16px; border-radius: 20px; font-weight: 600;
-                        margin-bottom: 16px;">
-                👤 Master data management for MVC resorts
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+st.title("🖖 Vacation Resort Editor")
+    st.markdown(
+        """
+        <div style="display: inline-block; background-color: #059669; color: white;
+                    padding: 8px 16px; border-radius: 20px; font-weight: 600;
+                    margin-bottom: 16px;">
+            👤 Master data management for MVC resorts
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     
 
 
