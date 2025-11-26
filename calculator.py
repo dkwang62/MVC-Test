@@ -724,7 +724,7 @@ def main() -> None:
         if mode == UserMode.OWNER:
             st.markdown("#### 💰 Ownership Parameters")
             rate = st.number_input(
-                "Rate per Point ($)",
+                "Maintenance per Point ($)",
                 value=0.50,
                 step=0.01,
                 min_value=0.0,
@@ -805,7 +805,7 @@ def main() -> None:
         else:
             st.markdown("#### 🏨 Rental Parameters")
             rate = st.number_input(
-                "Rate per Point ($)",
+                "Maintenance per Point ($)",
                 value=0.50,
                 step=0.01,
                 min_value=0.0,
@@ -1070,7 +1070,7 @@ def main() -> None:
                     f"""
                     ### 💰 Owner Cost Calculation
                     **Maintenance**
-                    - Formula: Rate per point × points used
+                    - Formula: Maintenance per point × points used
                     - Current rate: **${rate:.2f}** per point
                     - Covers: Property upkeep, utilities, staff, amenities
                     **Capital Cost**
