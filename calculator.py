@@ -794,9 +794,7 @@ def render_metrics_grid(
 # MAIN PAGE LOGIC
 # ==============================================================================
 
-
 def main() -> None:
-
     # Initialise session state (calculator-specific keys)
     if "current_resort" not in st.session_state:
         st.session_state.current_resort = None
@@ -807,55 +805,21 @@ def main() -> None:
 
     # Ensure shared data state is initialised and auto-loaded if possible
     ensure_data_in_session()
-    
-    # Sidebar: data upload
-#    with st.sidebar:
-#        uploaded_file = st.file_uploader(
-#            "📁 Upload Resort Data",
-#            type="json",
-#            help="Upload your resort data JSON file (MVC schema).",
-#        )
-#        if uploaded_file and uploaded_file.name != st.session_state.uploaded_file_name:
-#            try:
-#                st.session_state.data = json.load(uploaded_file)
-#                st.session_state.uploaded_file_name = uploaded_file.name
-#                st.session_state.current_resort_id = None
-#                st.success(f"✅ Loaded {uploaded_file.name}")
-#                st.rerun()
-#            except Exception as e:
-#                st.error(f"❌ Error loading JSON: {e}")
-                
-    # Sidebar: data upload and user settings
-    with st.sidebar:
-    render_data_file_uploader(
-        label="📁 Upload Resort Data",
-        session_key="data",
-        uploaded_name_key="uploaded_file_name",
-        uploader_key="calculator_data_uploader",
-        help_text="Upload your resort data JSON file (MVC schema).",
-    )
-    st.divider()
-    st.markdown("### 👤 User Settings")
 
-    
-    # If still no data, bail out after showing instructions
-    if not st.session_state.data:
-        st.warning("⚠️ Please upload data_v2.json (or a compatible JSON) to begin.")
-        st.info(
-            "The calculator requires MVC resort data to function. "
-            "Upload your JSON data file using the sidebar."
+    # Sidebar: data upload + user settings
+    with st.sidebar:
+        render_data_file_uploader(
+            label="📁 Upload Resort Data",
+            session_key="data",
+            uploaded_name_key="uploaded_file_name",
+            uploader_key="calculator_data_uploader",
+            help_text="Upload your resort data JSON file (MVC schema).",
         )
-        return
 
-    # Repository & calculator
-    repo = MVCRepository(st.session_state.data)
-    calc = MVCCalculator(repo)
-
-    # Sidebar: user settings (this is where `mode` is DEFINED)
-    with st.sidebar:
         st.divider()
         st.markdown("### 👤 User Settings")
 
+        # --- User mode selection & parameters ---
         mode_sel = st.selectbox(
             "User Mode",
             [m.value for m in UserMode],
@@ -864,11 +828,19 @@ def main() -> None:
         )
         mode = UserMode(mode_sel)
 
-        current_year = datetime.now().year
-        default_rate = repo.get_config_val(current_year)
-
         owner_params: Optional[dict] = None
         policy: DiscountPolicy = DiscountPolicy.NONE
+
+        # Temporarily set rate; may be overridden later based on mode + year
+        current_year = datetime.now().year
+
+        # We can only read config if data exists; fall back safely otherwise
+        if st.session_state.data:
+            repo_for_rate = MVCRepository(st.session_state.data)
+            default_rate = repo_for_rate.get_config_val(current_year)
+        else:
+            default_rate = 0.86
+
         rate = default_rate
 
         if mode == UserMode.OWNER:
@@ -919,7 +891,7 @@ def main() -> None:
                             min_value=0.0,
                             help="Expected return on alternative investments.",
                         )
-                        / 100
+                        / 100.0
                     )
                 else:
                     coc = 0.0
@@ -947,7 +919,7 @@ def main() -> None:
                     salvage = 0.0
 
             owner_params = {
-                "disc_mul": 1 - (disc / 100),
+                "disc_mul": 1 - (disc / 100.0),
                 "inc_m": inc_m,
                 "inc_c": inc_c,
                 "inc_d": inc_d,
@@ -982,13 +954,25 @@ def main() -> None:
                     policy = DiscountPolicy.PRESIDENTIAL
                 elif "Executive" in opt:
                     policy = DiscountPolicy.EXECUTIVE
+                # "Based on Maintenance Rate" just uses default_rate
             else:
                 st.info("💡 Using maintenance rate with no discount.")
 
-    # =========================
-    # Main content
-    # =========================
-    st.title("🖖 Calculator")
+    # ===== Data presence check =====
+    if not st.session_state.data:
+        st.warning("⚠️ Please upload data_v2.json (or a compatible JSON) to begin.")
+        st.info(
+            "The calculator requires MVC resort data to function. "
+            "Upload your JSON data file using the sidebar."
+        )
+        return
+
+    # ===== Core calculator objects =====
+    repo = MVCRepository(st.session_state.data)
+    calc = MVCCalculator(repo)
+
+    # ===== Main content =====
+    st.title("🖖 Marriott Vacation Club Calculator")
 
     # Mode badge
     if mode == UserMode.OWNER:
@@ -1014,9 +998,9 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
+    # Resorts list & current selection by id
     resorts_full = repo.get_resort_list_full()  # list of resort dicts
 
-    # Initialise current_resort_id if needed
     if resorts_full and st.session_state.current_resort_id is None:
         st.session_state.current_resort_id = resorts_full[0].get("id")
 
@@ -1025,7 +1009,7 @@ def main() -> None:
     # Shared grid (column-first) from common.ui
     render_resort_grid(resorts_full, current_resort_id)
 
-    # Map id → display_name for calculations
+    # Resolve selected resort object
     resort_obj = next(
         (r for r in resorts_full if r.get("id") == current_resort_id),
         None,
@@ -1037,15 +1021,17 @@ def main() -> None:
     if not r_name:
         return
 
-    # Resort info card (using full_name / timezone / address)
+    # Resort info card
     resort_info = repo.get_resort_info(r_name)
     render_resort_card(
-        resort_info["full_name"], resort_info["timezone"], resort_info["address"]
+        resort_info["full_name"],
+        resort_info["timezone"],
+        resort_info["address"],
     )
 
     st.divider()
 
-    # Booking details
+    # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
 
     input_cols = st.columns([2, 1, 2, 2])
@@ -1072,7 +1058,7 @@ def main() -> None:
     maintenance_rate_for_year = repo.get_config_val(checkin_year)
 
     if mode == UserMode.RENTER:
-        if policy == DiscountPolicy.NONE and rate == default_rate:
+        if policy == DiscountPolicy.NONE and abs(rate - default_rate) < 1e-9:
             rate = maintenance_rate_for_year
     elif mode == UserMode.OWNER and owner_params:
         if owner_params.get("inc_m", False):
@@ -1118,7 +1104,7 @@ def main() -> None:
 
     st.divider()
 
-    # Calculate primary result
+    # ===== Calculation =====
     res = calc.calculate_breakdown(
         r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params
     )
@@ -1134,7 +1120,7 @@ def main() -> None:
 
     st.divider()
 
-    # Breakdown table
+    # Detailed breakdown
     st.markdown("### 📋 Detailed Breakdown")
     st.dataframe(
         res.breakdown_df,
@@ -1144,7 +1130,7 @@ def main() -> None:
     )
 
     # Actions
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2, _ = st.columns([1, 1, 2])
     with col1:
         csv_data = res.breakdown_df.to_csv(index=False)
         st.download_button(
@@ -1309,7 +1295,6 @@ def main() -> None:
                     - Holiday periods are treated as full blocks for pricing.
                     """
                 )
-
 
 def run() -> None:
     main()
