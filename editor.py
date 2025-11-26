@@ -185,36 +185,42 @@ def handle_file_upload():
 
 
 def create_download_button_v2(data: Dict[str, Any]):
+    # Header text stays OUTSIDE the expander
     st.sidebar.markdown("### 📥 Memory to File")
 
-    # Let user choose filename
-    filename = st.sidebar.text_input(
-        "You can change file name",
-        value="data.json",
-        key="download_filename_input",
-    ).strip()
+    # Everything else INSIDE the expander
+    with st.sidebar.expander("💾 Save to File", expanded=False):
 
-    # Fallback + ensure .json extension
-    if not filename:
-        filename = "data.json"
-    if not filename.lower().endswith(".json"):
-        filename += ".json"
+        st.caption("You can change file name")
 
-    json_data = json.dumps(data, indent=2, ensure_ascii=False)
+        # Let user choose filename
+        filename = st.text_input(
+            "File name",
+            value="data.json",
+            key="download_filename_input",
+        ).strip()
 
-    st.sidebar.download_button(
-        label="💾 Save",
-        data=json_data,
-        file_name=filename,
-        mime="application/json",
-        key="download_v2_btn",
-        use_container_width=True,
-    )
-    st.sidebar.caption(
-        f"File will be downloaded as **{filename}** "
-        "to your browser’s default **Downloads** folder."
-    )
+        # Fallback + ensure .json extension
+        if not filename:
+            filename = "data.json"
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
 
+        json_data = json.dumps(data, indent=2, ensure_ascii=False)
+
+        st.download_button(
+            label="💾 Save",
+            data=json_data,
+            file_name=filename,
+            mime="application/json",
+            key="download_v2_btn",
+            use_container_width=True,
+        )
+
+        st.caption(
+            f"File will be downloaded as **{filename}** "
+            "to your browser’s default **Downloads** folder."
+        )
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
@@ -1780,22 +1786,22 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-        st.markdown(
-            """
-            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
-                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-        with st.expander("ℹ️ How File Operations Work", expanded=False):
+#        st.markdown(
+#            """
+#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
+#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
+#            </div>
+#        """,
+#            unsafe_allow_html=True,
+#        )
+        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
             st.markdown(
                 """
-            - Data are pre-loaded into memory and can be edited.
-            - Loading another file will replace data in memory.
+            - The most updated data is pre-loaded into memory and can be edited.
+            - Loading another file will replace the data in memory.
             - Edits in memory are temporary — SAVE or they may be lost on refresh.
             - Verify by matching saved file to what’s in memory.
-            - Upload a different file to merge selected resorts to memory.
+            - Load a different file to merge selected resorts to memory.
             """
             )
 
@@ -1912,4 +1918,3 @@ def run():
 
 if __name__ == "__main__":
     main()
-
