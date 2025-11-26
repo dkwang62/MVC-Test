@@ -804,8 +804,7 @@ def main() -> None:
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
 
-
-    # Try to load default JSON from working dir
+    # Try to load default JSON from working dir (auto-load)
     if st.session_state.data is None:
         try:
             with open("data_v2.json", "r") as f:
@@ -814,7 +813,7 @@ def main() -> None:
         except Exception:
             pass
 
-    # Sidebar: data upload and user settings
+    # Sidebar: data upload
     with st.sidebar:
         uploaded_file = st.file_uploader(
             "📁 Upload Resort Data",
@@ -831,6 +830,7 @@ def main() -> None:
             except Exception as e:
                 st.error(f"❌ Error loading JSON: {e}")
 
+    # If still no data, bail out after showing instructions
     if not st.session_state.data:
         st.warning("⚠️ Please upload data_v2.json (or a compatible JSON) to begin.")
         st.info(
@@ -839,19 +839,179 @@ def main() -> None:
         )
         return
 
+    # Repository & calculator
     repo = MVCRepository(st.session_state.data)
     calc = MVCCalculator(repo)
 
-    repo = MVCRepository(st.session_state.data)
-    calc = MVCCalculator(repo)
+    # Sidebar: user settings (this is where `mode` is DEFINED)
+    with st.sidebar:
+        st.divider()
+        st.markdown("### 👤 User Settings")
 
-    # Resort selection
+        mode_sel = st.selectbox(
+            "User Mode",
+            [m.value for m in UserMode],
+            index=0,
+            help="Select whether you're renting points or own them.",
+        )
+        mode = UserMode(mode_sel)
+
+        current_year = datetime.now().year
+        default_rate = repo.get_config_val(current_year)
+
+        owner_params: Optional[dict] = None
+        policy: DiscountPolicy = DiscountPolicy.NONE
+        rate = default_rate
+
+        if mode == UserMode.OWNER:
+            st.markdown("#### 💰 Ownership Parameters")
+
+            with st.expander("💵 Cost Parameters", expanded=True):
+                cap = st.number_input(
+                    "Purchase Price per Point ($)",
+                    value=16.0,
+                    step=0.5,
+                    min_value=0.0,
+                    help="Initial purchase price per MVC point.",
+                )
+                disc = st.selectbox(
+                    "Last-Minute Discount",
+                    [0, 25, 30],
+                    format_func=lambda x: f"{x}% off" if x > 0 else "No discount",
+                    help="Owner points discount for last-minute bookings.",
+                )
+
+            with st.expander("📋 Cost Components", expanded=True):
+                inc_m = st.checkbox(
+                    "Include Maintenance Cost",
+                    True,
+                    help="Annual maintenance fees.",
+                )
+                if inc_m:
+                    rate = st.number_input(
+                        "Maintenance Rate ($/point)",
+                        value=default_rate,
+                        step=0.01,
+                        min_value=0.0,
+                    )
+                else:
+                    rate = 0.0
+
+                inc_c = st.checkbox(
+                    "Include Capital Cost",
+                    True,
+                    help="Opportunity cost of capital invested.",
+                )
+                if inc_c:
+                    coc = (
+                        st.number_input(
+                            "Cost of Capital (%)",
+                            value=7.0,
+                            step=0.5,
+                            min_value=0.0,
+                            help="Expected return on alternative investments.",
+                        )
+                        / 100
+                    )
+                else:
+                    coc = 0.0
+
+                inc_d = st.checkbox(
+                    "Include Depreciation",
+                    True,
+                    help="Asset depreciation over time.",
+                )
+                if inc_d:
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        life = st.number_input(
+                            "Useful Life (yrs)", value=15, min_value=1
+                        )
+                    with col2:
+                        salvage = st.number_input(
+                            "Salvage ($/pt)",
+                            value=3.0,
+                            step=0.5,
+                            min_value=0.0,
+                        )
+                else:
+                    life = 1
+                    salvage = 0.0
+
+            owner_params = {
+                "disc_mul": 1 - (disc / 100),
+                "inc_m": inc_m,
+                "inc_c": inc_c,
+                "inc_d": inc_d,
+                "cap_rate": cap * coc,
+                "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
+            }
+
+        else:
+            st.markdown("#### 🏨 Rental Parameters")
+
+            show_advanced = st.checkbox("Show Advanced Options", value=False)
+            if show_advanced:
+                opt = st.radio(
+                    "Rate Option",
+                    [
+                        "Based on Maintenance Rate (No Discount)",
+                        "Custom Rate (No Discount)",
+                        "Executive: 25% Points Discount (within 30 days)",
+                        "Presidential: 30% Points Discount (within 60 days)",
+                    ],
+                    help="Select pricing and discount options.",
+                )
+
+                if opt == "Custom Rate (No Discount)":
+                    rate = st.number_input(
+                        "Custom Rate per Point ($)",
+                        value=default_rate,
+                        step=0.01,
+                        min_value=0.0,
+                    )
+                elif "Presidential" in opt:
+                    policy = DiscountPolicy.PRESIDENTIAL
+                elif "Executive" in opt:
+                    policy = DiscountPolicy.EXECUTIVE
+            else:
+                st.info("💡 Using maintenance rate with no discount.")
+
+    # =========================
+    # Main content
+    # =========================
+    st.title("🖖 Marriott Vacation Club Calculator")
+
+    # Mode badge
+    if mode == UserMode.OWNER:
+        st.markdown(
+            """
+            <div style="display: inline-block; background-color: #059669; color: white;
+                        padding: 8px 16px; border-radius: 20px; font-weight: 600;
+                        margin-bottom: 16px;">
+                👤 Owner Mode: Ownership Cost Analysis
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """
+            <div style="display: inline-block; background-color: #2563eb; color: white;
+                        padding: 8px 16px; border-radius: 20px; font-weight: 600;
+                        margin-bottom: 16px;">
+                👤 Renter Mode: Rental Cost Analysis
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Resort selection (using shared grid + resort_id like editor.py)
     st.markdown("### 🏖 Select Resort")
 
-    # Use the same data structure as Editor: list of resort dicts and current_resort_id
-    resorts_full = repo.get_resort_list_full()
+    resorts_full = repo.get_resort_list_full()  # list of resort dicts
 
-    # Initialise selected resort id if needed
+    # Initialise current_resort_id if needed
     if resorts_full and st.session_state.current_resort_id is None:
         st.session_state.current_resort_id = resorts_full[0].get("id")
 
@@ -860,7 +1020,7 @@ def main() -> None:
     # Shared grid (column-first) from common.ui
     render_resort_grid(resorts_full, current_resort_id)
 
-    # Map id → display_name for the calculator logic
+    # Map id → display_name for calculations
     resort_obj = next(
         (r for r in resorts_full if r.get("id") == current_resort_id),
         None,
@@ -872,7 +1032,7 @@ def main() -> None:
     if not r_name:
         return
 
-    # Resort info card
+    # Resort info card (using full_name / timezone / address)
     resort_info = repo.get_resort_info(r_name)
     render_resort_card(
         resort_info["full_name"], resort_info["timezone"], resort_info["address"]
@@ -1148,7 +1308,3 @@ def main() -> None:
 
 def run() -> None:
     main()
-
-
-if __name__ == "__main__":
-    run()
