@@ -7,7 +7,9 @@ from common.utils import sort_resorts_west_to_east, get_region_label
 # ----------------------------------------------------------------------
 # PAGE CONFIG & GLOBAL STYLES
 # ----------------------------------------------------------------------
-
+def run():
+    """Entry point used by app.py"""
+    main()
 
 def setup_page() -> None:
     """Standard page configuration and shared CSS for MVC apps."""
@@ -223,3 +225,6 @@ def render_resort_grid(
                     if "delete_confirm" in st.session_state:
                         st.session_state.delete_confirm = False
                     st.rerun()
+
+if __name__ == "__main__":
+    run()
