@@ -4,7 +4,6 @@ import math
 import json
 import pandas as pd
 import plotly.express as px
-from common.charts import create_gantt_chart_from_resort_data
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple, Any
@@ -1173,18 +1172,18 @@ def main():
 from common.charts import create_gantt_chart_from_resort_data
 
 st.divider()
-year_str = str(adj_in.year)
-res_data = repo.get_resort(r_name)
+    year_str = str(adj_in.year)
+    res_data = repo.get_resort(r_name)
 
-if res_data and year_str in res_data.years:
-    with st.expander("📅 Season and Holiday Calendar", expanded=False):
-        gantt_fig = create_gantt_chart_from_resort_data(
-            resort_data=res_data,
-            year=year_str,
-            global_holidays=st.session_state.data.get("global_holidays", {}),
-            height=500
-        )
-        st.plotly_chart(gantt_fig, use_container_width=True)
+    if res_data and year_str in res_data.years:
+        with st.expander("📅 Season and Holiday Calendar", expanded=False):
+            gantt_fig = create_gantt_chart_from_resort_data(
+                resort_data=res_data,
+                year=year_str,
+                global_holidays=st.session_state.data.get("global_holidays", {}),
+                height=500
+            )
+            st.plotly_chart(gantt_fig, use_container_width=True)
    
     # Help section
     if st.session_state.show_help:
