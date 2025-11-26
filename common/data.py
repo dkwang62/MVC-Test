@@ -3,6 +3,7 @@ import json
 import streamlit as st
 from typing import Dict, Any, Optional
 from datetime import datetime
+DEFAULT_DATA_PATH = "data_v2.json"
 
 def ensure_data_in_session(
     default_filename: str = "data_v2.json",
@@ -103,3 +104,69 @@ def get_resort_by_display_name(data: Dict[str, Any], name: str) -> Optional[Dict
 
 def get_maintenance_rate(data: Dict[str, Any], year: int) -> float:
     return float(data.get("configuration", {}).get("maintenance_rates", {}).get(str(year), 0.86))
+
+
+def ensure_data_in_session(auto_path: str = DEFAULT_DATA_PATH) -> None:
+    """
+    Make sure st.session_state.data and st.session_state.uploaded_file_name exist
+    and, if empty, try to auto-load from disk.
+    """
+    # Ensure keys exist
+    if "data" not in st.session_state:
+        st.session_state.data = None
+    if "uploaded_file_name" not in st.session_state:
+        st.session_state.uploaded_file_name = None
+
+    # If nothing loaded yet, try auto-load from disk
+    if st.session_state.data is None:
+        try:
+            with open(auto_path, "r") as f:
+                data = json.load(f)
+            # Basic schema sanity check
+            if "schema_version" in data and "resorts" in data:
+                st.session_state.data = data
+                st.session_state.uploaded_file_name = auto_path
+                # Optional toast, safe even if it fires only once
+                st.toast(
+                    f"✅ Auto-loaded {len(data.get('resorts', []))} resorts from {auto_path}",
+                    icon="✅",
+                )
+        except FileNotFoundError:
+            # No default file, just start empty
+            pass
+        except Exception as e:
+            # Silent failure; individual pages can show their own messaging
+            st.toast(f"⚠️ Auto-load error: {e}", icon="⚠️")
+
+
+def render_data_file_uploader(
+    label: str = "📁 Upload Resort Data",
+    help_text: str = "Upload your resort data JSON file (MVC schema).",
+    key: str = "data_file_uploader",
+) -> None:
+    """
+    Standard file uploader used by all pages.
+    On success, sets st.session_state.data and st.session_state.uploaded_file_name
+    and triggers a rerun.
+    """
+    uploaded = st.file_uploader(
+        label,
+        type="json",
+        help=help_text,
+        key=key,
+    )
+
+    if uploaded and uploaded.name != st.session_state.uploaded_file_name:
+        try:
+            data = json.load(uploaded)
+            if "schema_version" not in data or "resorts" not in data:
+                st.error("❌ Invalid MVC data file (missing 'schema_version' or 'resorts').")
+                return
+
+            st.session_state.data = data
+            st.session_state.uploaded_file_name = uploaded.name
+            st.success(f"✅ Loaded {uploaded.name}")
+            st.rerun()
+        except Exception as e:
+            st.error(f"❌ Error loading JSON: {e}")
+
