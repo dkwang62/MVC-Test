@@ -196,13 +196,13 @@ def create_download_button_v2(data: Dict[str, Any]):
         # Let user choose filename
         filename = st.text_input(
             "File name",
-            value="data.json",
+            value="data_v2.json",
             key="download_filename_input",
         ).strip()
 
         # Fallback + ensure .json extension
         if not filename:
-            filename = "data.json"
+            filename = "data_v2.json"
         if not filename.lower().endswith(".json"):
             filename += ".json"
 
@@ -526,18 +526,21 @@ def commit_working_to_data_v2(
 def render_save_button_v2(
     data: Dict[str, Any], working: Dict[str, Any], resort_id: str
 ):
+    """
+    Now only shows a passive status. We rely on the exit prompt in
+    handle_resort_switch_v2 for actual save/discard decisions.
+    """
     committed = find_resort_by_id(data, resort_id)
+
     if committed is not None and committed != working:
-        if st.button(
-            "💾 Save All Changes",
-            type="primary",
-            key=f"save_resort_{resort_id}",
-            use_container_width=True,
-        ):
-            commit_working_to_data_v2(data, working, resort_id)
-            st.session_state.working_resorts.pop(resort_id, None)
-            st.success("✅ Changes saved successfully!")
-            st.rerun()
+        # There ARE unsaved changes, but we don't nag; just inform quietly.
+        st.caption(
+            "Changes in this resort are currently kept in memory. "
+            "You’ll be asked to **Save or Discard** only when you leave this resort."
+        )
+    else:
+        # Everything matches the committed data.
+        st.caption("All changes for this resort are in sync with the saved data.")
 
 
 # ----------------------------------------------------------------------
@@ -1836,7 +1839,7 @@ def main():
             """
             <div class='info-box'>
                 <h3>👋 Welcome!</h3>
-                <p>Load data.json file from the sidebar to begin editing resort data.</p>
+                <p>Load json file from the sidebar to begin editing resort data.</p>
             </div>
         """,
             unsafe_allow_html=True,
