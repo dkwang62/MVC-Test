@@ -286,7 +286,7 @@ class MVCCalculator:
                 }
                 if is_owner:
                     if owner_config and owner_config.get("inc_m", False):
-                        row["Rate Cost"] = m
+                        row["Maintenance"] = m
                     if owner_config and owner_config.get("inc_c", False):
                         row["Capital Cost"] = c
                     if owner_config and owner_config.get("inc_d", False):
@@ -350,7 +350,7 @@ class MVCCalculator:
                 }
                 if is_owner:
                     if owner_config and owner_config.get("inc_m", False):
-                        row["Rate Cost"] = m
+                        row["Maintenance"] = m
                     if owner_config and owner_config.get("inc_c", False):
                         row["Capital Cost"] = c
                     if owner_config and owner_config.get("inc_d", False):
@@ -371,7 +371,7 @@ class MVCCalculator:
         df = pd.DataFrame(rows)
         # Format currency columns
         if is_owner and not df.empty:
-            for col in ["Rate Cost", "Capital Cost", "Depreciation", "Total Cost"]:
+            for col in ["Maintenance", "Capital Cost", "Depreciation", "Total Cost"]:
                 if col in df.columns:
                     df[col] = df[col].apply(
                         lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x
@@ -626,9 +626,9 @@ def render_metrics_grid(
         if owner_params.get("inc_m"):
             with cols[col_idx]:
                 st.metric(
-                    label="🔧 Rate Cost",
+                    label="🔧 Maintenance",
                     value=f"${result.m_cost:,.0f}",
-                    help="Annual rate costs attributable to this stay",
+                    help="Annual Maintenance attributable to this stay",
                 )
             col_idx += 1
         if owner_params.get("inc_c"):
@@ -767,9 +767,9 @@ def main() -> None:
                     min_value=0.0,
                 )
                 inc_m = st.checkbox(
-                    "Include Rate Cost",
+                    "Include Maintenance",
                     True,
-                    help="Annual rate costs.",
+                    help="Annual Maintenance.",
                 )
                 inc_c = st.checkbox(
                     "Include Capital Cost",
@@ -1069,7 +1069,7 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 💰 Owner Cost Calculation
-                    **Rate Cost**
+                    **Maintenance**
                     - Formula: Rate per point × points used
                     - Current rate: **${rate:.2f}** per point
                     - Covers: Property upkeep, utilities, staff, amenities
