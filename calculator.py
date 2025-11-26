@@ -1007,7 +1007,7 @@ def main() -> None:
         )
 
     # Resort selection (using shared grid + resort_id like editor.py)
-    st.markdown("### 🏖 Select Resort")
+    # st.markdown("### 🏖 Select Resort")
 
     resorts_full = repo.get_resort_list_full()  # list of resort dicts
 
