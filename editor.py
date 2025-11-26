@@ -186,16 +186,31 @@ def handle_file_upload():
 
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
+
+    # Let user choose filename
+    filename = st.sidebar.text_input(
+        "Output filename",
+        value="data_v2.json",
+        key="download_filename_input",
+        help="Enter the name for the JSON file to download.",
+    ).strip()
+
+    # Fallback + ensure .json extension
+    if not filename:
+        filename = "data_v2.json"
+    if not filename.lower().endswith(".json"):
+        filename += ".json"
+
     json_data = json.dumps(data, indent=2, ensure_ascii=False)
+
     st.sidebar.download_button(
         label="💾 Save",
         data=json_data,
-        file_name="data_v2.json",
+        file_name=filename,
         mime="application/json",
         key="download_v2_btn",
         use_container_width=True,
     )
-
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
