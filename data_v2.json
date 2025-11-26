@@ -20756,6 +20756,276 @@
           ]
         }
       }
+    },
+    {
+      "id": "phuket-mai-khao",
+      "display_name": "Phuket Mai Khao",
+      "code": "PMK",
+      "resort_name": "Marriott's Mai Khao Resort",
+      "address": "234 Moo 3, Mai Khao, Phuket 83110, Thailand",
+      "timezone": "Asia/Bangkok",
+      "years": {
+        "2025": {
+          "seasons": [
+            {
+              "name": "High Season",
+              "periods": [
+                {
+                  "start": "2025-01-03",
+                  "end": "2025-01-23"
+                },
+                {
+                  "start": "2025-01-31",
+                  "end": "2025-05-22"
+                },
+                {
+                  "start": "2025-07-04",
+                  "end": "2025-08-14"
+                },
+                {
+                  "start": "2025-09-26",
+                  "end": "2025-12-18"
+                }
+              ],
+              "day_categories": {
+                "sun": {
+                  "day_pattern": [
+                    "Sun"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 590,
+                    "2BR": 510
+                  }
+                },
+                "mon_thu": {
+                  "day_pattern": [
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 420,
+                    "2BR": 370
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 740,
+                    "2BR": 640
+                  }
+                }
+              }
+            },
+            {
+              "name": "Low Season",
+              "periods": [
+                {
+                  "start": "2025-05-23",
+                  "end": "2025-07-03"
+                },
+                {
+                  "start": "2025-08-15",
+                  "end": "2025-09-25"
+                }
+              ],
+              "day_categories": {
+                "sun": {
+                  "day_pattern": [
+                    "Sun"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 370,
+                    "2BR": 330
+                  }
+                },
+                "mon_thu": {
+                  "day_pattern": [
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 270,
+                    "2BR": 230
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 470,
+                    "2BR": 410
+                  }
+                }
+              }
+            }
+          ],
+          "holidays": [
+            {
+              "name": "Chinese New Year",
+              "global_reference": "Chinese New Year",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            },
+            {
+              "name": "Christmas",
+              "global_reference": "Christmas",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            },
+            {
+              "name": "NewYear",
+              "global_reference": "NewYear",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            }
+          ]
+        },
+        "2026": {
+          "seasons": [
+            {
+              "name": "High Season",
+              "periods": [
+                {
+                  "start": "2026-01-02",
+                  "end": "2026-02-12"
+                },
+                {
+                  "start": "2026-02-20",
+                  "end": "2026-05-21"
+                },
+                {
+                  "start": "2026-07-03",
+                  "end": "2026-08-13"
+                },
+                {
+                  "start": "2026-09-25",
+                  "end": "2026-12-17"
+                }
+              ],
+              "day_categories": {
+                "sun": {
+                  "day_pattern": [
+                    "Sun"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 590,
+                    "2BR": 510
+                  }
+                },
+                "mon_thu": {
+                  "day_pattern": [
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 420,
+                    "2BR": 370
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 740,
+                    "2BR": 640
+                  }
+                }
+              }
+            },
+            {
+              "name": "Low Season",
+              "periods": [
+                {
+                  "start": "2026-05-22",
+                  "end": "2026-07-02"
+                },
+                {
+                  "start": "2026-08-14",
+                  "end": "2026-09-24"
+                }
+              ],
+              "day_categories": {
+                "sun": {
+                  "day_pattern": [
+                    "Sun"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 370,
+                    "2BR": 330
+                  }
+                },
+                "mon_thu": {
+                  "day_pattern": [
+                    "Mon",
+                    "Tue",
+                    "Wed",
+                    "Thu"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 270,
+                    "2BR": 230
+                  }
+                },
+                "fri_sat": {
+                  "day_pattern": [
+                    "Fri",
+                    "Sat"
+                  ],
+                  "room_points": {
+                    "2BR Pool": 470,
+                    "2BR": 410
+                  }
+                }
+              }
+            }
+          ],
+          "holidays": [
+            {
+              "name": "Chinese New Year",
+              "global_reference": "Chinese New Year",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            },
+            {
+              "name": "Christmas",
+              "global_reference": "Christmas",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            },
+            {
+              "name": "NewYear",
+              "global_reference": "NewYear",
+              "room_points": {
+                "2BR Pool": 6930,
+                "2BR": 6030
+              }
+            }
+          ]
+        }
+      }
     }
   ],
   "migration_notes": {
