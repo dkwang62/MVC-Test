@@ -1794,9 +1794,6 @@ def main():
 
     # Main content
 
-st.title("🖖 Marriott Vacation Club Calculator")
-
-    # Mode badge
     st.title("🖖 Vacation Resort Editor")
         st.markdown(
             """
