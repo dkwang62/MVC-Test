@@ -1791,10 +1791,9 @@ def main():
             handle_merge_from_another_file_v2(st.session_state.data)
 
         show_save_indicator()
-
+    
     # Main content
-
-st.title("🖖 Vacation Resort Editor")
+    st.title("🖖 Vacation Resort Editor")
     st.markdown(
         """
         <div style="display: inline-block; background-color: #059669; color: white;
@@ -1805,7 +1804,6 @@ st.title("🖖 Vacation Resort Editor")
         """,
         unsafe_allow_html=True,
     )
-    
 
 
 
