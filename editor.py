@@ -1,7 +1,7 @@
 import streamlit as st
 from common.ui import setup_page, render_resort_card
 from common.data import load_data, save_data
-from common.utils import sort_resorts_west_to_east
+from common.utils import sort_resorts_west_to_east, get_region_label
 from functools import lru_cache
 import json
 import pandas as pd
@@ -18,63 +18,6 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 # ----------------------------------------------------------------------
 DEFAULT_YEARS = ["2025", "2026"]
 BASE_YEAR_FOR_POINTS = "2025"
-
-# ----------------------------------------------------------------------
-# TIMEZONE SORTING HELPERS (UPDATED FOR WEST TO EAST)
-# ----------------------------------------------------------------------
-COMMON_TZ_ORDER = [
-    "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
-    "America/Chicago", "America/New_York", "America/Vancouver", "America/Edmonton",
-    "America/Winnipeg", "America/Toronto", "America/Halifax", "America/St_Johns",
-    "US/Hawaii", "US/Alaska", "US/Pacific", "US/Mountain", "US/Central", "US/Eastern",
-    "America/Aruba", "America/St_Thomas", "Asia/Denpasar",  # Added for Aruba, Virgin Islands, Bali
-]
-
-TZ_TO_REGION = {
-    "Pacific/Honolulu": "Hawaii",
-    "US/Hawaii": "Hawaii",
-    "America/Anchorage": "Alaska",
-    "US/Alaska": "Alaska",
-    "America/Los_Angeles": "West Coast",
-    "US/Pacific": "West Coast",
-    "America/Denver": "Mountain",
-    "US/Mountain": "Mountain",
-    "America/Chicago": "Central",
-    "US/Central": "Central",
-    "America/New_York": "East Coast",
-    "US/Eastern": "East Coast",
-    "America/Aruba": "Caribbean",
-    "America/St_Thomas": "Caribbean",
-    "Asia/Denpasar": "Bali/Indonesia",
-    # Add more as needed
-}
-
-def get_timezone_offset(tz_name: str) -> float:
-    """Return UTC offset in hours (negative for west of UTC)"""
-    try:
-        tz = pytz.timezone(tz_name)
-        dt = datetime(2025, 1, 1)
-        return tz.utcoffset(dt).total_seconds() / 3600
-    except:
-        return 0
-
-def get_region_label(tz: str) -> str:
-    return TZ_TO_REGION.get(tz, tz.split("/")[-1] if "/" in tz else tz)
-
-def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort resorts West → East using timezone offset, then address"""
-    def sort_key(r):
-        tz = r.get("timezone", "UTC")
-        if tz in COMMON_TZ_ORDER:
-            priority = COMMON_TZ_ORDER.index(tz)  # Lower index for West
-        else:
-            priority = 1000  # Unknown to end
-        
-        offset = get_timezone_offset(tz)
-        address = (r.get("address") or r.get("resort_name") or r.get("display_name") or "").lower()
-        return (priority, offset, address)
-    
-    return sorted(resorts, key=sort_key)
 
 # ----------------------------------------------------------------------
 # WIDGET KEY HELPER (RESORT-SCOPED)
