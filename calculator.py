@@ -800,6 +800,8 @@ def main() -> None:
     # Initialise session state (calculator-specific keys)
     if "current_resort" not in st.session_state:
         st.session_state.current_resort = None
+    if "current_resort_id" not in st.session_state:
+        st.session_state.current_resort_id = None
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
 
@@ -825,16 +827,15 @@ def main() -> None:
                 
     # Sidebar: data upload and user settings
     with st.sidebar:
-        render_data_file_uploader(
-            label="📁 Upload Resort Data",
-            session_key="data",
-            uploaded_name_key="uploaded_file_name",
-            uploader_key="calculator_data_uploader",
-            help_text="Upload your resort data JSON file (MVC schema).",
-            require_schema=True,
-        )
-        st.divider()
-        st.markdown("### 👤 User Settings")
+    render_data_file_uploader(
+        label="📁 Upload Resort Data",
+        session_key="data",
+        uploaded_name_key="uploaded_file_name",
+        uploader_key="calculator_data_uploader",
+        help_text="Upload your resort data JSON file (MVC schema).",
+    )
+    st.divider()
+    st.markdown("### 👤 User Settings")
 
     
     # If still no data, bail out after showing instructions
