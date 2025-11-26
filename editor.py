@@ -190,13 +190,13 @@ def create_download_button_v2(data: Dict[str, Any]):
     # Let user choose filename
     filename = st.sidebar.text_input(
         "You can change file name",
-        value="data_v2.json",
+        value="data.json",
         key="download_filename_input",
     ).strip()
 
     # Fallback + ensure .json extension
     if not filename:
-        filename = "MVC_data.json"
+        filename = "data.json"
     if not filename.lower().endswith(".json"):
         filename += ".json"
 
