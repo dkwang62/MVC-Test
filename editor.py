@@ -1793,7 +1793,7 @@ def main():
         show_save_indicator()
     
     # Main content
-    st.title("🖖 Vacation Resort Editor")
+    st.title("🖖 Editor")
     st.markdown(
         """
         <div style="display: inline-block; background-color: #f43f5e; color: white;
