@@ -1763,8 +1763,8 @@ def main():
         st.divider()
         st.markdown(
             """
-            <div style='text-align: center; padding: 20px; margin-bottom: 16px;'>
-                <h3 style='color: #0891b2 !important; margin: 0; font-size: 20px;'>🏨 File Operations</h3>
+            <div style='text-align: center; padding: 16px; margin-bottom: 16px;'>
+                <h3 style='color: #0891b2 !important; margin: 0; font-size: 24px;'>🏨 File Operations</h3>
             </div>
         """,
             unsafe_allow_html=True,
