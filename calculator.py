@@ -855,7 +855,12 @@ def main() -> None:
     calc = MVCCalculator(repo)
 
     # ===== Main content =====
-    st.title("🖖 Marriott Vacation Club Calculator")
+    strender_page_header(
+    "Marriott Vacation Club Calculator",
+    f"👤 {mode.value} Mode: {'Ownership' if mode == UserMode.OWNER else 'Rental'} Cost Analysis",
+    icon="🖖",
+    badge_color="#059669" if mode == UserMode.OWNER else "#2563eb"
+)title("🖖 Marriott Vacation Club Calculator")
 
     # Mode badge
     if mode == UserMode.OWNER:
