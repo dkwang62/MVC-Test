@@ -12,9 +12,8 @@ import streamlit as st
 
 from common.ui import render_resort_card, render_resort_grid
 from common.charts import create_gantt_chart_from_resort_data
-from common.data import ensure_data_in_session, render_data_file_uploader
-
-# from common.data import ensure_data_in_session
+# from common.data import ensure_data_in_session, render_data_file_uploader
+from common.data import ensure_data_in_session
 
 # ==============================================================================
 # LAYER 1: DOMAIN MODELS (Type-Safe Data Structures)
