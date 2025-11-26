@@ -17,7 +17,7 @@ COLOR_MAP: Dict[str, str] = {
     "High": "#FC8D59",     # Orange
     "Mid": "#FEE08B",      # Gold / yellow
     "Low": "#1F78B4",      # Cool blue
-    "Holiday": "#6A3D9A",  # Purple
+    "Holiday": "#D73027",  # Purple
     "No Data": "#A6CEE3",  # Soft blue fallback
 }
 
