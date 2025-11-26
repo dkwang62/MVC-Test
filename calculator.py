@@ -1071,7 +1071,7 @@ def main() -> None:
                     ### 💰 Owner Cost Calculation
                     **Maintenance**
                     - Formula: Maintenance per point × points used
-                    - Current rate: **${rate:.2f}** per point
+                    - Current Maintenance: **${rate:.2f}** per point
                     - Covers: Property upkeep, utilities, staff, amenities
                     **Capital Cost**
                     - Formula: Purchase price × cost of capital rate × points used
@@ -1100,7 +1100,7 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 🏨 Rent Calculation
-                    **Current Rate:** **${rate:.2f}** per point.
+                    **Current Maintenance:** **${rate:.2f}** per point.
                     {discount_text}
                     - The **Points** column may show reduced points if last-minute discounts apply.
                     - 💰 Rent is always computed from the **discounted** points.
