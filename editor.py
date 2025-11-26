@@ -187,14 +187,12 @@ def handle_file_upload():
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
-    # Let user choose filename
     filename = st.sidebar.text_input(
         "You can change file name",
         value="data.json",
         key="download_filename_input",
     ).strip()
 
-    # Fallback + ensure .json extension
     if not filename:
         filename = "data.json"
     if not filename.lower().endswith(".json"):
@@ -211,11 +209,11 @@ def create_download_button_v2(data: Dict[str, Any]):
         use_container_width=True,
     )
 
-    # Informational hint about where it goes
     st.sidebar.caption(
-        f"**{filename}** " in
-        " **Downloads** folder."
+        f"File will be downloaded as **{filename}** "
+        "to your browser’s default **Downloads** folder."
     )
+
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
