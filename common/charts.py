@@ -1,131 +1,266 @@
 # common/charts.py
 from __future__ import annotations
 
-from datetime import date
-from typing import Dict, Any
+from datetime import datetime, date, timedelta
+from typing import Dict, Any, Optional, List
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
-# Consistent color mapping for all Gantt charts
-GANTT_COLOR_MAP = {
-    "Holiday": "#6A0DAD",      # Purple
-    "Mid Season": "#56B4E9",   # Sky Blue
-    "Low Season": "#009E73",   # Green
-    "High Season": "#E69F00",  # Orange
-    "Peak Season": "#AA0044",  # Dark Red
-    "No Data": "#CCCCCC",      # Gray
-}
-
-
-def _get_color_label(season_name: str) -> str:
-    """Map arbitrary season names into a small, consistent set for coloring."""
-    name = (season_name or "").strip().lower()
-    if "low" in name:
-        return "Low Season"
-    if "mid" in name or "shoulder" in name:
-        return "Mid Season"
-    if "peak" in name:
-        return "Peak Season"
-    if "high" in name:
-        return "High Season"
-    return season_name or "No Data"
-
+# ======================================================================
+# CALCULATOR-SIDE GANTT (ResortData / YearData objects)
+# ======================================================================
 
 def create_gantt_chart_from_resort_data(
     resort_data: Any,
     year: str,
-    global_holidays: Dict[str, Dict[str, Dict[str, str]]] | None = None,
+    global_holidays: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None,
     height: int = 500,
-):
-    """Create a simple season/holiday Gantt-style chart for a single resort/year.
+) -> go.Figure:
+    """
+    Build a season + holiday Gantt chart for the calculator app using the
+    typed domain objects defined in calculator.py.
 
     Parameters
     ----------
-    resort_data:
-        `ResortData` object from the calculator layer (has `.years[year]`).
-    year:
-        Year as string (e.g. "2025").
-    global_holidays:
-        Optional global holiday dict from the JSON. The dates are already
-        baked into `resort_data.years[year].holidays` so this is mostly
-        for completeness; we do not re-read it.
-    height:
+    resort_data : Any
+        `ResortData` instance from MVCRepository (has `.years[year]`).
+    year : str
+        Year string (e.g. "2025").
+    global_holidays : dict, optional
+        Global holiday dict from the JSON, keyed by [year][name].
+        Not strictly required (Holiday objects already hold dates).
+    height : int
         Figure height in pixels.
     """
-    if year not in resort_data.years:
-        return px.bar(pd.DataFrame(columns=["Label", "Start", "Duration", "Kind"]))
+    rows: List[Dict[str, Any]] = []
 
-    yd = resort_data.years[year]
+    if not hasattr(resort_data, "years") or year not in resort_data.years:
+        # Fallback: a trivial "No Data" bar so the chart area still renders
+        today = datetime.now()
+        rows.append(
+            {
+                "Task": "No Data",
+                "Start": today,
+                "Finish": today + timedelta(days=1),
+                "Type": "No Data",
+            }
+        )
+    else:
+        yd = resort_data.years[year]
 
-    rows = []
+        # Seasons
+        for season in getattr(yd, "seasons", []):
+            sname = getattr(season, "name", "(Unnamed)")
+            periods = getattr(season, "periods", [])
+            for i, p in enumerate(periods, 1):
+                start: date = getattr(p, "start", None)
+                end: date = getattr(p, "end", None)
+                if isinstance(start, date) and isinstance(end, date) and start <= end:
+                    # Convert to datetime for consistency with editor chart
+                    start_dt = datetime(start.year, start.month, start.day)
+                    end_dt = datetime(end.year, end.month, end.day)
+                    rows.append(
+                        {
+                            "Task": f"{sname} #{i}",
+                            "Start": start_dt,
+                            "Finish": end_dt,
+                            "Type": sname,
+                        }
+                    )
 
-    # Seasons
-    for season in yd.seasons:
-        color_label = _get_color_label(season.name)
-        for p in season.periods:
-            start: date = p.start
-            end: date = p.end
-            duration = (end - start).days + 1
+        # Holidays
+        for h in getattr(yd, "holidays", []):
+            hname = getattr(h, "name", "(Unnamed)")
+            start: date = getattr(h, "start_date", None)
+            end: date = getattr(h, "end_date", None)
+            if isinstance(start, date) and isinstance(end, date) and start <= end:
+                start_dt = datetime(start.year, start.month, start.day)
+                end_dt = datetime(end.year, end.month, end.day)
+                rows.append(
+                    {
+                        "Task": hname,
+                        "Start": start_dt,
+                        "Finish": end_dt,
+                        "Type": "Holiday",
+                    }
+                )
+
+        if not rows:
+            today = datetime.now()
             rows.append(
                 {
-                    "Label": season.name,
-                    "Start": start,
-                    "Duration": duration,
-                    "Kind": color_label,
+                    "Task": "No Data",
+                    "Start": today,
+                    "Finish": today + timedelta(days=1),
+                    "Type": "No Data",
                 }
             )
 
-    # Holidays
-    for h in yd.holidays:
-        start: date = h.start_date
-        end: date = h.end_date
-        duration = (end - start).days + 1
-        rows.append(
-            {
-                "Label": h.name,
-                "Start": start,
-                "Duration": duration,
-                "Kind": "Holiday",
-            }
-        )
-
-    if not rows:
-        return px.bar(pd.DataFrame(columns=["Label", "Start", "Duration", "Kind"]))
-
     df = pd.DataFrame(rows)
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["Finish"] = pd.to_datetime(df["Finish"])
 
-    # Horizontal bar chart with base=start and width=duration → simple Gantt
-    fig = px.bar(
+    fig = px.timeline(
         df,
-        x="Duration",
-        y="Label",
-        base="Start",
-        color="Kind",
-        orientation="h",
-        color_discrete_map=GANTT_COLOR_MAP,
+        x_start="Start",
+        x_end="Finish",
+        y="Task",
+        color="Type",
+        title=f"{getattr(resort_data, 'name', 'Resort')} – {year} Timeline",
+        height=height if height is not None else max(400, len(df) * 35),
     )
 
-    fig.update_layout(
-        height=height,
-        bargap=0.2,
-        xaxis_title="Date",
-        yaxis_title="Season / Holiday",
-        legend_title="Type",
-        hovermode="y",
-    )
-
-    # Reverse y so first item appears at top
     fig.update_yaxes(autorange="reversed")
-
-    # Format x-axis as dates
-    fig.update_xaxes(tickformat="%b %d, %Y", tickangle=-45)
-
-    # Enhanced hover template: base is the start date, x is the end (base + duration)
+    fig.update_xaxes(tickformat="%d %b %Y")
     fig.update_traces(
         hovertemplate="<b>%{y}</b><br>"
-        "Start: %{base|%b %d, %Y}<br>"
-        "End: %{x|%b %d, %Y}<extra></extra>"
+        "Start: %{base|%d %b %Y}<br>"
+        "End: %{x|%d %b %Y}<extra></extra>"
+    )
+    fig.update_layout(
+        showlegend=True,
+        xaxis_title="Date",
+        yaxis_title="Period",
+        font=dict(size=12),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
 
     return fig
+
+
+# ======================================================================
+# EDITOR-SIDE GANTT (working dict + global_holidays from data)
+# ======================================================================
+
+def create_gantt_chart_from_working(
+    working: Dict[str, Any],
+    year: str,
+    data: Dict[str, Any],
+    height: Optional[int] = None,
+) -> go.Figure:
+    """
+    Build a season + holiday Gantt chart for the editor UI.
+
+    This implementation follows your original create_gantt_chart_v2 logic,
+    with an extra `height` parameter that, if provided, overrides the
+    auto-calculated height.
+
+    Parameters
+    ----------
+    working : dict
+        Editable resort dict (one resort), structure:
+          working["years"][year]["seasons"]  -> list of dicts with:
+              {"name": str, "periods": [{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}, ...], ...}
+          working["years"][year]["holidays"] -> list of dicts with:
+              {"name": str, "global_reference": str, ...}
+    year : str
+        Year string (e.g. "2025").
+    data : dict
+        Full JSON data (has data["global_holidays"][year][ref] with dates).
+    height : int, optional
+        Preferred figure height. If None, we auto-size: max(400, len(df) * 35).
+    """
+    rows: List[Dict[str, Any]] = []
+
+    year_obj = working.get("years", {}).get(year, {})
+
+    # Seasons: use periods directly from working
+    for season in year_obj.get("seasons", []):
+        sname = season.get("name", "(Unnamed)")
+        for i, p in enumerate(season.get("periods", []), 1):
+            try:
+                start_dt = datetime.strptime(p.get("start"), "%Y-%m-%d")
+                end_dt = datetime.strptime(p.get("end"), "%Y-%m-%d")
+                if start_dt <= end_dt:
+                    rows.append(
+                        {
+                            "Task": f"{sname} #{i}",
+                            "Start": start_dt,
+                            "Finish": end_dt,
+                            "Type": sname,
+                        }
+                    )
+            except Exception:
+                continue
+
+    # Holidays: dates come from global_holidays in `data`
+    gh_year = data.get("global_holidays", {}).get(year, {})
+    for h in year_obj.get("holidays", []):
+        global_ref = h.get("global_reference") or h.get("name")
+        if gh := gh_year.get(global_ref):
+            try:
+                start_dt = datetime.strptime(gh.get("start_date"), "%Y-%m-%d")
+                end_dt = datetime.strptime(gh.get("end_date"), "%Y-%m-%d")
+                if start_dt <= end_dt:
+                    rows.append(
+                        {
+                            "Task": h.get("name", "(Unnamed)"),
+                            "Start": start_dt,
+                            "Finish": end_dt,
+                            "Type": "Holiday",
+                        }
+                    )
+            except Exception:
+                continue
+
+    # Fallback when nothing is defined
+    if not rows:
+        today = datetime.now()
+        rows.append(
+            {
+                "Task": "No Data",
+                "Start": today,
+                "Finish": today + timedelta(days=1),
+                "Type": "No Data",
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["Finish"] = pd.to_datetime(df["Finish"])
+
+    fig_height = height if height is not None else max(400, len(df) * 35)
+
+    fig = px.timeline(
+        df,
+        x_start="Start",
+        x_end="Finish",
+        y="Task",
+        color="Type",
+        title=f"{working.get('display_name', 'Resort')} – {year} Timeline",
+        height=fig_height,
+    )
+
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(tickformat="%d %b %Y")
+    fig.update_traces(
+        hovertemplate="<b>%{y}</b><br>"
+        "Start: %{base|%d %b %Y}<br>"
+        "End: %{x|%d %b %Y}<extra></extra>"
+    )
+    fig.update_layout(
+        showlegend=True,
+        xaxis_title="Date",
+        yaxis_title="Period",
+        font=dict(size=12),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+
+    return fig
+
+
+# Optional: keep your original name as an alias, if you ever call it directly.
+def create_gantt_chart_v2(
+    working: Dict[str, Any],
+    year: str,
+    data: Dict[str, Any],
+) -> go.Figure:
+    """
+    Backwards-compatible alias for your original create_gantt_chart_v2.
+    Uses the same logic, with auto-calculated height.
+    """
+    return create_gantt_chart_from_working(working, year, data, height=None)
