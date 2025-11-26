@@ -77,12 +77,6 @@ class MVCRepository:
     def get_resort_list_full(self) -> List[Dict[str, Any]]:
         """Return raw resort dictionaries (used for grid rendering)."""
         return self._raw.get("resorts", [])
-    def get_config_val(self, year: int) -> float:
-        return (
-            self._raw.get("configuration", {})
-            .get("maintenance_rates", {})
-            .get(str(year), 0.86)
-        )
     def _parse_global_holidays(
         self,
     ) -> Dict[str, Dict[str, Tuple[date, date]]]:
@@ -726,14 +720,7 @@ def main() -> None:
         owner_params: Optional[dict] = None
         policy: DiscountPolicy = DiscountPolicy.NONE
         # Temporarily set rate; may be overridden later based on mode + year
-        current_year = datetime.now().year
-        # We can only read config if data exists; fall back safely otherwise
-        if st.session_state.data:
-            repo_for_rate = MVCRepository(st.session_state.data)
-            default_rate = repo_for_rate.get_config_val(current_year)
-        else:
-            default_rate = 0.86
-        rate = default_rate
+        rate = 0.86
         if mode == UserMode.OWNER:
             st.markdown("#### 💰 Ownership Parameters")
             with st.expander("💵 Cost Parameters", expanded=True):
@@ -759,7 +746,7 @@ def main() -> None:
                 if inc_m:
                     rate = st.number_input(
                         "Rate per Point ($)",
-                        value=default_rate,
+                        value=0.86,
                         step=0.01,
                         min_value=0.0,
                     )
@@ -814,32 +801,30 @@ def main() -> None:
             }
         else:
             st.markdown("#### 🏨 Rental Parameters")
+            rate = st.number_input(
+                "Rate per Point ($)",
+                value=0.86,
+                step=0.01,
+                min_value=0.0,
+            )
             show_advanced = st.checkbox("Show Advanced Options", value=False)
             if show_advanced:
                 opt = st.radio(
-                    "Rate Option",
+                    "Discount Option",
                     [
-                        "Based on Maintenance Rate (No Discount)",
-                        "Custom Rate (No Discount)",
+                        "No Discount",
                         "Executive: 25% Points Discount (within 30 days)",
                         "Presidential: 30% Points Discount (within 60 days)",
                     ],
-                    help="Select pricing and discount options.",
+                    help="Select discount options.",
                 )
-                if opt == "Custom Rate (No Discount)":
-                    rate = st.number_input(
-                        "Custom Rate per Point ($)",
-                        value=default_rate,
-                        step=0.01,
-                        min_value=0.0,
-                    )
-                elif "Presidential" in opt:
+                if "Presidential" in opt:
                     policy = DiscountPolicy.PRESIDENTIAL
                 elif "Executive" in opt:
                     policy = DiscountPolicy.EXECUTIVE
-                # "Based on Maintenance Rate" just uses default_rate
+                # "No Discount" uses NONE
             else:
-                st.info("💡 Using maintenance rate with no discount.")
+                st.info("💡 Using no discount.")
     # ===== Data presence check =====
     if not st.session_state.data:
         st.warning("⚠️ Please upload data_v2.json (or a compatible JSON) to begin.")
@@ -919,15 +904,6 @@ def main() -> None:
             value=7,
             help="Number of nights to stay.",
         )
-    # Use maintenance rate of the check-in year if appropriate
-    checkin_year = checkin.year
-    maintenance_rate_for_year = repo.get_config_val(checkin_year)
-    if mode == UserMode.RENTER:
-        if policy == DiscountPolicy.NONE and abs(rate - default_rate) < 1e-9:
-            rate = maintenance_rate_for_year
-    elif mode == UserMode.OWNER and owner_params:
-        if owner_params.get("inc_m", False):
-            rate = maintenance_rate_for_year
     # Holiday adjustment (extend stay to full holiday span)
     adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     if adj:
@@ -1092,7 +1068,7 @@ def main() -> None:
                     ### 💰 Owner Cost Calculation
                     **Rate Cost**
                     - Formula: Rate per point × points used
-                    - Current rate: **${rate:.2f}** per point (based on {checkin_year})
+                    - Current rate: **${rate:.2f}** per point
                     - Covers: Property upkeep, utilities, staff, amenities
                     **Capital Cost**
                     - Formula: Purchase price × cost of capital rate × points used
@@ -1121,7 +1097,7 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 🏨 Rent Calculation
-                    **Current Rate:** **${rate:.2f}** per point (based on {checkin_year} rate).
+                    **Current Rate:** **${rate:.2f}** per point.
                     {discount_text}
                     - The **Points** column may show reduced points if last-minute discounts apply.
                     - 💰 Rent is always computed from the **discounted** points.
