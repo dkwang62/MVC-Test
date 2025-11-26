@@ -846,7 +846,7 @@ def main() -> None:
     calc = MVCCalculator(repo)
 
     # Resort selection
-    st.markdown("### 🏖 Select Resort")
+    # st.markdown("### 🏖 Select Resort")
 
     # Use the same data structure as Editor: list of resort dicts and current_resort_id
     resorts_full = repo.get_resort_list_full()
