@@ -1,8 +1,11 @@
 # common/charts.py
+from __future__ import annotations
+
+from datetime import date
+from typing import Dict, Any
+
 import pandas as pd
 import plotly.express as px
-from datetime import datetime, timedelta
-from typing import List, Dict, Any
 
 # Consistent color mapping for all Gantt charts
 GANTT_COLOR_MAP = {
@@ -11,268 +14,118 @@ GANTT_COLOR_MAP = {
     "Low Season": "#009E73",   # Green
     "High Season": "#E69F00",  # Orange
     "Peak Season": "#AA0044",  # Dark Red
-    "No Data": "#CCCCCC"       # Gray
+    "No Data": "#CCCCCC",      # Gray
 }
 
-def create_gantt_chart(
-    resort_name: str,
-    year: str,
-    seasons: List[Dict[str, Any]],
-    holidays: List[Dict[str, Any]],
-    global_holidays: Dict[str, Any] = None,
-    title: str = None,
-    height: int = 500
-):
-    """
-    Create a standardized Gantt chart for resort seasons and holidays.
-    
-    Args:
-        resort_name: Name of the resort
-        year: Year string (e.g., "2025")
-        seasons: List of season dictionaries with name, periods
-        holidays: List of holiday dictionaries with name, global_reference
-        global_holidays: Global holidays dict from data (optional, for dates)
-        title: Custom chart title (optional)
-        height: Chart height in pixels
-    
-    Returns:
-        Plotly figure object
-    """
-    rows = []
-    
-    # Add season date ranges
-    for season in seasons:
-        season_name = season.get("name", "(Unnamed)")
-        for i, period in enumerate(season.get("periods", []), 1):
-            try:
-                start = datetime.strptime(period.get("start", ""), "%Y-%m-%d")
-                end = datetime.strptime(period.get("end", ""), "%Y-%m-%d")
-                if start <= end:
-                    rows.append({
-                        "Task": f"{season_name} #{i}",
-                        "Start": start,
-                        "Finish": end + timedelta(days=1),  # Add 1 day for Plotly timeline
-                        "Type": season_name
-                    })
-            except:
-                continue
-    
-    # Add holiday date ranges
-    if global_holidays and year in global_holidays:
-        gh_year = global_holidays[year]
-        for h in holidays:
-            global_ref = h.get("global_reference") or h.get("name")
-            if gh := gh_year.get(global_ref):
-                try:
-                    start = datetime.strptime(gh.get("start_date", ""), "%Y-%m-%d")
-                    end = datetime.strptime(gh.get("end_date", ""), "%Y-%m-%d")
-                    if start <= end:
-                        rows.append({
-                            "Task": h.get("name", "(Unnamed)"),
-                            "Start": start,
-                            "Finish": end + timedelta(days=1),
-                            "Type": "Holiday"
-                        })
-                except:
-                    continue
-    
-    # Handle empty data
-    if not rows:
-        today = datetime.now()
-        rows.append({
-            "Task": "No Data",
-            "Start": today,
-            "Finish": today + timedelta(days=1),
-            "Type": "No Data"
-        })
-    
-    # Create DataFrame
-    df = pd.DataFrame(rows)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["Finish"] = pd.to_datetime(df["Finish"])
-    
-    # Create chart title
-    if title is None:
-        title = f"{resort_name} - {year} Calendar Overview"
-    
-    # Create Gantt chart
-    fig = px.timeline(
-        df,
-        x_start="Start",
-        x_end="Finish",
-        y="Task",
-        color="Type",
-        color_discrete_map=GANTT_COLOR_MAP,
-        title=title
-    )
-    
-    # Update layout for consistent styling
-    fig.update_layout(
-        height=height,
-        xaxis_title="Date",
-        yaxis_title="Period",
-        showlegend=True,
-        hovermode="closest",
-        font=dict(size=12),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    
-    # Reverse y-axis so earliest dates appear at top
-    fig.update_yaxes(autorange="reversed")
-    
-    # Format x-axis
-    fig.update_xaxes(
-        tickformat="%b %d, %Y",
-        tickangle=-45
-    )
-    
-    # Enhanced hover template
-    fig.update_traces(
-        hovertemplate="<b>%{y}</b><br>Start: %{base|%b %d, %Y}<br>End: %{x|%b %d, %Y}<extra></extra>"
-    )
-    
-    return fig
 
-
-def create_gantt_chart_from_working(
-    working: Dict[str, Any],
-    year: str,
-    data: Dict[str, Any],
-    height: int = 500
-):
-    """
-    Create Gantt chart from working resort data (used in editor).
-    
-    Args:
-        working: Working resort dictionary
-        year: Year string
-        data: Full data dict with global_holidays
-        height: Chart height in pixels
-    
-    Returns:
-        Plotly figure object
-    """
-    resort_name = working.get("display_name", "Resort")
-    year_obj = working.get("years", {}).get(year, {})
-    
-    seasons = year_obj.get("seasons", [])
-    holidays = year_obj.get("holidays", [])
-    global_holidays = data.get("global_holidays", {})
-    
-    return create_gantt_chart(
-        resort_name=resort_name,
-        year=year,
-        seasons=seasons,
-        holidays=holidays,
-        global_holidays=global_holidays,
-        height=height
-    )
+def _get_color_label(season_name: str) -> str:
+    """Map arbitrary season names into a small, consistent set for coloring."""
+    name = (season_name or "").strip().lower()
+    if "low" in name:
+        return "Low Season"
+    if "mid" in name or "shoulder" in name:
+        return "Mid Season"
+    if "peak" in name:
+        return "Peak Season"
+    if "high" in name:
+        return "High Season"
+    return season_name or "No Data"
 
 
 def create_gantt_chart_from_resort_data(
-    resort_data,  # ResortData object from calculator
+    resort_data: Any,
     year: str,
-    global_holidays: Dict[str, Any],
-    height: int = 500
+    global_holidays: Dict[str, Dict[str, Dict[str, str]]] | None = None,
+    height: int = 500,
 ):
-    """
-    Create Gantt chart from ResortData object (used in calculator).
-    
-    Args:
-        resort_data: ResortData object with name and years
-        year: Year string
-        global_holidays: Global holidays dict
-        height: Chart height in pixels
-    
-    Returns:
-        Plotly figure object
+    """Create a simple season/holiday Gantt-style chart for a single resort/year.
+
+    Parameters
+    ----------
+    resort_data:
+        `ResortData` object from the calculator layer (has `.years[year]`).
+    year:
+        Year as string (e.g. "2025").
+    global_holidays:
+        Optional global holiday dict from the JSON. The dates are already
+        baked into `resort_data.years[year].holidays` so this is mostly
+        for completeness; we do not re-read it.
+    height:
+        Figure height in pixels.
     """
     if year not in resort_data.years:
-        # Return empty chart
-        return create_gantt_chart(
-            resort_name=resort_data.name,
-            year=year,
-            seasons=[],
-            holidays=[],
-            global_holidays=global_holidays,
-            height=height
-        )
-    
-    year_data = resort_data.years[year]
-    
-    # Build rows directly from ResortData objects
+        return px.bar(pd.DataFrame(columns=["Label", "Start", "Duration", "Kind"]))
+
+    yd = resort_data.years[year]
+
     rows = []
-    
-    # Add seasons
-    for season in year_data.seasons:
-        for i, period in enumerate(season.periods, 1):
-            rows.append({
-                "Task": f"{season.name} #{i}",
-                "Start": period.start,
-                "Finish": period.end + timedelta(days=1),
-                "Type": season.name
-            })
-    
-    # Add holidays (we have dates directly in Holiday objects)
-    for h in year_data.holidays:
-        rows.append({
-            "Task": h.name,
-            "Start": h.start_date,
-            "Finish": h.end_date + timedelta(days=1),
-            "Type": "Holiday"
-        })
-    
-    # Handle empty data
+
+    # Seasons
+    for season in yd.seasons:
+        color_label = _get_color_label(season.name)
+        for p in season.periods:
+            start: date = p.start
+            end: date = p.end
+            duration = (end - start).days + 1
+            rows.append(
+                {
+                    "Label": season.name,
+                    "Start": start,
+                    "Duration": duration,
+                    "Kind": color_label,
+                }
+            )
+
+    # Holidays
+    for h in yd.holidays:
+        start: date = h.start_date
+        end: date = h.end_date
+        duration = (end - start).days + 1
+        rows.append(
+            {
+                "Label": h.name,
+                "Start": start,
+                "Duration": duration,
+                "Kind": "Holiday",
+            }
+        )
+
     if not rows:
-        today = datetime.now()
-        rows.append({
-            "Task": "No Data",
-            "Start": today,
-            "Finish": today + timedelta(days=1),
-            "Type": "No Data"
-        })
-    
-    # Create DataFrame
+        return px.bar(pd.DataFrame(columns=["Label", "Start", "Duration", "Kind"]))
+
     df = pd.DataFrame(rows)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["Finish"] = pd.to_datetime(df["Finish"])
-    
-    # Create Gantt chart
-    fig = px.timeline(
+
+    # Horizontal bar chart with base=start and width=duration → simple Gantt
+    fig = px.bar(
         df,
-        x_start="Start",
-        x_end="Finish",
-        y="Task",
-        color="Type",
+        x="Duration",
+        y="Label",
+        base="Start",
+        color="Kind",
+        orientation="h",
         color_discrete_map=GANTT_COLOR_MAP,
-        title=f"{resort_data.name} - {year} Calendar Overview"
     )
-    
-    # Update layout for consistent styling
+
     fig.update_layout(
         height=height,
+        bargap=0.2,
         xaxis_title="Date",
-        yaxis_title="Period",
-        showlegend=True,
-        hovermode="closest",
-        font=dict(size=12),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
+        yaxis_title="Season / Holiday",
+        legend_title="Type",
+        hovermode="y",
     )
-    
-    # Reverse y-axis so earliest dates appear at top
+
+    # Reverse y so first item appears at top
     fig.update_yaxes(autorange="reversed")
-    
-    # Format x-axis
-    fig.update_xaxes(
-        tickformat="%b %d, %Y",
-        tickangle=-45
-    )
-    
-    # Enhanced hover template
+
+    # Format x-axis as dates
+    fig.update_xaxes(tickformat="%b %d, %Y", tickangle=-45)
+
+    # Enhanced hover template: base is the start date, x is the end (base + duration)
     fig.update_traces(
-        hovertemplate="<b>%{y}</b><br>Start: %{base|%b %d, %Y}<br>End: %{x|%b %d, %Y}<extra></extra>"
+        hovertemplate="<b>%{y}</b><br>"
+        "Start: %{base|%b %d, %Y}<br>"
+        "End: %{x|%b %d, %Y}<extra></extra>"
     )
-    
+
     return fig
