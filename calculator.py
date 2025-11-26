@@ -723,76 +723,79 @@ def main() -> None:
         rate = 0.86
         if mode == UserMode.OWNER:
             st.markdown("#### 💰 Ownership Parameters")
-            with st.expander("💵 Cost Parameters", expanded=True):
-                cap = st.number_input(
-                    "Purchase Price per Point ($)",
-                    value=16.0,
+            rate = st.number_input(
+                "Rate per Point ($)",
+                value=0.86,
+                step=0.01,
+                min_value=0.0,
+            )
+            cap = st.number_input(
+                "Purchase Price per Point ($)",
+                value=16.0,
+                step=0.5,
+                min_value=0.0,
+                help="Initial purchase price per MVC point.",
+            )
+            show_advanced = st.checkbox("Show Advanced Options", value=False)
+            if show_advanced:
+                opt = st.radio(
+                    "Discount Option",
+                    [
+                        "No Discount",
+                        "Executive: 25% Points Discount (within 30 days)",
+                        "Presidential: 30% Points Discount (within 60 days)",
+                    ],
+                    help="Select discount options.",
+                )
+                coc = (
+                    st.number_input(
+                        "Cost of Capital (%)",
+                        value=7.0,
+                        step=0.5,
+                        min_value=0.0,
+                        help="Expected return on alternative investments.",
+                    )
+                    / 100.0
+                )
+                life = st.number_input(
+                    "Useful Life (yrs)", value=15, min_value=1
+                )
+                salvage = st.number_input(
+                    "Salvage ($/pt)",
+                    value=3.0,
                     step=0.5,
                     min_value=0.0,
-                    help="Initial purchase price per MVC point.",
                 )
-                disc = st.selectbox(
-                    "Last-Minute Discount",
-                    [0, 25, 30],
-                    format_func=lambda x: f"{x}% off" if x > 0 else "No discount",
-                    help="Owner points discount for last-minute bookings.",
-                )
-            with st.expander("📋 Cost Components", expanded=True):
                 inc_m = st.checkbox(
                     "Include Rate Cost",
                     True,
                     help="Annual rate costs.",
                 )
-                if inc_m:
-                    rate = st.number_input(
-                        "Rate per Point ($)",
-                        value=0.86,
-                        step=0.01,
-                        min_value=0.0,
-                    )
-                else:
-                    rate = 0.0
                 inc_c = st.checkbox(
                     "Include Capital Cost",
                     True,
                     help="Opportunity cost of capital invested.",
                 )
-                if inc_c:
-                    coc = (
-                        st.number_input(
-                            "Cost of Capital (%)",
-                            value=7.0,
-                            step=0.5,
-                            min_value=0.0,
-                            help="Expected return on alternative investments.",
-                        )
-                        / 100.0
-                    )
-                else:
-                    coc = 0.0
                 inc_d = st.checkbox(
                     "Include Depreciation",
                     True,
                     help="Asset depreciation over time.",
                 )
-                if inc_d:
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        life = st.number_input(
-                            "Useful Life (yrs)", value=15, min_value=1
-                        )
-                    with col2:
-                        salvage = st.number_input(
-                            "Salvage ($/pt)",
-                            value=3.0,
-                            step=0.5,
-                            min_value=0.0,
-                        )
-                else:
-                    life = 1
-                    salvage = 0.0
+            else:
+                opt = "No Discount"
+                coc = 7.0 / 100.0
+                life = 15
+                salvage = 3.0
+                inc_m = True
+                inc_c = True
+                inc_d = True
+            disc_mul = 1.0
+            if "Executive" in opt:
+                disc_mul = 0.75
+            elif "Presidential" in opt:
+                disc_mul = 0.7
             owner_params = {
-                "disc_mul": 1 - (disc / 100.0),
+                "disc_mul": disc_mul,
                 "inc_m": inc_m,
                 "inc_c": inc_c,
                 "inc_d": inc_d,
