@@ -186,7 +186,9 @@ class MVCCalculator:
         self.repo = repo
 
     def _get_daily_points(
-        self, resort: ResortData, day: date
+        self,
+        resort: ResortData,
+        day: date
     ) -> Tuple[Dict[str, int], Optional[Holiday]]:
         year_str = str(day.year)
         if year_str not in resort.years:
@@ -769,7 +771,7 @@ def main() -> None:
             cap = st.number_input(
                 "Purchase Price per Point ($)",
                 value=18.0,
-                step=1,
+                step=1.0,
                 min_value=0.0,
                 help="Initial purchase price per MVC point.",
             )
