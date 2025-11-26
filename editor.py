@@ -1765,7 +1765,7 @@ def main():
             """
             <div style='text-align: center; padding: 20px; margin-bottom: 20px;'>
                 <h1 style='color: #0891b2 !important; margin: 0; font-size: 28px;'>🏨 File Operations</h1>
-                <p style='color: #64748b !important; margin: 8px 0 0 0; font-size: 14px;'>Resort Management System</p>
+             #   <p style='color: #64748b !important; margin: 8px 0 0 0; font-size: 14px;'>Resort Management System</p>
             </div>
         """,
             unsafe_allow_html=True,
