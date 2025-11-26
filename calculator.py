@@ -805,16 +805,6 @@ def main() -> None:
     # Ensure shared data state is initialised and auto-loaded if possible
     ensure_data_in_session()
 
-    # Sidebar: data upload + user settings
-    with st.sidebar:
-        render_data_file_uploader(
-            label="📁 Upload Resort Data",
-            session_key="data",
-            uploaded_name_key="uploaded_file_name",
-            uploader_key="calculator_data_uploader",
-            help_text="Upload your resort data JSON file (MVC schema).",
-        )
-
         st.divider()
         st.markdown("### 👤 User Settings")
 
