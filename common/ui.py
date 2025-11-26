@@ -68,21 +68,21 @@ def render_page_header(title: str, subtitle: str | None = None, icon: str | None
     icon_html = f"{icon} " if icon else ""
     if subtitle:
         if badge_color:
-            subtitle_html = f'<div style="display: inline-block; background-color: {badge_color}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600;">{subtitle}</div>'
+            subtitle_html = f'<div style="display: inline-block; background-color: {badge_color}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 18px;">{subtitle}</div>'
         else:
-            subtitle_html = f"<p style='color: #64748b; margin: 4px 0 0 0; font-size: 14px;'>{subtitle}</p>"
+            subtitle_html = f"<p style='color: #64748b; margin: 4px 0 0 0; font-size: 18px;'>{subtitle}</p>"
     else:
         subtitle_html = ""
     st.markdown(
         f"""
-        <div style='display: flex; align-items: center; margin-bottom: 16px;'>
-            <h1 style='color: #0f172a; margin: 0; font-size: 26px; margin-right: 12px;'>{icon_html}{title}</h1>
+        <div style='display: flex; align-items: center; margin-bottom: 8px; margin-top: 0;'>
+            <h1 style='color: #0f172a; margin: 0; font-size: 36px; margin-right: 12px;'>{icon_html}{title}</h1>
             {subtitle_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
-
+    
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
     """Standard resort info card."""
     st.markdown(
