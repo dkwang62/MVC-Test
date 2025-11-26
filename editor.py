@@ -156,7 +156,6 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 # ----------------------------------------------------------------------
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
-st.divide()
 def handle_file_upload():
     st.sidebar.markdown("### 📤 Upload Data")
     with st.sidebar.expander("📤 Upload JSON file", expanded=False):
@@ -1761,6 +1760,7 @@ def main():
 
     # Sidebar
     with st.sidebar:
+        st.divider()
         st.markdown(
             """
             <div style='text-align: center; padding: 20px; margin-bottom: 20px;'>
