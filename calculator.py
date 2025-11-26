@@ -1006,9 +1006,6 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-    # Resort selection (using shared grid + resort_id like editor.py)
-    # st.markdown("### 🏖 Select Resort")
-
     resorts_full = repo.get_resort_list_full()  # list of resort dicts
 
     # Initialise current_resort_id if needed
