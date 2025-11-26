@@ -189,15 +189,14 @@ def create_download_button_v2(data: Dict[str, Any]):
 
     # Let user choose filename
     filename = st.sidebar.text_input(
-        "Output filename",
+        "You can change file name",
         value="data_v2.json",
         key="download_filename_input",
-        help="Enter the name for the JSON file to download.",
     ).strip()
 
     # Fallback + ensure .json extension
     if not filename:
-        filename = "data_v2.json"
+        filename = "MVC_data.json"
     if not filename.lower().endswith(".json"):
         filename += ".json"
 
@@ -214,8 +213,8 @@ def create_download_button_v2(data: Dict[str, Any]):
 
     # Informational hint about where it goes
     st.sidebar.caption(
-        f"File will be downloaded as **{filename}** "
-        "to your browser’s default download folder (usually **Downloads**)."
+        f"**{filename}** " in
+        " **Downloads** folder."
     )
 
 def handle_file_verification():
