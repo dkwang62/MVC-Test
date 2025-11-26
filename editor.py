@@ -482,7 +482,7 @@ def handle_resort_switch_v2(
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     if st.button(
-                        "💾 Save",
+                        "Save changes to memory",
                         key="switch_save_prev",
                         use_container_width=True,
                     ):
