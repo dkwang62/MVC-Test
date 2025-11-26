@@ -12,11 +12,12 @@ import streamlit as st
 
 from common.ui import render_resort_card, render_resort_grid
 from common.charts import create_gantt_chart_from_resort_data
-# from common.utils import sort_resorts_west_to_east, get_region_label
 
 # ==============================================================================
 # LAYER 1: DOMAIN MODELS (Type-Safe Data Structures)
 # ==============================================================================
+
+
 class UserMode(Enum):
     RENTER = "Renter"
     OWNER = "Owner"
@@ -90,6 +91,8 @@ class ComparisonResult:
 # ==============================================================================
 # LAYER 2: REPOSITORY (Data Access Layer)
 # ==============================================================================
+
+
 class MVCRepository:
     def __init__(self, raw_data: dict):
         self._raw = raw_data
@@ -208,6 +211,8 @@ class MVCRepository:
 # ==============================================================================
 # LAYER 3: SERVICE (Pure Business Logic Engine)
 # ==============================================================================
+
+
 class MVCCalculator:
     def __init__(self, repo: MVCRepository):
         self.repo = repo
@@ -676,6 +681,8 @@ class MVCCalculator:
 # ==============================================================================
 # LAYER 4: UI HELPERS
 # ==============================================================================
+
+
 def render_metrics_grid(
     result: CalculationResult,
     mode: UserMode,
@@ -735,6 +742,8 @@ def render_metrics_grid(
                     value=f"${result.d_cost:,.2f}",
                     help="Share of asset depreciation for this usage",
                 )
+            col_idx += 1
+
     else:
         if result.discount_applied:
             cols = st.columns(3)
@@ -782,6 +791,8 @@ def render_metrics_grid(
 # ==============================================================================
 # MAIN PAGE LOGIC
 # ==============================================================================
+
+
 def main() -> None:
     # Initialise session state
     if "data" not in st.session_state:
@@ -1000,6 +1011,7 @@ def main() -> None:
 
     resorts_full = repo.get_resort_list_full()
     render_resort_grid(resorts_full, st.session_state.current_resort)
+
     r_name = st.session_state.current_resort
 
     if not r_name:
