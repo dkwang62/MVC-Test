@@ -1796,7 +1796,7 @@ def main():
     st.title("🖖 Vacation Resort Editor")
     st.markdown(
         """
-        <div style="display: inline-block; background-color: #059669; color: white;
+        <div style="display: inline-block; background-color: #f43f5e; color: white;
                     padding: 8px 16px; border-radius: 20px; font-weight: 600;
                     margin-bottom: 16px;">
             👤 Master data management for MVC resorts
@@ -1805,18 +1805,6 @@ def main():
         unsafe_allow_html=True,
     )
 
-
-
-
-
-
-
-    
-#    render_page_header(
-#        "MVC Resort Editor",
-#        subtitle="Master data management for MVC resorts",
-#        icon="🏨",
-#    )
 
     if not st.session_state.data:
         st.markdown(
