@@ -154,7 +154,7 @@ def render_resort_grid(
                     key=f"resort_btn_{rid or name}",
                     type=btn_type,
                     use_container_width=True,
-                    help=resort.get("address", f"{region} • {tz}"),
+#                    help=resort.get("address", f"{region} • {tz}"),
                 ):
                     # Normalised selection for both apps
                     st.session_state.current_resort_id = rid
