@@ -12,6 +12,8 @@ import streamlit as st
 
 from common.ui import render_resort_card, render_resort_grid
 from common.charts import create_gantt_chart_from_resort_data
+from common.data import ensure_data_in_session, render_data_file_uploader
+
 
 # ==============================================================================
 # LAYER 1: DOMAIN MODELS (Type-Safe Data Structures)
@@ -794,42 +796,57 @@ def render_metrics_grid(
 
 
 def main() -> None:
+
     # Initialise session state
-    if "data" not in st.session_state:
-        st.session_state.data = None
-    if "current_resort_id" not in st.session_state:
-        st.session_state.current_resort_id = None
-    if "uploaded_file_name" not in st.session_state:
-        st.session_state.uploaded_file_name = None
+    if "current_resort" not in st.session_state:
+        st.session_state.current_resort = None
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
+    if "uploaded_file_name" not in st.session_state:
+        st.session_state.uploaded_file_name = None
 
-    # Try to load default JSON from working dir (auto-load)
-    if st.session_state.data is None:
-        try:
-            with open("data_v2.json", "r") as f:
-                st.session_state.data = json.load(f)
-                st.session_state.uploaded_file_name = "data_v2.json"
-        except Exception:
-            pass
+    # Ensure data is present in session (auto-load data_v2.json if available)
+    ensure_data_in_session(
+        default_filename="data_v2.json",
+        session_key="data",
+        uploaded_name_key="uploaded_file_name",
+    )
 
+
+
+
+    
     # Sidebar: data upload
+#    with st.sidebar:
+#        uploaded_file = st.file_uploader(
+#            "📁 Upload Resort Data",
+#            type="json",
+#            help="Upload your resort data JSON file (MVC schema).",
+#        )
+#        if uploaded_file and uploaded_file.name != st.session_state.uploaded_file_name:
+#            try:
+#                st.session_state.data = json.load(uploaded_file)
+#                st.session_state.uploaded_file_name = uploaded_file.name
+#                st.session_state.current_resort_id = None
+#                st.success(f"✅ Loaded {uploaded_file.name}")
+#                st.rerun()
+#            except Exception as e:
+#                st.error(f"❌ Error loading JSON: {e}")
+                
+    # Sidebar: data upload and user settings
     with st.sidebar:
-        uploaded_file = st.file_uploader(
-            "📁 Upload Resort Data",
-            type="json",
-            help="Upload your resort data JSON file (MVC schema).",
+        render_data_file_uploader(
+            label="📁 Upload Resort Data",
+            session_key="data",
+            uploaded_name_key="uploaded_file_name",
+            uploader_key="calculator_data_uploader",
+            help_text="Upload your resort data JSON file (MVC schema).",
+            require_schema=True,
         )
-        if uploaded_file and uploaded_file.name != st.session_state.uploaded_file_name:
-            try:
-                st.session_state.data = json.load(uploaded_file)
-                st.session_state.uploaded_file_name = uploaded_file.name
-                st.session_state.current_resort_id = None
-                st.success(f"✅ Loaded {uploaded_file.name}")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error loading JSON: {e}")
+        st.divider()
+        st.markdown("### 👤 User Settings")
 
+    
     # If still no data, bail out after showing instructions
     if not st.session_state.data:
         st.warning("⚠️ Please upload data_v2.json (or a compatible JSON) to begin.")
