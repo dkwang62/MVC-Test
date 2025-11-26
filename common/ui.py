@@ -1,12 +1,12 @@
 # common/ui.py
-import streamlit as st
 from typing import List, Dict, Any, Optional
+import streamlit as st
 
 from common.utils import sort_resorts_west_to_east, get_region_label
 
 
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
-    """Render an enhanced resort information card used by editor + calculator."""
+    """Shared resort info card for editor + calculator."""
     st.markdown(
         f"""
         <div style="
@@ -35,34 +35,35 @@ def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
 
 def render_resort_grid(
     resorts: List[Dict[str, Any]],
-    current_resort_id_or_name: Optional[str],
-    *,
-    id_key: str = "id",
-    label_key: str = "display_name",
+    current_resort_id: Optional[str],
 ) -> None:
     """
     Shared resort grid used by both editor + calculator.
 
-    - Sorts resorts West → East using timezone from common.utils.sort_resorts_west_to_east
-    - Highlights currently-selected resort (by id or display_name)
+    - Sorts resorts West → East using timezone
+    - Fills **by column** (top-to-bottom, then left-to-right) to match editor
+    - Uses `current_resort_id` for highlighting
+    - Sets both `st.session_state.current_resort_id` and `st.session_state.current_resort`
+      when a button is clicked so both apps can read it.
     """
     st.markdown(
-        "<div class='section-header'>🏨 Resorts (West → East); select to work with</div>",
+        "<div class='section-header'>🏨 Resorts in Memory (West to East); Select a resort</div>",
         unsafe_allow_html=True,
     )
 
     if not resorts:
-        st.info("No resorts available.")
+        st.info("No resorts available. Create or load a file first.")
         return
 
-    # West → East sort (this is the important part)
+    # IMPORTANT: shared sort West → East
     sorted_resorts = sort_resorts_west_to_east(resorts)
 
     num_cols = 6
     cols = st.columns(num_cols)
     num_resorts = len(sorted_resorts)
-    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division
+    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division (same as editor)
 
+    # COLUMN-MAJOR FILL (this is what you liked in the editor)
     for col_idx, col in enumerate(cols):
         with col:
             for row in range(num_rows):
@@ -71,27 +72,24 @@ def render_resort_grid(
                     continue
 
                 resort = sorted_resorts[idx]
-                rid = resort.get(id_key)
-                name = resort.get(label_key, rid or f"Resort {idx+1}")
+                rid = resort.get("id")
+                name = resort.get("display_name", rid or f"Resort {idx+1}")
                 tz = resort.get("timezone", "UTC")
                 region = get_region_label(tz)
 
-                # Allow current selection to be either id or display_name
-                is_selected = current_resort_id_or_name in (rid, name)
+                button_type = "primary" if current_resort_id == rid else "secondary"
 
-                button_type = "primary" if is_selected else "secondary"
                 if st.button(
                     f"🏨 {name}",
                     key=f"resort_btn_{rid or name}",
                     type=button_type,
                     use_container_width=True,
-                    help=(
-                        f"{resort.get('address', 'No address')}\n"
-                        f"Region: {region} · Timezone: {tz}"
-                    ),
+                    help=f"{resort.get('address', 'No address')} · {region} · {tz}",
                 ):
-                    # Editor uses id; calculator uses display_name, so we set both
-                    # and let the caller decide which one to read.
-                    st.session_state.current_resort = name
+                    # Make both apps happy: store both id and name
                     st.session_state.current_resort_id = rid
+                    st.session_state.current_resort = name
+                    # Editor uses delete_confirm; safe to clear for both
+                    if "delete_confirm" in st.session_state:
+                        st.session_state.delete_confirm = False
                     st.rerun()
