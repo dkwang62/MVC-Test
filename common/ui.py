@@ -1,4 +1,5 @@
 # common/ui.py
+
 from typing import List, Dict, Any, Optional
 import streamlit as st
 
@@ -6,7 +7,9 @@ from common.utils import sort_resorts_west_to_east, get_region_label
 
 
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
-    """Shared resort info card for editor + calculator."""
+    """
+    Shared resort info card for both editor and calculator.
+    """
     st.markdown(
         f"""
         <div style="
@@ -38,13 +41,14 @@ def render_resort_grid(
     current_resort_id: Optional[str],
 ) -> None:
     """
-    Shared resort grid used by both editor + calculator.
+    Shared resort grid used by both editor and calculator.
 
-    - Sorts resorts West → East using timezone
-    - Fills **by column** (top-to-bottom, then left-to-right) to match editor
-    - Uses `current_resort_id` for highlighting
-    - Sets both `st.session_state.current_resort_id` and `st.session_state.current_resort`
-      when a button is clicked so both apps can read it.
+    - Sorts resorts West → East using `sort_resorts_west_to_east`
+    - Fills by **column** (top-to-bottom, then left-to-right)
+    - Highlights the selected resort via `current_resort_id`
+    - When a button is clicked, sets BOTH:
+        - st.session_state.current_resort_id (id)
+        - st.session_state.current_resort (display_name)
     """
     st.markdown(
         "<div class='section-header'>🏨 Resorts in Memory (West to East); Select a resort</div>",
@@ -52,18 +56,17 @@ def render_resort_grid(
     )
 
     if not resorts:
-        st.info("No resorts available. Create or load a file first.")
+        st.info("No resorts available. Load or create a file first.")
         return
 
-    # IMPORTANT: shared sort West → East
     sorted_resorts = sort_resorts_west_to_east(resorts)
 
     num_cols = 6
     cols = st.columns(num_cols)
     num_resorts = len(sorted_resorts)
-    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division (same as editor)
+    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division
 
-    # COLUMN-MAJOR FILL (this is what you liked in the editor)
+    # COLUMN-MAJOR FILL (same as your editor previously)
     for col_idx, col in enumerate(cols):
         with col:
             for row in range(num_rows):
@@ -86,10 +89,8 @@ def render_resort_grid(
                     use_container_width=True,
                     help=f"{resort.get('address', 'No address')} · {region} · {tz}",
                 ):
-                    # Make both apps happy: store both id and name
                     st.session_state.current_resort_id = rid
                     st.session_state.current_resort = name
-                    # Editor uses delete_confirm; safe to clear for both
                     if "delete_confirm" in st.session_state:
                         st.session_state.delete_confirm = False
                     st.rerun()
