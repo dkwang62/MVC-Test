@@ -8,7 +8,7 @@ from collections import defaultdict
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from common.ui import render_resort_card, render_resort_grid
+from common.ui import render_resort_card, render_resort_grid, render_page_header
 from common.charts import create_gantt_chart_from_resort_data
 from common.data import ensure_data_in_session
 
