@@ -1,9 +1,6 @@
-# common/ui.py
-
 from typing import Any, Dict, List, Optional
 import streamlit as st
 from common.utils import sort_resorts_west_to_east, get_region_label
-
 
 def setup_page() -> None:
     """Standard page configuration and shared CSS for MVC apps."""
@@ -13,7 +10,6 @@ def setup_page() -> None:
         initial_sidebar_state="expanded",
         menu_items={"About": "Marriott Vacation Club – internal tools"},
     )
-
     # Shared CSS
     st.markdown(
         """
@@ -65,28 +61,27 @@ def setup_page() -> None:
         unsafe_allow_html=True,
     )
 
-
 # ----------------------------------------------------------------------
 # Resort display components (shared by editor + calculator)
 # ----------------------------------------------------------------------
-
-def render_page_header(title: str, subtitle: str | None = None, icon: str | None = None):
+def render_page_header(title: str, subtitle: str | None = None, icon: str | None = None, badge_color: str | None = None):
     icon_html = f"{icon} " if icon else ""
-    subtitle_html = (
-        f"<p style='color: #64748b; margin: 4px 0 0 0; font-size: 14px;'>{subtitle}</p>"
-        if subtitle
-        else ""
-    )
+    if subtitle:
+        if badge_color:
+            subtitle_html = f'<div style="display: inline-block; background-color: {badge_color}; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600;">{subtitle}</div>'
+        else:
+            subtitle_html = f"<p style='color: #64748b; margin: 4px 0 0 0; font-size: 14px;'>{subtitle}</p>"
+    else:
+        subtitle_html = ""
     st.markdown(
         f"""
-        <div style='margin-bottom: 16px;'>
-            <h1 style='color: #0f172a; margin: 0; font-size: 26px;'>{icon_html}{title}</h1>
+        <div style='display: flex; align-items: center; margin-bottom: 16px;'>
+            <h1 style='color: #0f172a; margin: 0; font-size: 26px; margin-right: 12px;'>{icon_html}{title}</h1>
             {subtitle_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
-
 
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
     """Standard resort info card."""
@@ -101,60 +96,49 @@ def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
         unsafe_allow_html=True,
     )
 
-
 def render_resort_grid(
     resorts: List[Dict[str, Any]],
     current_resort_key: Optional[str],
     *,
-    title: str = "🏨 Resorts in Memory (West to East)            🖖 Select Resort",
+    title: str = "🏨 Resorts in Memory (West to East) 🖖 Select Resort",
 ) -> None:
     """
     Shared resort grid, sorted West → East, laid out COLUMN-first.
-
     `current_resort_key` may be:
-      • resort["id"]            (editor)
-      • resort["display_name"]  (calculator)
-
+      • resort["id"] (editor)
+      • resort["display_name"] (calculator)
     On click, this sets BOTH:
       • st.session_state.current_resort_id
       • st.session_state.current_resort
     """
     st.markdown(f"<div class='section-header'>{title}</div>", unsafe_allow_html=True)
-
     if not resorts:
         st.info("No resorts available.")
         return
-
     sorted_resorts = sort_resorts_west_to_east(resorts)
-
     num_cols = 6
     cols = st.columns(num_cols)
     num_resorts = len(sorted_resorts)
-    num_rows = (num_resorts + num_cols - 1) // num_cols  # ceil division (column-first)
-
+    num_rows = (num_resorts + num_cols - 1) // num_cols # ceil division (column-first)
     for col_idx, col in enumerate(cols):
         with col:
             for row in range(num_rows):
                 idx = col_idx * num_rows + row
                 if idx >= num_resorts:
                     continue
-
                 resort = sorted_resorts[idx]
                 rid = resort.get("id")
                 name = resort.get("display_name", rid or f"Resort {idx+1}")
                 tz = resort.get("timezone", "UTC")
-                region = get_region_label(tz)  # currently not displayed, but available
-
+                region = get_region_label(tz) # currently not displayed, but available
                 is_current = current_resort_key in (rid, name)
-
                 btn_type = "primary" if is_current else "secondary"
-
                 if st.button(
                     f"🏨 {name}",
                     key=f"resort_btn_{rid or name}",
                     type=btn_type,
                     use_container_width=True,
-#                    help=resort.get("address", f"{region} • {tz}"),
+# help=resort.get("address", f"{region} • {tz}"),
                 ):
                     # Normalised selection for both apps
                     st.session_state.current_resort_id = rid
