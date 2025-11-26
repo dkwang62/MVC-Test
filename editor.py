@@ -1793,11 +1793,35 @@ def main():
         show_save_indicator()
 
     # Main content
-    render_page_header(
-        "MVC Resort Editor V2",
-        subtitle="Master data management for MVC resorts",
-        icon="🏨",
-    )
+
+st.title("🖖 Marriott Vacation Club Calculator")
+
+    # Mode badge
+    st.title("🖖 Vacation Resort Editor")
+        st.markdown(
+            """
+            <div style="display: inline-block; background-color: #059669; color: white;
+                        padding: 8px 16px; border-radius: 20px; font-weight: 600;
+                        margin-bottom: 16px;">
+                👤 Master data management for MVC resorts
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    
+
+
+
+
+
+
+
+    
+#    render_page_header(
+#        "MVC Resort Editor",
+#        subtitle="Master data management for MVC resorts",
+#        icon="🏨",
+#    )
 
     if not st.session_state.data:
         st.markdown(
