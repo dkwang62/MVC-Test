@@ -1,9 +1,7 @@
 # common/ui.py
 
 from typing import Any, Dict, List, Optional
-
 import streamlit as st
-
 from common.utils import sort_resorts_west_to_east, get_region_label
 
 
@@ -71,6 +69,23 @@ def setup_page() -> None:
 # ----------------------------------------------------------------------
 # Resort display components (shared by editor + calculator)
 # ----------------------------------------------------------------------
+
+def render_page_header(title: str, subtitle: str | None = None, icon: str | None = None):
+    icon_html = f"{icon} " if icon else ""
+    subtitle_html = (
+        f"<p style='color: #64748b; margin: 4px 0 0 0; font-size: 14px;'>{subtitle}</p>"
+        if subtitle
+        else ""
+    )
+    st.markdown(
+        f"""
+        <div style='margin-bottom: 16px;'>
+            <h1 style='color: #0f172a; margin: 0; font-size: 26px;'>{icon_html}{title}</h1>
+            {subtitle_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
