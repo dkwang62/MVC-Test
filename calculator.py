@@ -728,15 +728,11 @@ def main() -> None:
     today = datetime.now().date()
     initial_default = today + timedelta(days=1)
 
-    
-
-
-
-
-
-
-
-
+    # First-ever initialisation for this session
+    if "calc_initial_default" not in st.session_state:
+        st.session_state.calc_initial_default = initial_default
+        st.session_state.calc_checkin = initial_default
+        st.session_state.calc_checkin_user_set = False
 
     
     # 2) If no data, bail out early
@@ -949,16 +945,6 @@ def main() -> None:
         resort_info["address"],
     )
     st.divider()
-
-    # ===== Calculator check-in date state (simple, robust) =====
-    today = datetime.now().date()
-    initial_default = today + timedelta(days=1)
-
-    # First-ever initialisation for this session
-    if "calc_initial_default" not in st.session_state:
-        st.session_state.calc_initial_default = initial_default
-        st.session_state.calc_checkin = initial_default
-        st.session_state.calc_checkin_user_set = False
 
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
@@ -1177,14 +1163,11 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 💰 Owner Cost Calculation
-                    **Maintenance**  
-                    Maintenance per point × points used; Currently **${rate:.2f}** per point  
+                    **Maintenance** Maintenance per point × points used; Currently **${rate:.2f}** per point  
 
-                    **Capital Cost**  
-                    Purchase price × cost of capital rate × points used  
+                    **Capital Cost** Purchase price × cost of capital rate × points used  
 
-                    **Depreciation Cost**  
-                    (Purchase price − salvage value) ÷ useful life × points used
+                    **Depreciation Cost** (Purchase price − salvage value) ÷ useful life × points used
                     """
                 )
             else:
