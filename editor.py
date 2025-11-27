@@ -231,6 +231,7 @@ def create_download_button_v2(data: Dict[str, Any]):
             # ---------------------------------------------------------
             st.success("✅ Memory is up to date.")
             
+            # This is the ONLY place this widget is rendered
             filename = st.text_input(
                 "File name",
                 value="data_v2.json",
@@ -254,32 +255,6 @@ def create_download_button_v2(data: Dict[str, Any]):
                 type="primary",
                 use_container_width=True,
             )
-
-        # --- 3. CLEAN STATE (Only runs if 'has_unsaved_changes' is False) ---
-        st.success("✅ Ready to Download")
-        
-        filename = st.text_input(
-            "File name",
-            value="data_v2.json",
-            key="download_filename_input",
-        ).strip()
-
-        if not filename:
-            filename = "data_v2.json"
-        if not filename.lower().endswith(".json"):
-            filename += ".json"
-
-        # Safe to serialize because we know data is clean
-        json_data = json.dumps(data, indent=2, ensure_ascii=False)
-
-        st.download_button(
-            label="⬇️ Download JSON File",
-            data=json_data,
-            file_name=filename,
-            mime="application/json",
-            key="download_v2_btn",
-            use_container_width=True,
-        )
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
