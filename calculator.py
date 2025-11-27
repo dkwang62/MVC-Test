@@ -733,7 +733,11 @@ def main() -> None:
         )
         return
 
-# 3) Sidebar: user settings only
+    # 2b) Build repository + calculator
+    repo = MVCRepository(st.session_state.data)
+    calc = MVCCalculator(repo)
+
+    # 3) Sidebar: user settings only
     with st.sidebar:
         st.divider()
         st.markdown("### 👤 User Profile")
@@ -893,6 +897,26 @@ def main() -> None:
             "<small>💡 **Tip:** Adjust settings above, then select your dates and room type in the main area.</small>",
             unsafe_allow_html=True,
         )
+
+    # 4) Resort selection (main area)
+    st.markdown("### 🏖️ Resort")
+    resort_list = repo.get_resort_list()
+    if not resort_list:
+        st.error("❌ No resorts found in the loaded data.")
+        return
+
+    default_index = 0
+    if st.session_state.current_resort in resort_list:
+        default_index = resort_list.index(st.session_state.current_resort)
+
+    r_name = st.selectbox(
+        "Select Resort",
+        resort_list,
+        index=default_index,
+        help="Choose the resort for this points/cost calculation.",
+    )
+    st.session_state.current_resort = r_name
+
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
     input_cols = st.columns([2, 1, 2, 2])
@@ -1083,12 +1107,15 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 💰 Owner Cost Calculation
-                    **Maintenance**
-                    Maintenance per point × points used; Currently **${rate:.2f}** per point
-                    **Capital Cost**
-                    Purchase price × cost of capital rate × points used
-                    **Depreciation Cost**
-                    (Purchase price − salvage value) ÷ useful life × points used                    """
+                    **Maintenance**  
+                    Maintenance per point × points used; Currently **${rate:.2f}** per point  
+
+                    **Capital Cost**  
+                    Purchase price × cost of capital rate × points used  
+
+                    **Depreciation Cost**  
+                    (Purchase price − salvage value) ÷ useful life × points used
+                    """
                 )
             else:
                 if policy == DiscountPolicy.PRESIDENTIAL:
@@ -1106,13 +1133,16 @@ def main() -> None:
                 st.markdown(
                     f"""
                     ### 🏨 Rent Calculation
-                    **Current Maintenance:** **${rate:.2f}** per point.
+                    **Current Rate:** **${rate:.2f}** per point.  
+
                     {discount_text}
-                    - The **Points** column may show reduced points if last-minute discounts apply.
-                    - 💰 Rent is always computed from the **discounted** points.
+
+                    - The **Points** column may show reduced points if last-minute discounts apply.  
+                    - 💰 Rent is always computed from the **discounted** points.  
                     - Holiday periods are treated as full blocks for pricing.
                     """
                 )
+
 
 def run() -> None:
     main()
