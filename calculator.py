@@ -733,7 +733,7 @@ def main() -> None:
         )
         return
 
-    # 3) Sidebar: user settings only
+# 3) Sidebar: user settings only
     with st.sidebar:
         st.markdown("### ⚙️ Calculator Settings")
         st.divider()
@@ -765,9 +765,8 @@ def main() -> None:
                 help="Your annual maintenance fee per point",
             )
             
-            st.markdown("##### 🎯 Discount Tier")
             opt = st.radio(
-                "My membership level:",
+                "Discount Tier:",
                 [
                     "No Discount",
                     "Executive (25% off within 30 days)",
@@ -777,44 +776,7 @@ def main() -> None:
             )
             
             with st.expander("🔧 Advanced Options", expanded=False):
-                st.markdown("**Purchase Details**")
-                cap = st.number_input(
-                    "Purchase Price ($/point)",
-                    value=18.0,
-                    step=1.0,
-                    min_value=0.0,
-                    help="What you paid per point when purchasing",
-                )
-                coc = (
-                    st.number_input(
-                        "Cost of Capital (%/year)",
-                        value=6.0,
-                        step=0.5,
-                        min_value=0.0,
-                        help="Your expected return on alternative investments",
-                    )
-                    / 100.0
-                )
-                
-                st.markdown("**Depreciation**")
-                col1, col2 = st.columns(2)
-                with col1:
-                    life = st.number_input(
-                        "Useful Life (years)",
-                        value=15,
-                        min_value=1,
-                        help="Expected ownership duration",
-                    )
-                with col2:
-                    salvage = st.number_input(
-                        "Salvage Value ($/pt)",
-                        value=3.0,
-                        step=0.5,
-                        min_value=0.0,
-                        help="Expected resale value per point",
-                    )
-                
-                st.markdown("**Include in Calculation**")
+                st.markdown("**What to Include in Calculation**")
                 inc_m = st.checkbox(
                     "✓ Maintenance Fees",
                     True,
@@ -830,6 +792,58 @@ def main() -> None:
                     True,
                     help="Include asset depreciation over time",
                 )
+                
+                st.divider()
+                
+                # Only show relevant fields based on checkboxes
+                if inc_c or inc_d:
+                    st.markdown("**Purchase Details**")
+                    cap = st.number_input(
+                        "Purchase Price ($/point)",
+                        value=18.0,
+                        step=1.0,
+                        min_value=0.0,
+                        help="What you paid per point when purchasing",
+                        disabled=not (inc_c or inc_d),
+                    )
+                else:
+                    cap = 18.0  # Default value when not needed
+                
+                if inc_c:
+                    coc = (
+                        st.number_input(
+                            "Cost of Capital (%/year)",
+                            value=6.0,
+                            step=0.5,
+                            min_value=0.0,
+                            help="Your expected return on alternative investments",
+                        )
+                        / 100.0
+                    )
+                else:
+                    coc = 0.06  # Default value
+                
+                if inc_d:
+                    st.markdown("**Depreciation Details**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        life = st.number_input(
+                            "Useful Life (years)",
+                            value=15,
+                            min_value=1,
+                            help="Expected ownership duration",
+                        )
+                    with col2:
+                        salvage = st.number_input(
+                            "Salvage Value ($/pt)",
+                            value=3.0,
+                            step=0.5,
+                            min_value=0.0,
+                            help="Expected resale value per point",
+                        )
+                else:
+                    life = 15  # Default value
+                    salvage = 3.0  # Default value
             
             owner_params = {
                 "disc_mul": 1.0,
