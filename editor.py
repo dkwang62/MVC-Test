@@ -191,51 +191,59 @@ def create_download_button_v2(data: Dict[str, Any]):
     # Everything else INSIDE the expander
     with st.sidebar.expander("💾 Save to File", expanded=False):
         
-        # 1. Detect if the current resort has unsaved changes
+        # 1. DETECT UNSAVED CHANGES
+        # We check if the resort currently being edited matches the saved data.
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
-        is_dirty = False
-
+        
+        has_unsaved_changes = False
+        
         if current_id and current_id in working_resorts:
             working_copy = working_resorts[current_id]
+            # Fetch the 'official' saved version from the main data dict
             committed_copy = find_resort_by_id(data, current_id)
             
-            # Compare the working edits vs the saved data
+            # If they don't match, the user has edits pending
             if committed_copy != working_copy:
-                is_dirty = True
+                has_unsaved_changes = True
 
-        # 2. Render the Appropriate UI
-        if is_dirty:
-            # BLOCK DOWNLOAD: Show a warning and a Commit button instead
-            st.warning("⚠️ You have unsaved changes.")
-            st.caption("The file cannot be generated until you save these changes to memory.")
+        # 2. STATE A: DIRTY - BLOCK DOWNLOAD
+        if has_unsaved_changes:
+            st.error("🔴 Unsaved changes detected")
+            st.markdown(
+                """
+                <div style="font-size: 0.85em; color: #666; margin-bottom: 12px; line-height: 1.4;">
+                The file cannot be generated yet because your current edits have not been saved to memory.
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
             
+            # This button commits the data AND re-runs the app.
+            # The re-run is crucial: it refreshes 'data' so the download button gets the new content.
             if st.button("💾 Save Changes to Memory", key="save_before_download", type="primary", use_container_width=True):
-                # Commit the changes immediately
                 commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("Changes saved to memory! Ready to download.", icon="✅")
+                st.toast("✅ Saved! Ready to download.", icon="💾")
                 st.rerun()
             
-            # Stop here so the download button is NOT rendered
+            # STOP HERE. Do not render the download button.
             return 
 
-        # 3. Allow Download (Only runs if data is clean)
-        st.caption("You can change file name")
-
-        # Let user choose filename
+        # 3. STATE B: CLEAN - ALLOW DOWNLOAD
+        st.success("✅ Data is clean. Ready to save.")
+        
         filename = st.text_input(
             "File name",
             value="data_v2.json",
             key="download_filename_input",
         ).strip()
 
-        # Fallback + ensure .json extension
         if not filename:
             filename = "data_v2.json"
         if not filename.lower().endswith(".json"):
             filename += ".json"
 
-        # Dump the clean, updated data
+        # Serialize the current (fresh) data
         json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
         st.download_button(
@@ -248,9 +256,9 @@ def create_download_button_v2(data: Dict[str, Any]):
         )
 
         st.caption(
-            f"File will be downloaded as **{filename}** "
-            "to your browser’s default **Downloads** folder."
+            f"File will be downloaded as **{filename}** to your default folder."
         )
+        
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
