@@ -1,19 +1,3 @@
-# app.py
-import os
-import sys
-
-import streamlit as st
-import plotly.io as pio
-
-
-# ============================================================
-# Theme State Initialisation
-# ============================================================
-
-if "ui_theme" not in st.session_state:
-    st.session_state.ui_theme = "Auto"  # "Auto", "Light", "Dark"
-
-
 # ============================================================
 # Theme Application Function
 # ============================================================
@@ -23,7 +7,7 @@ def apply_app_theme():
 
     # AUTO → follow browser preference
     if choice == "Auto":
-        css = """
+        css = '''
         <style>
         @media (prefers-color-scheme: dark) {
             :root {
@@ -44,12 +28,12 @@ def apply_app_theme():
             color: var(--text-color);
         }
         </style>
-        """
+        '''
         pio.templates.default = "plotly"
 
     # DARK MODE
     elif choice == "Dark":
-        css = """
+        css = '''
         <style>
         :root {
             --bg-color: #0f172a;
@@ -61,14 +45,24 @@ def apply_app_theme():
             color: var(--text-color);
         }
         </style>
-        """
+        '''
         pio.templates.default = "plotly_dark"
 
     # LIGHT MODE
     else:
-        css = """
+        css = '''
         <style>
         :root {
             --bg-color: #ffffff;
             --card-color: #f5f5f5;
             --text-color: #111827;
+        }
+        .stApp {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+        </style>
+        '''
+        pio.templates.default = "plotly"
+
+    st.markdown(css, unsafe_allow_html=True)
