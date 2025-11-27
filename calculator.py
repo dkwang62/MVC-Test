@@ -733,10 +733,6 @@ def main() -> None:
         )
         return
 
-    # 2b) Build repository + calculator
-    repo = MVCRepository(st.session_state.data)
-    calc = MVCCalculator(repo)
-
     # 3) Sidebar: user settings only
     with st.sidebar:
         st.divider()
@@ -894,28 +890,50 @@ def main() -> None:
         
         st.divider()
         st.markdown(
-            "<small>💡 **Tip:** Adjust settings above, then select your dates and room type in the main area.</small>",
+            "<small>💡 **Tip:** Adjust settings above, then select your resort, dates, and room type in the main area.</small>",
             unsafe_allow_html=True,
         )
 
-    # 4) Resort selection (main area)
-    st.markdown("### 🏖️ Resort")
-    resort_list = repo.get_resort_list()
-    if not resort_list:
-        st.error("❌ No resorts found in the loaded data.")
+    # ===== Core calculator objects =====
+    repo = MVCRepository(st.session_state.data)
+    calc = MVCCalculator(repo)
+
+    # ===== Main content header =====
+    render_page_header(
+        "Calculator",
+        f"👤 {mode.value} Mode: {'Ownership' if mode == UserMode.OWNER else 'Rental'} Cost Analysis",
+        icon="🏨",
+        badge_color="#059669" if mode == UserMode.OWNER else "#2563eb",
+    )
+
+    # ===== Resort selection via grid (RESTORED) =====
+    resorts_full = repo.get_resort_list_full()  # list of resort dicts
+    if resorts_full and st.session_state.current_resort_id is None:
+        st.session_state.current_resort_id = resorts_full[0].get("id")
+    current_resort_id = st.session_state.current_resort_id
+
+    # Shared grid (column-first) from common.ui
+    render_resort_grid(resorts_full, current_resort_id)
+
+    # Resolve selected resort object
+    resort_obj = next(
+        (r for r in resorts_full if r.get("id") == current_resort_id),
+        None,
+    )
+    if not resort_obj:
+        return
+    r_name = resort_obj.get("display_name")
+    if not r_name:
         return
 
-    default_index = 0
-    if st.session_state.current_resort in resort_list:
-        default_index = resort_list.index(st.session_state.current_resort)
-
-    r_name = st.selectbox(
-        "Select Resort",
-        resort_list,
-        index=default_index,
-        help="Choose the resort for this points/cost calculation.",
+    # Resort info card
+    resort_info = repo.get_resort_info(r_name)
+    render_resort_card(
+        resort_info["full_name"],
+        resort_info["timezone"],
+        resort_info["address"],
     )
-    st.session_state.current_resort = r_name
+    st.divider()
 
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
