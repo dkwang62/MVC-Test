@@ -185,79 +185,60 @@ def handle_file_upload():
 
 
 def create_download_button_v2(data: Dict[str, Any]):
-    # Header text stays OUTSIDE the expander
     st.sidebar.markdown("### 📥 Memory to File")
 
-    # Everything else INSIDE the expander
-    with st.sidebar.expander("💾 Save to File", expanded=False):
+    with st.sidebar.expander("💾 Save & Download", expanded=False):
         
-        # 1. DETECT UNSAVED CHANGES
-        # We check if the resort currently being edited matches the saved data.
+        # --- 1. CHECK FOR UNSAVED CHANGES ---
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
-        
         has_unsaved_changes = False
         
         if current_id and current_id in working_resorts:
             working_copy = working_resorts[current_id]
-            # Fetch the 'official' saved version from the main data dict
             committed_copy = find_resort_by_id(data, current_id)
-            
-            # If they don't match, the user has edits pending
             if committed_copy != working_copy:
                 has_unsaved_changes = True
 
-        # 2. STATE A: DIRTY - BLOCK DOWNLOAD
-        if has_unsaved_changes:
-            st.error("🔴 Unsaved changes detected")
-            st.markdown(
-                """
-                <div style="font-size: 0.85em; color: #666; margin-bottom: 12px; line-height: 1.4;">
-                The file cannot be generated yet because your current edits have not been saved to memory.
-                </div>
-                """, 
-                unsafe_allow_html=True
-            )
-            
-            # This button commits the data AND re-runs the app.
-            # The re-run is crucial: it refreshes 'data' so the download button gets the new content.
-            if st.button("💾 Save Changes to Memory", key="save_before_download", type="primary", use_container_width=True):
-                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("✅ Saved! Ready to download.", icon="💾")
-                st.rerun()
-            
-            # STOP HERE. Do not render the download button.
-            return 
-
-        # 3. STATE B: CLEAN - ALLOW DOWNLOAD
-        st.success("✅ Data is clean. Ready to save.")
+        # --- 2. LOGIC: STRICT TOGGLE ---
         
-        filename = st.text_input(
-            "File name",
-            value="data_v2.json",
-            key="download_filename_input",
-        ).strip()
+        if has_unsaved_changes:
+            # STATE: DIRTY
+            # Show ONLY the "Save to Memory" action.
+            st.warning("⚠️ You have pending edits.")
+            st.markdown("You must save your changes to memory before you can download.")
+            
+            if st.button("💾 Save Edits to Memory", type="primary", use_container_width=True):
+                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
+                st.toast("Saved to memory!", icon="✅")
+                st.rerun()
+                
+        else:
+            # STATE: CLEAN
+            # Show ONLY the "Download" action.
+            st.success("✅ Data is up to date.")
+            
+            filename = st.text_input(
+                "File name",
+                value="data_v2.json",
+                key="download_filename_input",
+            ).strip()
 
-        if not filename:
-            filename = "data_v2.json"
-        if not filename.lower().endswith(".json"):
-            filename += ".json"
+            if not filename:
+                filename = "data_v2.json"
+            if not filename.lower().endswith(".json"):
+                filename += ".json"
 
-        # Serialize the current (fresh) data
-        json_data = json.dumps(data, indent=2, ensure_ascii=False)
+            json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
-        st.download_button(
-            label="⬇️ Download JSON",
-            data=json_data,
-            file_name=filename,
-            mime="application/json",
-            key="download_v2_btn",
-            use_container_width=True,
-        )
-
-        st.caption(
-            f"File will be downloaded as **{filename}** to your default folder."
-        )
+            st.download_button(
+                label="⬇️ Download JSON File",
+                data=json_data,
+                file_name=filename,
+                mime="application/json",
+                key="download_v2_btn",
+                use_container_width=True,
+            )
         
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
