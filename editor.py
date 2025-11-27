@@ -187,51 +187,73 @@ def handle_file_upload():
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
-    with st.sidebar.expander("💾 Save & Download", expanded=False):
+    with st.sidebar.expander("💾 Save & Download", expanded=True):
         
-        # --- 1. DETECT DIRTY STATE ---
+        # --- 1. DETECT UNSAVED CHANGES ---
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
+        
+        # Assume clean unless proven dirty
         has_unsaved_changes = False
         
         if current_id and current_id in working_resorts:
             working_copy = working_resorts[current_id]
             committed_copy = find_resort_by_id(data, current_id)
+            
+            # Simple equality check handles deep comparison
             if committed_copy != working_copy:
                 has_unsaved_changes = True
 
-        # --- 2. BLOCKING LOGIC ---
+        # --- 2. RENDER INTERFACE BASED ON STATE ---
+        
         if has_unsaved_changes:
-            # STOP! Do not show download options.
-            # Force the user to resolve the state.
-            st.error("⚠️ Unsaved Changes Detected")
-            st.caption("You cannot download the file while you have pending edits. Please choose an action:")
+            # STATE: DIRTY (Unsaved Changes)
+            # ---------------------------------------------------------
+            # We ONLY show the "Commit to Memory" button.
+            # The Download button is NOT RENDERED.
+            # ---------------------------------------------------------
+            st.warning("⚠️ Unsaved changes pending.")
             
-            col1, col2 = st.columns(2)
+            # Changed icon to Brain (Memory) to distinguish from Disk (Storage)
+            if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
+                # 1. Commit to main memory
+                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
+                # 2. Force a rerun immediately so the UI updates to "Clean" state
+                st.toast("✅ Committed to memory.", icon="🧠")
+                st.rerun()
             
-            # OPTION A: SAVE (Commit to Memory)
-            with col1:
-                if st.button("💾 Save", type="primary", use_container_width=True, help="Commit changes to memory"):
-                    commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                    st.toast("✅ Changes saved to memory!", icon="💾")
-                    st.rerun()
+            st.caption("You must commit changes to memory before downloading.")
+
+        else:
+            # STATE: CLEAN (Saved)
+            # ---------------------------------------------------------
+            # We ONLY show the "Download" button.
+            # ---------------------------------------------------------
+            st.success("✅ Memory is up to date.")
             
-            # OPTION B: DISCARD (Revert to last save)
-            with col2:
-                if st.button("🗑️ Discard", type="secondary", use_container_width=True, help="Undo recent changes"):
-                    # Revert working copy to the committed copy
-                    if committed_copy:
-                        st.session_state.working_resorts[current_id] = copy.deepcopy(committed_copy)
-                    else:
-                        # Should not happen, but safe fallback
-                        del st.session_state.working_resorts[current_id]
-                    
-                    st.toast("Changes discarded.", icon="↩️")
-                    st.rerun()
-            
-            # EXIT FUNCTION IMMEDIATELY
-            # This ensures the code below (Download Button) NEVER runs if dirty.
-            return
+            filename = st.text_input(
+                "File name",
+                value="data_v2.json",
+                key="download_filename_input",
+            ).strip()
+
+            if not filename:
+                filename = "data_v2.json"
+            if not filename.lower().endswith(".json"):
+                filename += ".json"
+
+            # Serialize the NOW CURRENT data
+            json_data = json.dumps(data, indent=2, ensure_ascii=False)
+
+            st.download_button(
+                label="⬇️ DOWNLOAD JSON FILE",
+                data=json_data,
+                file_name=filename,
+                mime="application/json",
+                key="download_v2_btn",
+                type="primary",
+                use_container_width=True,
+            )
 
         # --- 3. CLEAN STATE (Only runs if 'has_unsaved_changes' is False) ---
         st.success("✅ Ready to Download")
