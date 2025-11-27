@@ -191,32 +191,35 @@ def create_download_button_v2(data: Dict[str, Any]):
     # Everything else INSIDE the expander
     with st.sidebar.expander("💾 Save to File", expanded=False):
         
-        # --- NEW: Check for unsaved changes in the active resort ---
+        # 1. Detect if the current resort has unsaved changes
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
-        has_unsaved_changes = False
-        
-        if current_id and current_id in working_resorts:
-            working = working_resorts[current_id]
-            committed = find_resort_by_id(data, current_id)
-            # Compare the working copy with the committed data
-            if committed != working:
-                has_unsaved_changes = True
+        is_dirty = False
 
-        if has_unsaved_changes:
-            st.warning("⚠️ You have unsaved changes in the currently open resort.")
-            st.caption("You must commit these changes to memory before downloading the file.")
+        if current_id and current_id in working_resorts:
+            working_copy = working_resorts[current_id]
+            committed_copy = find_resort_by_id(data, current_id)
             
-            if st.button("💾 Commit Changes & Ready Download", key="sidebar_commit_btn", use_container_width=True):
-                # Commit the data immediately
+            # Compare the working edits vs the saved data
+            if committed_copy != working_copy:
+                is_dirty = True
+
+        # 2. Render the Appropriate UI
+        if is_dirty:
+            # BLOCK DOWNLOAD: Show a warning and a Commit button instead
+            st.warning("⚠️ You have unsaved changes.")
+            st.caption("The file cannot be generated until you save these changes to memory.")
+            
+            if st.button("💾 Save Changes to Memory", key="save_before_download", type="primary", use_container_width=True):
+                # Commit the changes immediately
                 commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("Changes committed! You can now download.", icon="✅")
+                st.toast("Changes saved to memory! Ready to download.", icon="✅")
                 st.rerun()
             
-            # Stop here to prevent showing the download button while dirty
+            # Stop here so the download button is NOT rendered
             return 
-        # -----------------------------------------------------------
 
+        # 3. Allow Download (Only runs if data is clean)
         st.caption("You can change file name")
 
         # Let user choose filename
@@ -232,10 +235,11 @@ def create_download_button_v2(data: Dict[str, Any]):
         if not filename.lower().endswith(".json"):
             filename += ".json"
 
+        # Dump the clean, updated data
         json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
         st.download_button(
-            label="💾 Save",
+            label="⬇️ Download JSON",
             data=json_data,
             file_name=filename,
             mime="application/json",
@@ -247,7 +251,6 @@ def create_download_button_v2(data: Dict[str, Any]):
             f"File will be downloaded as **{filename}** "
             "to your browser’s default **Downloads** folder."
         )
-
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
