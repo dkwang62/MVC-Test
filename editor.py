@@ -259,6 +259,24 @@ def create_download_button_v2(data: Dict[str, Any]):
             use_container_width=True,
         )
 
+def handle_file_verification():
+    with st.sidebar.expander("🔍 Verify File", expanded=False):
+        verify_upload = st.file_uploader(
+            "Verify", type="json", key="verify_uploader"
+        )
+        if verify_upload:
+            try:
+                uploaded_data = json.load(verify_upload)
+                current_json = json.dumps(st.session_state.data, sort_keys=True)
+                uploaded_json = json.dumps(uploaded_data, sort_keys=True)
+                if current_json == uploaded_json:
+                    st.success("✅ Files match")
+                else:
+                    st.error("❌ Files differ")
+            except Exception as e:
+                st.error(f"❌ Error: {str(e)}")
+
+
 def handle_merge_from_another_file_v2(data: Dict[str, Any]):
     with st.sidebar.expander("🔀 Merge", expanded=False):
         merge_upload = st.file_uploader(
@@ -1828,14 +1846,7 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-#        st.markdown(
-#            """
-#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
-#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
-#            </div>
-#        """,
-#            unsafe_allow_html=True,
-#        )
+
         with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
             st.markdown(
                 """
@@ -1850,13 +1861,11 @@ def main():
         handle_file_upload()
 
         if st.session_state.data:
-            st.markdown(
-                "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
-            )
+            st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
             create_download_button_v2(st.session_state.data)
-            handle_file_verification()
+            handle_file_verification()  # <--- This line caused the error because the function above was missing
             handle_merge_from_another_file_v2(st.session_state.data)
-
+    
     #   show_save_indicator()
     
     # Main content
