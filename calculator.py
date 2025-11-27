@@ -733,8 +733,9 @@ def main() -> None:
         )
         return
 
-    # 3) Sidebar: user settings only
+# 3) Sidebar: user settings only
     with st.sidebar:
+        st.divider()
         st.markdown("### 👤 User Profile")
         mode_sel = st.radio(
             "Mode:",
@@ -892,47 +893,6 @@ def main() -> None:
             "<small>💡 **Tip:** Adjust settings above, then select your dates and room type in the main area.</small>",
             unsafe_allow_html=True,
         )
-
-    # ===== Core calculator objects =====
-    repo = MVCRepository(st.session_state.data)
-    calc = MVCCalculator(repo)
-
-    # ===== Main content =====
-    render_page_header(
-        "Calculator",
-        f"👤 {mode.value} Mode: {'Ownership' if mode == UserMode.OWNER else 'Rental'} Cost Analysis",
-        icon="🏨",
-        badge_color="#059669" if mode == UserMode.OWNER else "#2563eb"
-    )
-
-    # Resorts list & current selection by id
-    resorts_full = repo.get_resort_list_full()  # list of resort dicts
-    if resorts_full and st.session_state.current_resort_id is None:
-        st.session_state.current_resort_id = resorts_full[0].get("id")
-    current_resort_id = st.session_state.current_resort_id
-
-    # Shared grid (column-first) from common.ui
-    render_resort_grid(resorts_full, current_resort_id)
-
-    # Resolve selected resort object
-    resort_obj = next(
-        (r for r in resorts_full if r.get("id") == current_resort_id),
-        None,
-    )
-    if not resort_obj:
-        return
-    r_name = resort_obj.get("display_name")
-    if not r_name:
-        return
-
-    # Resort info card
-    resort_info = repo.get_resort_info(r_name)
-    render_resort_card(
-        resort_info["full_name"],
-        resort_info["timezone"],
-        resort_info["address"],
-    )
-    st.divider()
 
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
@@ -1125,19 +1085,11 @@ def main() -> None:
                     f"""
                     ### 💰 Owner Cost Calculation
                     **Maintenance**
-                    - Formula: Maintenance per point × points used
-                    - Current Maintenance: **${rate:.2f}** per point
-                    - Covers: Property upkeep, utilities, staff, amenities
+                    Maintenance per point × points used; Currently **${rate:.2f}** per point
                     **Capital Cost**
-                    - Formula: Purchase price × cost of capital rate × points used
-                    - Represents: Opportunity cost of capital invested in ownership
+                    Purchase price × cost of capital rate × points used
                     **Depreciation Cost**
-                    - Formula: (Purchase price − salvage value) ÷ useful life × points used
-                    - Represents: Asset value decline over time
-                    **Points Calculation**
-                    - Effective points may be reduced by last-minute owner discounts.
-                    - Holiday periods are priced as whole blocks rather than per-night averages.
-                    """
+                    (Purchase price − salvage value) ÷ useful life × points used                    """
                 )
             else:
                 if policy == DiscountPolicy.PRESIDENTIAL:
