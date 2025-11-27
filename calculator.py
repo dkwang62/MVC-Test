@@ -724,6 +724,28 @@ def main() -> None:
     # 1) Shared data auto-load (no uploader here)
     ensure_data_in_session()
 
+    # ===== Calculator check-in date state =====
+    today = datetime.now().date()
+    initial_default = today + timedelta(days=1)
+
+    # Initialise once
+    if "calc_checkin_default" not in st.session_state:
+        st.session_state.calc_checkin_default = initial_default
+    if "calc_checkin" not in st.session_state:
+        st.session_state.calc_checkin = st.session_state.calc_checkin_default
+    if "calc_checkin_user_set" not in st.session_state:
+        st.session_state.calc_checkin_user_set = False
+
+
+
+
+
+
+
+
+
+
+    
     # 2) If no data, bail out early
     if not st.session_state.data:
         st.warning("⚠️ Please open the Editor and upload/merge data_v2.json first.")
@@ -945,13 +967,22 @@ def main() -> None:
 
     st.markdown("### 📅 Booking Details")
     input_cols = st.columns([2, 1, 2, 2])
+
     with input_cols[0]:
+        # Bind directly to calculator-specific session key, no dynamic default here
         checkin = st.date_input(
             "Check-in Date",
-            key="checkin",                         # bind to session state
+            key="calc_checkin",
             format="YYYY/MM/DD",
             help="Your arrival date.",
         )
+
+    # Track whether user has changed from the initial default
+    if checkin != st.session_state.calc_checkin_default:
+        st.session_state.calc_checkin_user_set = True
+    st.session_state.calc_checkin = checkin
+    user_changed_date = st.session_state.calc_checkin_user_set
+
     with input_cols[1]:
         nights = st.number_input(
             "Nights",
@@ -960,6 +991,7 @@ def main() -> None:
             value=7,
             help="Number of nights to stay.",
         )
+
 
     # Has the user changed the date away from the default?
     user_changed_date = checkin != st.session_state.checkin_default
