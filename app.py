@@ -1,49 +1,71 @@
 # ============================================================
-# Safe Theme System (No blank screens)
+# Cloud-Safe Theme System (fixes blank screen)
 # ============================================================
 
 def apply_app_theme():
     theme = st.session_state.ui_theme
 
-    # SAFEST CSS: only override text + background, nothing else.
+    # DARK MODE
     if theme == "Dark":
         css = """
-        <style>
-        body, .stApp {
-            background-color: #0f172a !important;
-            color: #e5e7eb !important;
-        }
-        </style>
+        <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            document.body.style.backgroundColor = "#0f172a";
+            document.body.style.color = "#e5e7eb";
+            var app = document.querySelector('.stApp');
+            if (app) {
+                app.style.backgroundColor = "#0f172a";
+                app.style.color = "#e5e7eb";
+            }
+        });
+        </script>
         """
         pio.templates.default = "plotly_dark"
 
+    # LIGHT MODE
     elif theme == "Light":
         css = """
-        <style>
-        body, .stApp {
-            background-color: #ffffff !important;
-            color: #111827 !important;
-        }
-        </style>
+        <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            document.body.style.backgroundColor = "#ffffff";
+            document.body.style.color = "#111827";
+            var app = document.querySelector('.stApp');
+            if (app) {
+                app.style.backgroundColor = "#ffffff";
+                app.style.color = "#111827";
+            }
+        });
+        </script>
         """
         pio.templates.default = "plotly"
 
-    else:  # AUTO mode
+    # AUTO MODE
+    else:
         css = """
-        <style>
-        @media (prefers-color-scheme: dark) {
-            body, .stApp {
-                background-color: #0f172a !important;
-                color: #e5e7eb !important;
+        <script>
+        window.addEventListener('DOMContentLoaded', function() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (prefersDark) {
+                document.body.style.backgroundColor = "#0f172a";
+                document.body.style.color = "#e5e7eb";
+            } else {
+                document.body.style.backgroundColor = "#ffffff";
+                document.body.style.color = "#111827";
             }
-        }
-        @media (prefers-color-scheme: light) {
-            body, .stApp {
-                background-color: #ffffff !important;
-                color: #111827 !important;
+
+            var app = document.querySelector('.stApp');
+            if (app) {
+                if (prefersDark) {
+                    app.style.backgroundColor = "#0f172a";
+                    app.style.color = "#e5e7eb";
+                } else {
+                    app.style.backgroundColor = "#ffffff";
+                    app.style.color = "#111827";
+                }
             }
-        }
-        </style>
+        });
+        </script>
         """
         pio.templates.default = "plotly"
 
