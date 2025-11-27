@@ -733,18 +733,15 @@ def main() -> None:
         )
         return
 
-# 3) Sidebar: user settings only
+    # 3) Sidebar: user settings only
     with st.sidebar:
-        st.markdown("### ⚙️ Calculator Settings")
-        st.divider()
-        
-        # --- User mode selection ---
-        st.markdown("##### 👤 User Profile")
-        mode_sel = st.selectbox(
-            "I am a:",
+        st.markdown("### 👤 User Profile")
+        mode_sel = st.radio(
+            "Mode:",
             [m.value for m in UserMode],
             index=0,
             help="Select whether you're renting points or own them",
+            horizontal=True,
         )
         mode = UserMode(mode_sel)
         owner_params: Optional[dict] = None
