@@ -21,6 +21,17 @@ def setup_page() -> None:
             --bg-color: #F9FAFB;
             --text-color: #111827;
         }
+
+        /* -------------------------------------------------------- */
+        /* HIDE STREAMLIT UI ELEMENTS                               */
+        /* This removes the 'hamburger' menu (containing Theme)     */
+        /* and the footer ("Made with Streamlit")                   */
+        /* -------------------------------------------------------- */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
+        header {visibility: hidden;}
+        /* -------------------------------------------------------- */
+
         .main, [data-testid="stAppViewContainer"] {
             background-color: var(--bg-color);
             font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
@@ -104,12 +115,6 @@ def render_resort_grid(
 ) -> None:
     """
     Shared resort grid, sorted West → East, laid out COLUMN-first.
-    `current_resort_key` may be:
-      • resort["id"] (editor)
-      • resort["display_name"] (calculator)
-    On click, this sets BOTH:
-      • st.session_state.current_resort_id
-      • st.session_state.current_resort
     """
     st.markdown(f"<div class='section-header'>{title}</div>", unsafe_allow_html=True)
     if not resorts:
@@ -138,7 +143,6 @@ def render_resort_grid(
                     key=f"resort_btn_{rid or name}",
                     type=btn_type,
                     use_container_width=True,
-# help=resort.get("address", f"{region} • {tz}"),
                 ):
                     # Normalised selection for both apps
                     st.session_state.current_resort_id = rid
