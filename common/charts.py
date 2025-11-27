@@ -290,16 +290,3 @@ def create_gantt_chart_from_working(
     )
 
     return fig
-
-
-# Optional: keep your original name as an alias, if you ever call it directly.
-def create_gantt_chart_v2(
-    working: Dict[str, Any],
-    year: str,
-    data: Dict[str, Any],
-) -> go.Figure:
-    """
-    Backwards-compatible alias for your original create_gantt_chart_v2.
-    Uses the same logic, with auto-calculated height.
-    """
-    return create_gantt_chart_from_working(working, year, data, height=None)
