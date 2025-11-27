@@ -190,6 +190,32 @@ def create_download_button_v2(data: Dict[str, Any]):
 
     # Everything else INSIDE the expander
     with st.sidebar.expander("💾 Save to File", expanded=False):
+        
+        # --- NEW: Check for unsaved changes in the active resort ---
+        current_id = st.session_state.get("current_resort_id")
+        working_resorts = st.session_state.get("working_resorts", {})
+        has_unsaved_changes = False
+        
+        if current_id and current_id in working_resorts:
+            working = working_resorts[current_id]
+            committed = find_resort_by_id(data, current_id)
+            # Compare the working copy with the committed data
+            if committed != working:
+                has_unsaved_changes = True
+
+        if has_unsaved_changes:
+            st.warning("⚠️ You have unsaved changes in the currently open resort.")
+            st.caption("You must commit these changes to memory before downloading the file.")
+            
+            if st.button("💾 Commit Changes & Ready Download", key="sidebar_commit_btn", use_container_width=True):
+                # Commit the data immediately
+                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
+                st.toast("Changes committed! You can now download.", icon="✅")
+                st.rerun()
+            
+            # Stop here to prevent showing the download button while dirty
+            return 
+        # -----------------------------------------------------------
 
         st.caption("You can change file name")
 
