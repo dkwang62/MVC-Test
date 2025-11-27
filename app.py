@@ -1,72 +1,113 @@
-# ============================================================
-# Cloud-Safe Theme System (fixes blank screen)
-# ============================================================
+import os
+import sys
+import streamlit as st
+import plotly.io as pio
 
+# ============================================
+# Initialise Theme State
+# ============================================
+if "ui_theme" not in st.session_state:
+    st.session_state.ui_theme = "Auto"   # Auto, Light, Dark
+
+# Fix Python path for Streamlit Cloud
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
+from common.ui import setup_page
+
+
+# ============================================
+# Cloud-Safe Theme System (CSS ONLY)
+# ============================================
 def apply_app_theme():
     theme = st.session_state.ui_theme
 
-    # DARK MODE
+    # SAFE: no JavaScript injection, no DOM manipulation
     if theme == "Dark":
         css = """
-        <script>
-        window.addEventListener('DOMContentLoaded', function() {
-            document.body.style.backgroundColor = "#0f172a";
-            document.body.style.color = "#e5e7eb";
-            var app = document.querySelector('.stApp');
-            if (app) {
-                app.style.backgroundColor = "#0f172a";
-                app.style.color = "#e5e7eb";
-            }
-        });
-        </script>
+        <style>
+        body, .stApp {
+            background-color: #0f172a !important;
+            color: #e5e7eb !important;
+        }
+        </style>
         """
         pio.templates.default = "plotly_dark"
 
-    # LIGHT MODE
     elif theme == "Light":
         css = """
-        <script>
-        window.addEventListener('DOMContentLoaded', function() {
-            document.body.style.backgroundColor = "#ffffff";
-            document.body.style.color = "#111827";
-            var app = document.querySelector('.stApp');
-            if (app) {
-                app.style.backgroundColor = "#ffffff";
-                app.style.color = "#111827";
-            }
-        });
-        </script>
+        <style>
+        body, .stApp {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+        }
+        </style>
         """
         pio.templates.default = "plotly"
 
-    # AUTO MODE
-    else:
+    else:   # AUTO
         css = """
-        <script>
-        window.addEventListener('DOMContentLoaded', function() {
-            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-            if (prefersDark) {
-                document.body.style.backgroundColor = "#0f172a";
-                document.body.style.color = "#e5e7eb";
-            } else {
-                document.body.style.backgroundColor = "#ffffff";
-                document.body.style.color = "#111827";
+        <style>
+        @media (prefers-color-scheme: dark) {
+            body, .stApp {
+                background-color: #0f172a !important;
+                color: #e5e7eb !important;
             }
-
-            var app = document.querySelector('.stApp');
-            if (app) {
-                if (prefersDark) {
-                    app.style.backgroundColor = "#0f172a";
-                    app.style.color = "#e5e7eb";
-                } else {
-                    app.style.backgroundColor = "#ffffff";
-                    app.style.color = "#111827";
-                }
+        }
+        @media (prefers-color-scheme: light) {
+            body, .stApp {
+                background-color: #ffffff !important;
+                color: #111827 !important;
             }
-        });
-        </script>
+        }
+        </style>
         """
         pio.templates.default = "plotly"
 
     st.markdown(css, unsafe_allow_html=True)
+
+
+# ============================================
+# Page Setup (must come BEFORE theme)
+# ============================================
+setup_page()
+
+# Apply theme AFTER setup_page()
+apply_app_theme()
+
+
+# ============================================
+# APPLICATION UI
+# ============================================
+st.sidebar.markdown("### 🧰 MVC Tools")
+
+choice = st.sidebar.radio(
+    "Choose Tool",
+    ["Points & Rent Calculator", "Resort Data Editor"],
+    index=0,
+)
+
+# Import tools AFTER selection to avoid preload failures
+if choice == "Points & Rent Calculator":
+    import calculator
+    calculator.run()
+else:
+    import editor
+    editor.run()
+
+
+# ============================================
+# SIDEBAR THEME SELECTOR
+# ============================================
+with st.sidebar:
+    st.markdown("### 🎨 Display Theme")
+    theme_choice = st.radio(
+        "Colour scheme",
+        ["Auto", "Light", "Dark"],
+        index=["Auto", "Light", "Dark"].index(st.session_state.ui_theme),
+        horizontal=True,
+        help="Choose how the app colours should appear.",
+    )
+
+    st.session_state.ui_theme = theme_choice
