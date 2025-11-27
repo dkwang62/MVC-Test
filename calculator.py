@@ -735,82 +735,104 @@ def main() -> None:
 
     # 3) Sidebar: user settings only
     with st.sidebar:
+        st.markdown("### ⚙️ Calculator Settings")
         st.divider()
-        st.markdown("### 👤 User Settings")
-        # --- User mode selection & parameters ---
+        
+        # --- User mode selection ---
+        st.markdown("##### 👤 User Profile")
         mode_sel = st.selectbox(
-            "User Mode",
+            "I am a:",
             [m.value for m in UserMode],
             index=0,
-            help="Select whether you're renting points or own them.",
+            help="Select whether you're renting points or own them",
         )
         mode = UserMode(mode_sel)
         owner_params: Optional[dict] = None
         policy: DiscountPolicy = DiscountPolicy.NONE
-        # Temporarily set rate; may be overridden later based on mode + year
         rate = 0.50
-        opt = "No Discount"  # Default
+        opt = "No Discount"
 
+        st.divider()
+        
         if mode == UserMode.OWNER:
-            st.markdown("#### 💰 Ownership Parameters")
+            # Owner mode
+            st.markdown("##### 💰 Basic Costs")
             rate = st.number_input(
-                "Maintenance per Point ($)",
+                "Annual Maintenance Fee ($/point)",
                 value=0.50,
                 step=0.01,
                 min_value=0.0,
+                help="Your annual maintenance fee per point",
             )
+            
+            st.markdown("##### 🎯 Discount Tier")
             opt = st.radio(
-                "Discount Option",
+                "My membership level:",
                 [
                     "No Discount",
-                    "Executive: 25% Points Discount (within 30 days)",
-                    "Presidential: 30% Points Discount (within 60 days)",
+                    "Executive (25% off within 30 days)",
+                    "Presidential (30% off within 60 days)",
                 ],
-                help="Select discount options.",
+                help="Last-minute booking discounts based on your membership tier",
             )
-            cap = st.number_input(
-                "Purchase Price per Point ($)",
-                value=18.0,
-                step=1.0,
-                min_value=0.0,
-                help="Initial purchase price per MVC point.",
-            )
-            coc = (
-                st.number_input(
-                    "Cost of Capital (%)",
-                    value=6.0,
-                    step=0.5,
+            
+            with st.expander("🔧 Advanced Options", expanded=False):
+                st.markdown("**Purchase Details**")
+                cap = st.number_input(
+                    "Purchase Price ($/point)",
+                    value=18.0,
+                    step=1.0,
                     min_value=0.0,
-                    help="Expected return on alternative investments.",
+                    help="What you paid per point when purchasing",
                 )
-                / 100.0
-            )
-            life = st.number_input(
-                "Useful Life (yrs)", value=15, min_value=1
-            )
-            salvage = st.number_input(
-                "Salvage ($/pt)",
-                value=3.0,
-                step=0.5,
-                min_value=0.0,
-            )
-            inc_m = st.checkbox(
-                "Include Maintenance",
-                True,
-                help="Annual Maintenance.",
-            )
-            inc_c = st.checkbox(
-                "Include Capital Cost",
-                True,
-                help="Opportunity cost of capital invested.",
-            )
-            inc_d = st.checkbox(
-                "Include Depreciation",
-                True,
-                help="Asset depreciation over time.",
-            )
+                coc = (
+                    st.number_input(
+                        "Cost of Capital (%/year)",
+                        value=6.0,
+                        step=0.5,
+                        min_value=0.0,
+                        help="Your expected return on alternative investments",
+                    )
+                    / 100.0
+                )
+                
+                st.markdown("**Depreciation**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    life = st.number_input(
+                        "Useful Life (years)",
+                        value=15,
+                        min_value=1,
+                        help="Expected ownership duration",
+                    )
+                with col2:
+                    salvage = st.number_input(
+                        "Salvage Value ($/pt)",
+                        value=3.0,
+                        step=0.5,
+                        min_value=0.0,
+                        help="Expected resale value per point",
+                    )
+                
+                st.markdown("**Include in Calculation**")
+                inc_m = st.checkbox(
+                    "✓ Maintenance Fees",
+                    True,
+                    help="Include annual maintenance costs",
+                )
+                inc_c = st.checkbox(
+                    "✓ Capital Cost",
+                    True,
+                    help="Include opportunity cost of capital invested",
+                )
+                inc_d = st.checkbox(
+                    "✓ Depreciation",
+                    True,
+                    help="Include asset depreciation over time",
+                )
+            
             owner_params = {
-                "disc_mul": 1.0,  # Will be set below
+                "disc_mul": 1.0,
                 "inc_m": inc_m,
                 "inc_c": inc_c,
                 "inc_d": inc_d,
@@ -818,27 +840,31 @@ def main() -> None:
                 "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
             }
         else:
-            st.markdown("#### 🏨 Rental Parameters")
+            # Renter mode
+            st.markdown("##### 💵 Rental Rate")
             rate = st.number_input(
-                "Maintenance per Point ($)",
+                "Cost per Point ($)",
                 value=0.50,
                 step=0.01,
                 min_value=0.0,
+                help="The rental rate you're paying per point",
             )
+            
+            st.markdown("##### 🎯 Available Discounts")
             opt = st.radio(
-                "Discount Option",
+                "Discount tier available:",
                 [
                     "No Discount",
-                    "Executive: 25% Points Discount (within 30 days)",
-                    "Presidential: 30% Points Discount (within 60 days)",
+                    "Executive (25% off within 30 days)",
+                    "Presidential (30% off within 60 days)",
                 ],
-                help="Select discount options.",
+                help="Last-minute discounts reduce required points",
             )
+            
             if "Presidential" in opt:
                 policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt:
                 policy = DiscountPolicy.EXECUTIVE
-            # "No Discount" uses NONE
 
         # Set disc_mul for owners
         disc_mul = 1.0
@@ -847,8 +873,14 @@ def main() -> None:
         elif "Presidential" in opt:
             disc_mul = 0.7
 
-        if owner_params:  # Only for owners
+        if owner_params:
             owner_params["disc_mul"] = disc_mul
+        
+        st.divider()
+        st.markdown(
+            "<small>💡 **Tip:** Adjust settings above, then select your dates and room type in the main area.</small>",
+            unsafe_allow_html=True,
+        )
 
     # ===== Core calculator objects =====
     repo = MVCRepository(st.session_state.data)
