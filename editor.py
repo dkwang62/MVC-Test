@@ -1,6 +1,6 @@
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.data import load_data, save_data  # save_data is shadowed below but kept for compatibility
+from common.data import load_data 
 from functools import lru_cache
 import json
 import pandas as pd
