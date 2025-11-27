@@ -1,24 +1,28 @@
 # common/data.py
 import json
 import streamlit as st
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime
 
 DEFAULT_DATA_PATH = "data_v2.json"
 
 def load_data() -> Dict[str, Any]:
+    """
+    Load data from session state or disk.
+    Returns the mutable dictionary stored in session_state.
+    """
     if "data" not in st.session_state or st.session_state.data is None:
         try:
-            with open("data_v2.json", "r") as f:
+            with open(DEFAULT_DATA_PATH, "r") as f:
                 st.session_state.data = json.load(f)
-                st.session_state.uploaded_file_name = "data_v2.json"
+                st.session_state.uploaded_file_name = DEFAULT_DATA_PATH
         except FileNotFoundError:
             st.session_state.data = None
     return st.session_state.data
 
 def save_data(data: Dict[str, Any]):
     """Write data to disk (server-side)."""
-    with open("data_v2.json", "w") as f:
+    with open(DEFAULT_DATA_PATH, "w") as f:
         json.dump(data, f, indent=2)
     st.session_state.last_save_time = datetime.now()
 
@@ -62,9 +66,7 @@ def render_data_file_uploader(
     help_text: str = "",
     require_schema: bool = True,
 ) -> None:
-    import json
-    import streamlit as st
-
+    """Standardized file uploader for JSON data."""
     uploaded_file = st.file_uploader(
         label,
         type="json",
