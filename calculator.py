@@ -728,14 +728,7 @@ def main() -> None:
     today = datetime.now().date()
     initial_default = today + timedelta(days=1)
 
-    # Initialise once
-    if "calc_checkin_default" not in st.session_state:
-        st.session_state.calc_checkin_default = initial_default
-    if "calc_checkin" not in st.session_state:
-        st.session_state.calc_checkin = st.session_state.calc_checkin_default
-    if "calc_checkin_user_set" not in st.session_state:
-        st.session_state.calc_checkin_user_set = False
-
+    
 
 
 
@@ -957,31 +950,40 @@ def main() -> None:
     )
     st.divider()
 
-    # ===== Booking details =====
-    # ===== Booking details =====
-    # Initialise default check-in only once per session
-    if "checkin_default" not in st.session_state:
-        st.session_state.checkin_default = datetime.now().date() + timedelta(days=1)
-    if "checkin" not in st.session_state:
-        st.session_state.checkin = st.session_state.checkin_default
+    # ===== Calculator check-in date state (simple, robust) =====
+    today = datetime.now().date()
+    initial_default = today + timedelta(days=1)
 
+    # First-ever initialisation for this session
+    if "calc_initial_default" not in st.session_state:
+        st.session_state.calc_initial_default = initial_default
+        st.session_state.calc_checkin = initial_default
+        st.session_state.calc_checkin_user_set = False
+
+    # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
     input_cols = st.columns([2, 1, 2, 2])
 
+    # --- Check-in widget ---
     with input_cols[0]:
-        # The widget owns st.session_state["calc_checkin"].
-        # We only READ from it, we do not assign back to this key.
+        # IMPORTANT:
+        # - value comes from our own state (calc_checkin)
+        # - widget uses its own key ("calc_checkin_widget")
         checkin = st.date_input(
             "Check-in Date",
-            key="calc_checkin",
+            value=st.session_state.calc_checkin,
+            key="calc_checkin_widget",
             format="YYYY/MM/DD",
             help="Your arrival date.",
         )
 
-    # Has the user moved away from the initial default at least once?
+    # Sync our own state from the widget (safe because keys are different)
+    st.session_state.calc_checkin = checkin
+
+    # Detect first time the user moves away from the default
     if (
         not st.session_state.calc_checkin_user_set
-        and checkin != st.session_state.calc_checkin_default
+        and checkin != st.session_state.calc_initial_default
     ):
         st.session_state.calc_checkin_user_set = True
 
@@ -997,12 +999,8 @@ def main() -> None:
         )
 
 
-
-    # Has the user changed the date away from the default?
-    user_changed_date = checkin != st.session_state.checkin_default
-
     # Holiday adjustment (extend stay to full holiday span)
-    # Only activate when the user has actually chosen a date (not the initial default)
+    # Only activate AFTER the user has changed the default date at least once.
     if user_changed_date:
         adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     else:
@@ -1015,6 +1013,7 @@ def main() -> None:
             f"{adj_in.strftime('%b %d, %Y')} — {end_date.strftime('%b %d, %Y')} "
             f"({adj_n} nights)"
         )
+
 
 
     # Derive available room types from daily points for adjusted start
