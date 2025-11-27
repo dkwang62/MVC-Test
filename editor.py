@@ -1802,7 +1802,7 @@ def main():
                 """
             - The most updated data is pre-loaded into memory and can be edited.
             - Loading another file will replace the data in memory.
-            - Edits in memory are temporary — SAVE or they may be lost on refresh.
+            - Edits in memory are temporary; SAVE changes to file REGULARLY.
             - Verify by matching saved file to what’s in memory.
             - Load a different file to merge selected resorts to memory.
             """
@@ -1818,7 +1818,7 @@ def main():
             handle_file_verification()
             handle_merge_from_another_file_v2(st.session_state.data)
 
-        show_save_indicator()
+    #   show_save_indicator()
     
     # Main content
     render_page_header(
