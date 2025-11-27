@@ -284,17 +284,19 @@ def create_download_button_v2(data: Dict[str, Any]):
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
-            "Verify", type="json", key="verify_uploader"
+            "Upload file to compare with memory", type="json", key="verify_uploader"
         )
         if verify_upload:
             try:
                 uploaded_data = json.load(verify_upload)
+                # Normalize strings for comparison
                 current_json = json.dumps(st.session_state.data, sort_keys=True)
                 uploaded_json = json.dumps(uploaded_data, sort_keys=True)
+                
                 if current_json == uploaded_json:
-                    st.success("✅ Files match")
+                    st.success("✅ File matches memory exactly.")
                 else:
-                    st.error("❌ Files differ")
+                    st.error("❌ File differs from memory.")
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
 
@@ -1883,9 +1885,16 @@ def main():
         handle_file_upload()
 
         if st.session_state.data:
+
             st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
+        
+            # 1. The Save/Download logic
             create_download_button_v2(st.session_state.data)
-            handle_file_verification()  # <--- This line caused the error because the function above was missing
+        
+            # 2. The Verification logic
+            handle_file_verification()
+        
+            # 3. The Merge logic
             handle_merge_from_another_file_v2(st.session_state.data)
     
     #   show_save_indicator()
