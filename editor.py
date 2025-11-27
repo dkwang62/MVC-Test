@@ -312,24 +312,21 @@ def handle_resort_creation_v2(
     data: Dict[str, Any], current_resort_id: Optional[str]
 ):
     resorts = data.setdefault("resorts", [])
+    
     with st.expander("➕ Create or Clone Resort", expanded=False):
-        new_name = st.text_input(
-            "Resort Name",
-            placeholder="e.g., Pulse San Francisco",
-            key="new_resort_name",
-        )
+        # Use tabs to separate the two distinct actions
+        tab_new, tab_clone = st.tabs(["✨ New Blank", "📋 Clone Current"])
 
-        col1, col2 = st.columns(2)
-        with col1:
-            if (
-                st.button(
-                    "✨ Create Blank",
-                    key="create_blank_btn",
-                    use_container_width=True,
-                )
-                and new_name
-            ):
-                name = new_name.strip()
+        # --- TAB 1: CREATE BLANK ---
+        with tab_new:
+            new_name_input = st.text_input(
+                "New Resort Name",
+                placeholder="e.g., Pulse San Francisco",
+                key="new_resort_name_blank",
+            )
+            
+            if st.button("Create Blank Resort", use_container_width=True):
+                name = new_name_input.strip()
                 if not name:
                     st.error("❌ Name cannot be empty")
                 elif is_duplicate_resort_name(name, resorts):
@@ -340,6 +337,7 @@ def handle_resort_creation_v2(
                     code = generate_resort_code(name)
                     detected_timezone = detect_timezone_from_name(name)
                     full_name = get_resort_full_name(rid, name)
+                    
                     new_resort = {
                         "id": rid,
                         "display_name": name,
@@ -352,50 +350,49 @@ def handle_resort_creation_v2(
                     resorts.append(new_resort)
                     st.session_state.current_resort_id = rid
                     save_data()
-                    st.success(
-                        f"✅ Created {name} (Timezone: {detected_timezone})"
-                    )
+                    st.success(f"✅ Created {name}")
                     st.rerun()
 
-        with col2:
-            if (
-                st.button(
-                    "📋 Clone Current",
-                    key="clone_current_resort_action",
-                    use_container_width=True,
-                )
-                and new_name
-            ):
-                name = new_name.strip()
-                if not name:
-                    st.error("❌ Name cannot be empty")
-                elif is_duplicate_resort_name(name, resorts):
-                    st.error("❌ Name already exists")
-                elif not current_resort_id:
-                    st.error("❌ Select a resort first")
-                else:
-                    src = find_resort_by_id(data, current_resort_id)
-                    if src is None:
-                        st.error("❌ Source not found")
-                    else:
-                        base_id = generate_resort_id(name)
+        # --- TAB 2: CLONE CURRENT ---
+        with tab_clone:
+            if not current_resort_id:
+                st.warning("⚠️ Select a resort from the grid first to clone it.")
+            else:
+                src = find_resort_by_id(data, current_resort_id)
+                if src:
+                    st.markdown(f"**Source:** {src.get('display_name', 'Unknown')}")
+                    
+                    if st.button("📋 Clone This Resort", use_container_width=True):
+                        # 1. Generate unique name
+                        original_name = src.get("display_name", "Resort")
+                        new_name = f"{original_name} (Copy)"
+                        
+                        # Ensure uniqueness if (Copy) already exists
+                        counter = 1
+                        while is_duplicate_resort_name(new_name, resorts):
+                            counter += 1
+                            new_name = f"{original_name} (Copy {counter})"
+
+                        # 2. Generate IDs
+                        base_id = generate_resort_id(new_name)
                         rid = make_unique_resort_id(base_id, resorts)
-                        code = generate_resort_code(name)
-                        detected_timezone = detect_timezone_from_name(name)
+                        code = generate_resort_code(new_name)
+
+                        # 3. Deep Copy everything (Policies, Seasons, Holidays)
                         cloned = copy.deepcopy(src)
+
+                        # 4. Update Identity Fields
                         cloned["id"] = rid
-                        cloned["display_name"] = name
+                        cloned["display_name"] = new_name
                         cloned["code"] = code
-                        cloned["resort_name"] = get_resort_full_name(
-                            rid, name
-                        )
-                        cloned["timezone"] = detected_timezone
+                        # NOTE: We intentionally keep 'timezone' and 'address' from src
+                        # cloned["resort_name"] we update to match the new ID/Display
+                        cloned["resort_name"] = get_resort_full_name(rid, new_name)
+
                         resorts.append(cloned)
                         st.session_state.current_resort_id = rid
                         save_data()
-                        st.success(
-                            f"✅ Cloned to {name} (Timezone: {detected_timezone})"
-                        )
+                        st.success(f"✅ Cloned to {new_name}")
                         st.rerun()
 
 
@@ -918,17 +915,41 @@ def sync_holiday_room_points_across_years(
 # ----------------------------------------------------------------------
 def edit_resort_basics(working: Dict[str, Any], resort_id: str):
     """
-    Renders editable fields for resort_name, timezone and address.
+    Renders editable fields for resort_name, timezone, address, AND display_name.
     Returns nothing – directly mutates the working dict.
     """
     st.markdown("### Basic Resort Information")
 
+    # --- Added: Display Name Editor ---
+    col_disp, col_code = st.columns([3, 1])
+    with col_disp:
+        current_display = working.get("display_name", "")
+        new_display = st.text_input(
+            "Display Name (Internal ID)",
+            value=current_display,
+            key=rk(resort_id, "display_name_edit"),
+            help="The short name used in lists and menus."
+        )
+        if new_display and new_display != current_display:
+            working["display_name"] = new_display.strip()
+    
+    with col_code:
+        current_code = working.get("code", "")
+        new_code = st.text_input(
+            "Code", 
+            value=current_code,
+            key=rk(resort_id, "code_edit")
+        )
+        if new_code != current_code:
+            working["code"] = new_code.strip()
+
+    # --- Existing Fields ---
     current_name = working.get("resort_name", "")
     current_tz = working.get("timezone", "UTC")
     current_addr = working.get("address", "")
 
     new_name = st.text_input(
-        "Full Resort Name (resort_name)",
+        "Full Resort Name (Official)",
         value=current_name,
         key=rk(resort_id, "resort_name_edit"),
         help="Official name stored in the 'resort_name' field",
