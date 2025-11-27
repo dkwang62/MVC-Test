@@ -1,68 +1,50 @@
 # ============================================================
-# Theme Application Function
+# Safe Theme System (No blank screens)
 # ============================================================
 
 def apply_app_theme():
-    choice = st.session_state.ui_theme
+    theme = st.session_state.ui_theme
 
-    # AUTO → follow browser preference
-    if choice == "Auto":
-        css = '''
+    # SAFEST CSS: only override text + background, nothing else.
+    if theme == "Dark":
+        css = """
+        <style>
+        body, .stApp {
+            background-color: #0f172a !important;
+            color: #e5e7eb !important;
+        }
+        </style>
+        """
+        pio.templates.default = "plotly_dark"
+
+    elif theme == "Light":
+        css = """
+        <style>
+        body, .stApp {
+            background-color: #ffffff !important;
+            color: #111827 !important;
+        }
+        </style>
+        """
+        pio.templates.default = "plotly"
+
+    else:  # AUTO mode
+        css = """
         <style>
         @media (prefers-color-scheme: dark) {
-            :root {
-                --bg-color: #0f172a;
-                --card-color: #1e293b;
-                --text-color: #e5e7eb;
+            body, .stApp {
+                background-color: #0f172a !important;
+                color: #e5e7eb !important;
             }
         }
         @media (prefers-color-scheme: light) {
-            :root {
-                --bg-color: #ffffff;
-                --card-color: #f5f5f5;
-                --text-color: #111827;
+            body, .stApp {
+                background-color: #ffffff !important;
+                color: #111827 !important;
             }
         }
-        .stApp {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
         </style>
-        '''
-        pio.templates.default = "plotly"
-
-    # DARK MODE
-    elif choice == "Dark":
-        css = '''
-        <style>
-        :root {
-            --bg-color: #0f172a;
-            --card-color: #1e293b;
-            --text-color: #e5e7eb;
-        }
-        .stApp {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-        </style>
-        '''
-        pio.templates.default = "plotly_dark"
-
-    # LIGHT MODE
-    else:
-        css = '''
-        <style>
-        :root {
-            --bg-color: #ffffff;
-            --card-color: #f5f5f5;
-            --text-color: #111827;
-        }
-        .stApp {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-        </style>
-        '''
+        """
         pio.templates.default = "plotly"
 
     st.markdown(css, unsafe_allow_html=True)
