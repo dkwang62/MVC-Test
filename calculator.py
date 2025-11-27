@@ -1,5 +1,4 @@
 import math
-import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from enum import Enum
@@ -9,7 +8,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.charts import create_gantt_chart_from_resort_data
+from common.charts import create_gantt_chart_from_working
 from common.data import ensure_data_in_session
 
 # ==============================================================================
@@ -90,6 +89,13 @@ class MVCRepository:
     def get_resort_list_full(self) -> List[Dict[str, Any]]:
         """Return raw resort dictionaries (used for grid rendering)."""
         return self._raw.get("resorts", [])
+
+    def get_resort_raw(self, resort_name: str) -> Optional[Dict[str, Any]]:
+        """Return the raw dictionary for a specific resort (for charting)."""
+        return next(
+            (r for r in self._raw.get("resorts", []) if r["display_name"] == resort_name),
+            None,
+        )
 
     def _parse_global_holidays(
         self,
@@ -734,7 +740,6 @@ def main() -> None:
         st.session_state.calc_checkin = initial_default
         st.session_state.calc_checkin_user_set = False
 
-    
     # 2) If no data, bail out early
     if not st.session_state.data:
         st.warning("⚠️ Please open the Editor and upload/merge data_v2.json first.")
@@ -946,6 +951,16 @@ def main() -> None:
     )
     st.divider()
 
+    # ===== Calculator check-in date state (simple, robust) =====
+    today = datetime.now().date()
+    initial_default = today + timedelta(days=1)
+
+    # First-ever initialisation for this session
+    if "calc_initial_default" not in st.session_state:
+        st.session_state.calc_initial_default = initial_default
+        st.session_state.calc_checkin = initial_default
+        st.session_state.calc_checkin_user_set = False
+
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
     input_cols = st.columns([2, 1, 2, 2])
@@ -1143,14 +1158,18 @@ def main() -> None:
 
     # Season / Holiday timeline
     year_str = str(adj_in.year)
-    res_data = calc.repo.get_resort(r_name)
-    if res_data and year_str in res_data.years:
+    
+    # Use the raw dict directly for the chart, avoiding the duplicated chart function
+    raw_resort_dict = repo.get_resort_raw(r_name)
+    
+    if raw_resort_dict and year_str in raw_resort_dict.get("years", {}):
         st.divider()
         with st.expander("📅 Season and Holiday Calendar", expanded=False):
-            gantt_fig = create_gantt_chart_from_resort_data(
-                resort_data=res_data,
+            # Pass raw dicts to the shared chart function
+            gantt_fig = create_gantt_chart_from_working(
+                working=raw_resort_dict,
                 year=year_str,
-                global_holidays=st.session_state.data.get("global_holidays", {}),
+                data=st.session_state.data, # contains global_holidays
                 height=500,
             )
             st.plotly_chart(gantt_fig, use_container_width=True)
