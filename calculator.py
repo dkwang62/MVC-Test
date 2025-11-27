@@ -969,7 +969,8 @@ def main() -> None:
     input_cols = st.columns([2, 1, 2, 2])
 
     with input_cols[0]:
-        # Bind directly to calculator-specific session key, no dynamic default here
+        # The widget owns st.session_state["calc_checkin"].
+        # We only READ from it, we do not assign back to this key.
         checkin = st.date_input(
             "Check-in Date",
             key="calc_checkin",
@@ -977,10 +978,13 @@ def main() -> None:
             help="Your arrival date.",
         )
 
-    # Track whether user has changed from the initial default
-    if checkin != st.session_state.calc_checkin_default:
+    # Has the user moved away from the initial default at least once?
+    if (
+        not st.session_state.calc_checkin_user_set
+        and checkin != st.session_state.calc_checkin_default
+    ):
         st.session_state.calc_checkin_user_set = True
-    st.session_state.calc_checkin = checkin
+
     user_changed_date = st.session_state.calc_checkin_user_set
 
     with input_cols[1]:
@@ -991,6 +995,7 @@ def main() -> None:
             value=7,
             help="Number of nights to stay.",
         )
+
 
 
     # Has the user changed the date away from the default?
