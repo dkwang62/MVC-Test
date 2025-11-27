@@ -189,7 +189,7 @@ def create_download_button_v2(data: Dict[str, Any]):
 
     with st.sidebar.expander("💾 Save & Download", expanded=False):
         
-        # --- 1. CHECK FOR UNSAVED CHANGES ---
+        # --- 1. DETECT DIRTY STATE ---
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
         has_unsaved_changes = False
@@ -200,64 +200,64 @@ def create_download_button_v2(data: Dict[str, Any]):
             if committed_copy != working_copy:
                 has_unsaved_changes = True
 
-        # --- 2. LOGIC: STRICT TOGGLE ---
-        
+        # --- 2. BLOCKING LOGIC ---
         if has_unsaved_changes:
-            # STATE: DIRTY
-            # Show ONLY the "Save to Memory" action.
-            st.warning("⚠️ You have pending edits.")
-            st.markdown("You must save your changes to memory before you can download.")
+            # STOP! Do not show download options.
+            # Force the user to resolve the state.
+            st.error("⚠️ Unsaved Changes Detected")
+            st.caption("You cannot download the file while you have pending edits. Please choose an action:")
             
-            if st.button("💾 Save Edits to Memory", type="primary", use_container_width=True):
-                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("Saved to memory!", icon="✅")
-                st.rerun()
-                
-        else:
-            # STATE: CLEAN
-            # Show ONLY the "Download" action.
-            st.success("✅ Data is up to date.")
+            col1, col2 = st.columns(2)
             
-            filename = st.text_input(
-                "File name",
-                value="data_v2.json",
-                key="download_filename_input",
-            ).strip()
+            # OPTION A: SAVE (Commit to Memory)
+            with col1:
+                if st.button("💾 Save", type="primary", use_container_width=True, help="Commit changes to memory"):
+                    commit_working_to_data_v2(data, working_resorts[current_id], current_id)
+                    st.toast("✅ Changes saved to memory!", icon="💾")
+                    st.rerun()
+            
+            # OPTION B: DISCARD (Revert to last save)
+            with col2:
+                if st.button("🗑️ Discard", type="secondary", use_container_width=True, help="Undo recent changes"):
+                    # Revert working copy to the committed copy
+                    if committed_copy:
+                        st.session_state.working_resorts[current_id] = copy.deepcopy(committed_copy)
+                    else:
+                        # Should not happen, but safe fallback
+                        del st.session_state.working_resorts[current_id]
+                    
+                    st.toast("Changes discarded.", icon="↩️")
+                    st.rerun()
+            
+            # EXIT FUNCTION IMMEDIATELY
+            # This ensures the code below (Download Button) NEVER runs if dirty.
+            return
 
-            if not filename:
-                filename = "data_v2.json"
-            if not filename.lower().endswith(".json"):
-                filename += ".json"
-
-            json_data = json.dumps(data, indent=2, ensure_ascii=False)
-
-            st.download_button(
-                label="⬇️ Download JSON File",
-                data=json_data,
-                file_name=filename,
-                mime="application/json",
-                key="download_v2_btn",
-                use_container_width=True,
-            )
+        # --- 3. CLEAN STATE (Only runs if 'has_unsaved_changes' is False) ---
+        st.success("✅ Ready to Download")
         
-def handle_file_verification():
-    with st.sidebar.expander("🔍 Verify File", expanded=False):
-        verify_upload = st.file_uploader(
-            "Verify", type="json", key="verify_uploader"
-        )
-        if verify_upload:
-            try:
-                uploaded_data = json.load(verify_upload)
-                current_json = json.dumps(st.session_state.data, sort_keys=True)
-                uploaded_json = json.dumps(uploaded_data, sort_keys=True)
-                if current_json == uploaded_json:
-                    st.success("✅ Files match")
-                else:
-                    st.error("❌ Files differ")
-            except Exception as e:
-                st.error(f"❌ Error: {str(e)}")
-        st.sidebar.markdown("### 📥 Merge Resorts")
+        filename = st.text_input(
+            "File name",
+            value="data_v2.json",
+            key="download_filename_input",
+        ).strip()
 
+        if not filename:
+            filename = "data_v2.json"
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
+
+        # Safe to serialize because we know data is clean
+        json_data = json.dumps(data, indent=2, ensure_ascii=False)
+
+        st.download_button(
+            label="⬇️ Download JSON File",
+            data=json_data,
+            file_name=filename,
+            mime="application/json",
+            key="download_v2_btn",
+            use_container_width=True,
+        )
 
 def handle_merge_from_another_file_v2(data: Dict[str, Any]):
     with st.sidebar.expander("🔀 Merge", expanded=False):
