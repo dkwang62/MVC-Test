@@ -1,8 +1,10 @@
 # app.py
 import os
 import sys
+
 import streamlit as st
 import plotly.io as pio
+
 
 # ============================================================
 # Theme State Initialisation
@@ -43,7 +45,7 @@ def apply_app_theme():
         }
         </style>
         """
-        pio.templates.default = "plotly"  # neutral template
+        pio.templates.default = "plotly"
 
     # DARK MODE
     elif choice == "Dark":
@@ -70,44 +72,3 @@ def apply_app_theme():
             --bg-color: #ffffff;
             --card-color: #f5f5f5;
             --text-color: #111827;
-        }
-        .stApp {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-        }
-        </style>
-        """
-        pio.templates.default = "plotly"
-
-    st.markdown(css, unsafe_allow_html=True)
-
-
-# ============================================================
-# PATH FIX FOR STREAMLIT CLOUD
-# ============================================================
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-
-from common.ui import setup_page
-
-# Page config
-setup_page()
-
-# Apply theme BEFORE loading calculator/editor
-apply_app_theme()
-
-
-# ============================================================
-# Side Panel – Tool Selector + Theme Selector
-# ============================================================
-
-st.sidebar.markdown("### 🧰 MVC Tools")
-choice = st.sidebar.radio(
-    "Choose Tool",
-    ["Points & Rent Calculator", "Resort Data Editor"],
-    index=0,
-)
-
-with st.sidebar:
