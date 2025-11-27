@@ -936,12 +936,19 @@ def main() -> None:
     st.divider()
 
     # ===== Booking details =====
+    # ===== Booking details =====
+    # Initialise default check-in only once per session
+    if "checkin_default" not in st.session_state:
+        st.session_state.checkin_default = datetime.now().date() + timedelta(days=1)
+    if "checkin" not in st.session_state:
+        st.session_state.checkin = st.session_state.checkin_default
+
     st.markdown("### 📅 Booking Details")
     input_cols = st.columns([2, 1, 2, 2])
     with input_cols[0]:
         checkin = st.date_input(
             "Check-in Date",
-            datetime.now().date() + timedelta(days=1),
+            key="checkin",                         # bind to session state
             format="YYYY/MM/DD",
             help="Your arrival date.",
         )
@@ -954,8 +961,16 @@ def main() -> None:
             help="Number of nights to stay.",
         )
 
+    # Has the user changed the date away from the default?
+    user_changed_date = checkin != st.session_state.checkin_default
+
     # Holiday adjustment (extend stay to full holiday span)
-    adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
+    # Only activate when the user has actually chosen a date (not the initial default)
+    if user_changed_date:
+        adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
+    else:
+        adj_in, adj_n, adj = checkin, nights, False
+
     if adj:
         end_date = adj_in + timedelta(days=adj_n - 1)
         st.info(
@@ -963,6 +978,7 @@ def main() -> None:
             f"{adj_in.strftime('%b %d, %Y')} — {end_date.strftime('%b %d, %Y')} "
             f"({adj_n} nights)"
         )
+
 
     # Derive available room types from daily points for adjusted start
     pts, _ = calc._get_daily_points(calc.repo.get_resort(r_name), adj_in)
