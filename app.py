@@ -7,7 +7,7 @@ import plotly.io as pio
 # Initialise Theme State
 # ============================================
 if "ui_theme" not in st.session_state:
-    st.session_state.ui_theme = "Auto"   # Auto, Light, Dark
+    st.session_state.ui_theme = "Light"   # Auto, Light, Dark
 
 # Fix Python path for Streamlit Cloud
 current_dir = os.path.dirname(os.path.abspath(__file__))
