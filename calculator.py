@@ -892,7 +892,7 @@ def main() -> None:
         st.markdown(
             "<small>💡 **Tip:** Adjust settings above, then select your dates and room type in the main area.</small>",
             unsafe_allow_html=True,
-        )
+        ) 
 
     # ===== Booking details =====
     st.markdown("### 📅 Booking Details")
