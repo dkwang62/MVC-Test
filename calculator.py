@@ -671,31 +671,6 @@ def main() -> None:
     if "pref_inc_d" not in st.session_state:
         st.session_state.pref_inc_d = True
 
-        # ------------------------------------------------------------------
-    # Legacy fix: if we see the "all zeros" pattern from older sessions,
-    # force-reset to your preferred defaults. This runs even on refresh.
-    # ------------------------------------------------------------------
-    if (
-        st.session_state.get("pref_maint_rate", 0.0) == 0.0
-        and st.session_state.get("pref_purchase_price", 0.0) == 0.0
-        and st.session_state.get("pref_capital_cost", 0.0) == 0.0
-        and st.session_state.get("pref_useful_life", 1) == 1
-        and st.session_state.get("pref_salvage_value", 0.0) == 0.0
-        and not st.session_state.get("pref_inc_m", False)
-        and not st.session_state.get("pref_inc_c", False)
-        and not st.session_state.get("pref_inc_d", False)
-    ):
-        st.session_state.pref_maint_rate = 0.50
-        st.session_state.pref_purchase_price = 18.0
-        st.session_state.pref_capital_cost = 5.0
-        st.session_state.pref_useful_life = 10
-        st.session_state.pref_salvage_value = 3.0
-
-        st.session_state.pref_inc_m = True
-        st.session_state.pref_inc_c = True
-        st.session_state.pref_inc_d = True
-
-
     if "calculator_mode" not in st.session_state:
         st.session_state.calculator_mode = UserMode.RENTER.value
 
@@ -783,136 +758,143 @@ def main() -> None:
 
         st.divider()
 
-    # MODE SELECTOR (Pure state-driven)
-    mode_sel = st.radio(
-        "Mode:",
-        [m.value for m in UserMode],
-        key="calculator_mode",
-        horizontal=True,
-    )
-    mode = UserMode(mode_sel)
-
-    owner_params = None
-    policy = DiscountPolicy.NONE
-    rate = 0.50
-
-    st.divider()
-
-    # ---------------- OWNER MODE ----------------
-    if mode == UserMode.OWNER:
-        st.markdown("##### 💰 Basic Costs")
-
-        # Annual maintenance (per-point)
-        rate = st.number_input(
-            "Annual Maintenance Fee ($/point)",
-            key="pref_maint_rate",
-            step=0.01,
-            min_value=0.0,
+        # MODE SELECTOR
+        mode_sel = st.radio(
+            "Mode:",
+            [m.value for m in UserMode],
+            key="calculator_mode",
+            horizontal=True,
         )
+        mode = UserMode(mode_sel)
 
-        # Discount tier (saved in session state)
-        opt = st.radio(
-            "Discount Tier:",
-            TIER_OPTIONS,
-            key="pref_discount_tier",
-        )
+        owner_params = None
+        policy = DiscountPolicy.NONE
+        rate = 0.50
 
-        # Advanced owner options
-        with st.expander("🔧 Advanced Options", expanded=False):
-            st.markdown("**Include in Cost:**")
-            inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
-            inc_c = st.checkbox("Capital Cost", key="pref_inc_c")
-            inc_d = st.checkbox("Depreciation", key="pref_inc_d")
+        st.divider()
 
-            st.divider()
+        # ------------------------------------------------------------------
+        # OWNER MODE
+        # ------------------------------------------------------------------
+        if mode == UserMode.OWNER:
+            # One-time override to ensure starting values match your screenshot,
+            # even if old sessions had zeros cached.
+            if not st.session_state.get("owner_defaults_initialized", False):
+                st.session_state.pref_maint_rate = 0.50
+                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
 
-            # Purchase details only matter if capital or depreciation are used
-            if inc_c or inc_d:
-                st.markdown("**Purchase Details**")
-                cap = st.number_input(
-                    "Purchase Price ($/pt)",
-                    key="pref_purchase_price",
-                    step=1.0,
-                )
-            else:
-                cap = st.session_state.pref_purchase_price
+                st.session_state.pref_inc_m = True
+                st.session_state.pref_inc_c = True
+                st.session_state.pref_inc_d = True
 
-            if inc_c:
-                coc = (
-                    st.number_input(
-                        "Cost of Capital (%)",
-                        key="pref_capital_cost",
+                st.session_state.pref_purchase_price = 18.0
+                st.session_state.pref_capital_cost = 5.0
+                st.session_state.pref_useful_life = 10
+                st.session_state.pref_salvage_value = 3.0
+
+                st.session_state.owner_defaults_initialized = True
+
+            st.markdown("##### 💰 Basic Costs")
+
+            rate = st.number_input(
+                "Annual Maintenance Fee ($/point)",
+                key="pref_maint_rate",
+                step=0.01,
+                min_value=0.0,
+            )
+
+            opt = st.radio(
+                "Discount Tier:",
+                TIER_OPTIONS,
+                key="pref_discount_tier",
+            )
+
+            with st.expander("🔧 Advanced Options", expanded=False):
+                st.markdown("**Include in Cost:**")
+                inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
+                inc_c = st.checkbox("Capital Cost", key="pref_inc_c")
+                inc_d = st.checkbox("Depreciation", key="pref_inc_d")
+
+                st.divider()
+                if inc_c or inc_d:
+                    st.markdown("**Purchase Details**")
+                    cap = st.number_input(
+                        "Purchase Price ($/pt)",
+                        key="pref_purchase_price",
+                        step=1.0,
+                    )
+                else:
+                    cap = st.session_state.pref_purchase_price
+
+                if inc_c:
+                    coc = (
+                        st.number_input(
+                            "Cost of Capital (%)",
+                            key="pref_capital_cost",
+                            step=0.5,
+                        )
+                        / 100.0
+                    )
+                else:
+                    coc = 0.06
+
+                if inc_d:
+                    st.markdown("**Depreciation**")
+                    life = st.number_input(
+                        "Useful Life (years)",
+                        key="pref_useful_life",
+                        min_value=1,
+                    )
+                    salvage = st.number_input(
+                        "Salvage Value ($/pt)",
+                        key="pref_salvage_value",
                         step=0.5,
                     )
-                    / 100.0
-                )
-            else:
-                coc = 0.06
+                else:
+                    life, salvage = 15, 3.0
 
-            if inc_d:
-                st.markdown("**Depreciation**")
-                life = st.number_input(
-                    "Useful Life (years)",
-                    key="pref_useful_life",
-                    min_value=1,
-                )
-                salvage = st.number_input(
-                    "Salvage Value ($/pt)",
-                    key="pref_salvage_value",
-                    step=0.5,
-                )
-            else:
-                life, salvage = 15, 3.0
+            owner_params = {
+                "disc_mul": 1.0,
+                "inc_m": inc_m,
+                "inc_c": inc_c,
+                "inc_d": inc_d,
+                "cap_rate": cap * coc,
+                "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
+            }
 
-        owner_params = {
-            "disc_mul": 1.0,
-            "inc_m": inc_m,
-            "inc_c": inc_c,
-            "inc_d": inc_d,
-            "cap_rate": cap * coc,
-            "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
-        }
+        # ------------------------------------------------------------------
+        # RENTER MODE
+        # ------------------------------------------------------------------
+        else:
+            st.markdown("##### 💵 Rental Rate")
+            rate = st.number_input(
+                "Cost per Point ($)", value=0.50, step=0.01
+            )
+            st.markdown("##### 🎯 Available Discounts")
+            opt = st.radio("Discount tier available:", TIER_OPTIONS)
+            if "Presidential" in opt or "Chairman" in opt:
+                policy = DiscountPolicy.PRESIDENTIAL
+            elif "Executive" in opt:
+                policy = DiscountPolicy.EXECUTIVE
 
-    # ---------------- RENTER MODE ----------------
-    else:
-        st.markdown("##### 💵 Rental Rate")
-        rate = st.number_input(
-            "Cost per Point ($)",
-            value=0.50,
-            step=0.01,
+        # Discount mapping for Owner as well
+        if mode == UserMode.OWNER:
+            if "Executive" in opt:
+                policy = DiscountPolicy.EXECUTIVE
+            elif "Presidential" in opt or "Chairman" in opt:
+                policy = DiscountPolicy.PRESIDENTIAL
+
+        disc_mul = (
+            0.75
+            if "Executive" in opt
+            else 0.7
+            if "Presidential" in opt or "Chairman" in opt
+            else 1.0
         )
+        if owner_params:
+            owner_params["disc_mul"] = disc_mul
 
-        st.markdown("##### 🎯 Available Discounts")
-        opt = st.radio(
-            "Discount tier available:",
-            TIER_OPTIONS,
-        )
-        if "Presidential" in opt or "Chairman" in opt:
-            policy = DiscountPolicy.PRESIDENTIAL
-        elif "Executive" in opt:
-            policy = DiscountPolicy.EXECUTIVE
-
-    # ---------------- SHARED DISCOUNT LOGIC ----------------
-    # Map discount tier for Owner mode as well
-    if mode == UserMode.OWNER:
-        if "Executive" in opt:
-            policy = DiscountPolicy.EXECUTIVE
-        elif "Presidential" in opt or "Chairman" in opt:
-            policy = DiscountPolicy.PRESIDENTIAL
-
-    # Effective multiplier used in the calculator
-    disc_mul = (
-        0.75
-        if "Executive" in opt
-        else 0.7
-        if "Presidential" in opt or "Chairman" in opt
-        else 1.0
-    )
-    if owner_params:
-        owner_params["disc_mul"] = disc_mul
-
-    st.divider()
-
+        st.divider()
 
     # ----------------------------------------------------------------------
     # MAIN BODY
