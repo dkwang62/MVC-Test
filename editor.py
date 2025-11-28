@@ -157,34 +157,6 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 # ----------------------------------------------------------------------
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
-def handle_file_upload():
-    st.sidebar.markdown("### 📤 File to Memory")
-    with st.sidebar.expander("📤 Load", expanded=False):
-        uploaded = st.file_uploader(
-            "Choose JSON file",
-            type="json",
-            key="file_uploader",
-            help="Upload your MVC data file",
-        )
-        if uploaded:
-            size = getattr(uploaded, "size", 0)
-            current_sig = f"{uploaded.name}:{size}"
-            if current_sig != st.session_state.last_upload_sig:
-                try:
-                    raw_data = json.load(uploaded)
-                    if "schema_version" not in raw_data or not raw_data.get("resorts"):
-                        st.error("❌ Invalid file format")
-                        return
-                    reset_state_for_new_file()
-                    st.session_state.data = raw_data
-                    st.session_state.last_upload_sig = current_sig
-                    resorts_list = get_resort_list(raw_data)
-                    st.success(f"✅ Loaded {len(resorts_list)} resorts")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-
-
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
@@ -205,14 +177,10 @@ def create_download_button_v2(data: Dict[str, Any]):
             if committed_copy != working_copy:
                 has_unsaved_changes = True
 
-        # --- 2. STATE MACHINE ---
-
+        # --- 2. RENDER INTERFACE BASED ON STATE ---
+        
         if has_unsaved_changes:
-            # STATE: DIRTY
-            # Action: Must Commit to Memory
-            # Effect: Resets verification status
-            st.session_state.download_verified = False 
-            
+            # STATE: DIRTY (Unsaved Changes)
             st.warning("⚠️ Unsaved changes pending.")
             
             if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
@@ -220,27 +188,12 @@ def create_download_button_v2(data: Dict[str, Any]):
                 st.toast("✅ Committed to memory.", icon="🧠")
                 st.rerun()
             
-            st.caption("You must commit changes to memory before proceeding.")
-
-        elif not st.session_state.download_verified:
-            # STATE: CLEAN BUT UNVERIFIED
-            # Action: Must Verify
-            # Effect: Shows Download button next
-            st.info("ℹ️ Memory updated.")
-            
-            if st.button("🔍 Verify that memory is up to date", use_container_width=True):
-                # This button 'actively checks' status (logic is implicit since we are in the else block)
-                st.session_state.download_verified = True
-                st.rerun()
-                
-            st.caption("Please confirm the current memory state is correct to unlock the download.")
+            st.caption("You must commit changes to memory before downloading.")
 
         else:
-            # STATE: VERIFIED
-            # Action: Allow Download
-            st.success("✅ Verified & Ready.")
+            # STATE: CLEAN (Saved)
+            st.success("✅ Memory is up to date.")
             
-            # This is the ONLY place this widget is rendered
             filename = st.text_input(
                 "File name",
                 value="data_v2.json",
