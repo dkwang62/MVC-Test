@@ -1842,24 +1842,17 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-#        st.markdown(
-#            """
-#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
-#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
-#            </div>
-#        """,
-#            unsafe_allow_html=True,
-#        )
-        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
-            st.markdown(
-                """
-            - The most updated data is pre-loaded into memory and can be edited.
-            - Loading another file will replace the data in memory.
-            - Edits in memory are temporary — SAVE or they may be lost on refresh.
-            - Verify by matching saved file to what’s in memory.
-            - Load a different file to merge selected resorts to memory.
+    with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
+        st.markdown(
             """
-            )
+1. The system starts with a default resort dataset in memory.  
+2. Loading a new file replaces the in-memory dataset.  
+3. You may merge resorts from another file into the in-memory dataset.  
+4. Note: Restarting the app resets everything to the default dataset.  
+5. To keep your edits, save and download the current in-memory dataset.  
+6. You may reload the downloaded file to confirm it matches what’s in memory.
+            """
+        )
 
         handle_file_upload()
 
