@@ -1864,9 +1864,9 @@ def main():
         handle_file_upload()
 
         if st.session_state.data:
-            st.markdown(
-                "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
-            )
+            # st.markdown(
+            #    "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
+            # )
             # Move merge logic to File to Memory
             handle_merge_from_another_file_v2(st.session_state.data)
 
