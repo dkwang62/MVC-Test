@@ -815,6 +815,12 @@ def main() -> None:
                 key="pref_discount_tier",
             )
 
+            disc_mul = 1.0
+            if "Executive" in opt:
+                disc_mul = 0.75
+            elif "Presidential" in opt or "Chairman" in opt:
+                disc_mul = 0.7
+
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
                 inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
@@ -860,13 +866,13 @@ def main() -> None:
                     life, salvage = 15, 3.0
 
             owner_params = {
-                "disc_mul": 1.0,
                 "inc_m": inc_m,
                 "inc_c": inc_c,
                 "inc_d": inc_d,
                 "cap_rate": cap * coc,
                 "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
             }
+            owner_params["disc_mul"] = disc_mul
 
         # ------------------------------------------------------------------
         # RENTER MODE
@@ -882,23 +888,8 @@ def main() -> None:
                 policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt:
                 policy = DiscountPolicy.EXECUTIVE
-
-        # Discount mapping for Owner as well
-        if mode == UserMode.OWNER:
-            if "Executive" in opt:
-                policy = DiscountPolicy.EXECUTIVE
-            elif "Presidential" in opt or "Chairman" in opt:
-                policy = DiscountPolicy.PRESIDENTIAL
-
-        disc_mul = (
-            0.75
-            if "Executive" in opt
-            else 0.7
-            if "Presidential" in opt or "Chairman" in opt
-            else 1.0
-        )
-        if owner_params:
-            owner_params["disc_mul"] = disc_mul
+            else:
+                policy = DiscountPolicy.NONE
 
         st.divider()
 
