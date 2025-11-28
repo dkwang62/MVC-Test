@@ -1842,14 +1842,12 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-    with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
+    with st.expander("ℹ️ How to create and maintain your own personalised resort dataset", expanded=False):
         st.markdown(
             """
-The system begins with a default resort dataset already loaded in memory. You may load your own JSON file at any time, 
-which replaces the default data, or merge resorts from another JSON file to add to what is currently in memory. 
-Keep in mind that restarting the app will reset everything back to the default dataset. 
-If you want your edits to persist, save and download the current in-memory dataset. 
-You can then reload the saved JSON file to confirm that it matches what is stored in memory.
+The Editor lets you modify the default resort dataset in memory and create your own personalised JSON file to reuse each time you open the app. You may also merge resorts from your personalised file into the dataset currently in memory.
+
+Restarting the app resets everything to the default dataset, so save and download the in-memory data to preserve your edits. If you want to confirm your saved file matches what is in memory, use the verification step by loading your personalised JSON file.
             """
         )
             
