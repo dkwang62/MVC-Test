@@ -244,7 +244,7 @@ def create_download_button_v2(data: Dict[str, Any]):
             json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
             st.download_button(
-                label="💾 Save to File"",
+                label="💾 Save to File",
                 data=json_data,
                 file_name=filename,
                 mime="application/json",
