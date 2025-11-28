@@ -10,6 +10,7 @@ def setup_page() -> None:
         initial_sidebar_state="expanded",
         menu_items={"About": "Marriott Vacation Club – internal tools"},
     )
+    
     # Shared CSS
     st.markdown(
         """
@@ -24,19 +25,75 @@ def setup_page() -> None:
 
         /* -------------------------------------------------------- */
         /* HIDE STREAMLIT UI ELEMENTS                               */
-        /* This removes the 'hamburger' menu (containing Theme)     */
-        /* and the footer ("Made with Streamlit")                   */
         /* -------------------------------------------------------- */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         header {visibility: hidden;}
-        /* -------------------------------------------------------- */
 
+        /* -------------------------------------------------------- */
+        /* SIDEBAR SPACING & STYLING                                */
+        /* -------------------------------------------------------- */
+        section[data-testid="stSidebar"] {
+            background-color: var(--card-bg);
+            border-right: 1px solid var(--border-color);
+        }
+
+        /* TIGHTEN THE SIDEBAR CONTAINER */
+        /* This removes the default large gaps between every widget */
+        section[data-testid="stSidebar"] .block-container {
+            padding-top: 1.5rem !important;
+            gap: 0rem !important;
+        }
+
+        /* HEADERS IN SIDEBAR (e.g. "File to Memory") */
+        /* Reduce space below the header, increase space above to separate sections */
+        section[data-testid="stSidebar"] h1, 
+        section[data-testid="stSidebar"] h2, 
+        section[data-testid="stSidebar"] h3 {
+            margin-top: 1.5rem !important;
+            margin-bottom: 0.5rem !important;
+            padding-top: 0 !important;
+            font-size: 1.1rem !important;
+            font-weight: 600 !important;
+            color: var(--primary-color) !important;
+        }
+        
+        /* Markdown paragraphs in sidebar */
+        section[data-testid="stSidebar"] p {
+            margin-bottom: 0.25rem !important;
+            font-size: 0.9rem;
+        }
+
+        /* STANDARDIZE EXPANDERS */
+        /* Force consistent spacing below every expander */
+        [data-testid="stExpander"] {
+            margin-bottom: 0.5rem !important; 
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            background-color: #ffffff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        /* Remove extra padding inside the expander to make it compact */
+        [data-testid="stExpanderDetails"] {
+            padding: 0.75rem !important;
+        }
+        
+        /* Fix for the divider line to not add huge margins */
+        hr {
+            margin: 1.5rem 0 1rem 0 !important;
+        }
+
+        /* -------------------------------------------------------- */
+        /* MAIN CONTENT STYLING                                     */
+        /* -------------------------------------------------------- */
         .main, [data-testid="stAppViewContainer"] {
             background-color: var(--bg-color);
             font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI",
                          Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            color: var(--text-color);
         }
+
         .section-header {
             font-size: 1.1rem;
             font-weight: 600;
@@ -44,6 +101,7 @@ def setup_page() -> None:
             border-bottom: 1px solid var(--border-color);
             margin-bottom: 0.75rem;
         }
+
         .resort-card {
             background: var(--card-bg);
             border-radius: 0.75rem;
@@ -52,46 +110,37 @@ def setup_page() -> None:
             box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06);
             margin-bottom: 1rem;
         }
+
         .resort-card h2 {
             margin: 0;
             font-size: 1.4rem;
             font-weight: 700;
             color: var(--primary-color);
         }
+
         .resort-meta {
             margin-top: 0.35rem;
             font-size: 0.9rem;
             color: #4B5563;
-        }
-        section[data-testid="stSidebar"] {
-            background-color: var(--card-bg);
-            border-right: 1px solid var(--border-color);
-        }
-                /* Reduce spacing below expanders */
-        [data-testid="stExpander"] {
-            margin-bottom: 0.5rem !important;
-            border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-        }
-
-        /* Reduce the default gap in the sidebar container stack */
-        section[data-testid="stSidebar"] .block-container {
-            gap: 0.5rem; 
-            padding-top: 2rem;
+            opacity: 0.9;
         }
         
-        /* Remove extra margin from markdown elements inside sidebar */
-        section[data-testid="stSidebar"] p, 
-        section[data-testid="stSidebar"] h1, 
-        section[data-testid="stSidebar"] h2, 
-        section[data-testid="stSidebar"] h3 {
-            margin-bottom: 0.2rem;
+        /* Success/Info boxes styling */
+        .success-box, .info-box, .error-box {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            border: 1px solid transparent;
         }
+        .success-box { background-color: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
+        .info-box { background-color: #EFF6FF; border-color: #BFDBFE; color: #1E40AF; }
+        .error-box { background-color: #FEF2F2; border-color: #FECACA; color: #991B1B; }
 
     </style>
     """,
         unsafe_allow_html=True,
     )
+
 # ----------------------------------------------------------------------
 # Resort display components (shared by editor + calculator)
 # ----------------------------------------------------------------------
