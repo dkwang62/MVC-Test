@@ -244,7 +244,8 @@ class MVCCalculator:
                 if is_disc:
                     disc_applied = True
                     for j in range(holiday_days):
-                        disc_days.append((holiday.start_date + timedelta(days=j)).strftime("%Y-%m-%d"))
+                        disc_date = holiday.start_date + timedelta(days=j)
+                        disc_days.append(disc_date.strftime("%Y-%m-%d"))
                 
                 cost = 0.0
                 m = c = dp = 0.0
@@ -364,101 +365,6 @@ class MVCCalculator:
         return adj_s, (adj_e - adj_s).days + 1, True
 
 # ==============================================================================
-# LAYER 4: UI HELPERS
-# ==============================================================================
-def render_metrics_grid(
-    result: CalculationResult,
-    mode: UserMode,
-    owner_params: Optional[dict],
-    policy: DiscountPolicy,
-) -> None:
-    """Render summary metrics in a responsive grid."""
-    owner_params = owner_params or {}
-    if mode == UserMode.OWNER:
-        num_components = sum(
-            [
-                owner_params.get("inc_m", False),
-                owner_params.get("inc_c", False),
-                owner_params.get("inc_d", False),
-            ]
-        )
-        cols = st.columns(2 + max(num_components, 0))
-        with cols[0]:
-            st.metric(
-                label="📊 Total Points",
-                value=f"{result.total_points:,}",
-                help="Total vacation points required for this stay",
-            )
-        with cols[1]:
-            st.metric(
-                label="💰 Total Cost",
-                value=f"${result.financial_total:,.0f}",
-                help="Total ownership cost including all selected components",
-            )
-        col_idx = 2
-        if owner_params.get("inc_m"):
-            with cols[col_idx]:
-                st.metric(
-                    label="🔧 Maintenance",
-                    value=f"${result.m_cost:,.0f}",
-                    help="Annual Maintenance attributable to this stay",
-                )
-            col_idx += 1
-        if owner_params.get("inc_c"):
-            with cols[col_idx]:
-                st.metric(
-                    label="💼 Capital Cost",
-                    value=f"${result.c_cost:,.0f}",
-                    help="Opportunity cost of capital tied up in ownership",
-                )
-            col_idx += 1
-        if owner_params.get("inc_d"):
-            with cols[col_idx]:
-                st.metric(
-                    label="📉 Depreciation",
-                    value=f"${result.d_cost:,.0f}",
-                    help="Share of asset depreciation for this usage",
-                )
-            col_idx += 1
-    else:
-        if result.discount_applied:
-            cols = st.columns(3)
-            pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Discounted points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (based on discounted points)",
-                )
-            with cols[2]:
-                st.metric(
-                    label="🎉 Discount Applied",
-                    value=pct,
-                    delta=f"{len(result.discounted_days)} days",
-                    help="Points discount for last-minute booking",
-                )
-        else:
-            cols = st.columns(2)
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Total vacation points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (no points discount)",
-                )
-
-# ==============================================================================
 # MAIN PAGE LOGIC
 # ==============================================================================
 
@@ -523,13 +429,12 @@ def main() -> None:
 
     ensure_data_in_session()
 
-    # --- 1. INITIALIZE SESSION STATE DEFAULTS ---
-    # This prevents the "created without default" errors
-    if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.50
-    if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0
-    if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 6.0
-    if "pref_salvage_value" not in st.session_state: st.session_state.pref_salvage_value = 3.0
-    if "pref_useful_life" not in st.session_state: st.session_state.pref_useful_life = 15
+    # --- 1. INITIALIZE SESSION STATE DEFAULTS (User Requested Defaults) ---
+    if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.55  # Default $0.55
+    if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0 # Default $18
+    if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 5.0 # Default 5%
+    if "pref_salvage_value" not in st.session_state: st.session_state.pref_salvage_value = 3.0 # Default $3
+    if "pref_useful_life" not in st.session_state: st.session_state.pref_useful_life = 10 # Default 10 years
     if "pref_discount_tier" not in st.session_state: st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
     
     if "pref_inc_m" not in st.session_state: st.session_state.pref_inc_m = True
@@ -556,11 +461,12 @@ def main() -> None:
 
     with st.sidebar:
         st.divider()
+        st.markdown("### 👤 User Profile")
         
-        # --- CONFIGURATION SECTION (TOP) ---
+        # --- 1. CONFIGURATION SECTION (TOP) ---
         with st.expander("⚙️ User Configuration", expanded=False):
             
-            # --- HELP TEXT ADDED HERE ---
+            # --- HELP TEXT ---
             with st.expander("ℹ️ About User Settings", expanded=False):
                 st.markdown("""
                 This feature lets you save your personal ownership profile so you don't have to re-enter your numbers every time.
@@ -575,16 +481,16 @@ def main() -> None:
                 * **Save:** Click the button to download a small file to your computer.
                 * **Load:** Upload that file anytime to instantly restore your settings and switch to Owner Mode.
                 """)
-            # -----------------------------
-
+            
             st.markdown("###### 📂 Load/Save Settings")
-            # Config uploader
             config_file = st.file_uploader("Load Settings (JSON)", type="json", key="user_cfg_upload")
             
             # AUTO LOAD LOGIC: Check if file changed
             if config_file:
-                 if st.button("🔄 Load Parameters from File", type="primary", use_container_width=True):
+                 file_sig = f"{config_file.name}_{config_file.size}"
+                 if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
                      load_user_settings(config_file)
+                     st.session_state.last_loaded_cfg = file_sig
                      st.rerun()
 
             # Prepare download data
@@ -604,9 +510,8 @@ def main() -> None:
             st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
 
         st.divider()
-        st.markdown("### 👤 User Profile")
         
-        # MODE SELECTOR
+        # MODE SELECTOR (Pure state-driven)
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
@@ -618,7 +523,7 @@ def main() -> None:
         owner_params = None
         policy = DiscountPolicy.NONE
         rate = 0.50
-        
+
         st.divider()
         
         if mode == UserMode.OWNER:
