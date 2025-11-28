@@ -1,5 +1,4 @@
 import math
-import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from enum import Enum
@@ -9,7 +8,7 @@ import pandas as pd
 import plotly.express as px
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.charts import create_gantt_chart_from_resort_data
+from common.charts import create_gantt_chart_from_working
 from common.data import ensure_data_in_session
 
 # ==============================================================================
@@ -90,6 +89,13 @@ class MVCRepository:
     def get_resort_list_full(self) -> List[Dict[str, Any]]:
         """Return raw resort dictionaries (used for grid rendering)."""
         return self._raw.get("resorts", [])
+
+    def get_resort_raw(self, resort_name: str) -> Optional[Dict[str, Any]]:
+        """Return the raw dictionary for a specific resort (for charting)."""
+        return next(
+            (r for r in self._raw.get("resorts", []) if r["display_name"] == resort_name),
+            None,
+        )
 
     def _parse_global_holidays(
         self,
@@ -446,4 +452,769 @@ class MVCCalculator:
                 holiday_chart_df=pd.DataFrame(),
             )
         processed_holidays: Dict[str, set[str]] = {room: set() for room in rooms}
-        today
+        today = datetime.now().date()
+        for room in rooms:
+            i = 0
+            while i < nights:
+                d = checkin + timedelta(days=i)
+                pts_map, h = self._get_daily_points(resort, d)
+                # Holiday, price once per holiday per room
+                if h and h.name not in processed_holidays[room]:
+                    processed_holidays[room].add(h.name)
+                    raw = pts_map.get(room, 0)
+                    eff = raw
+                    days_out = (h.start_date - today).days
+                    if is_owner:
+                        disc_pct = (1 - disc_mul) * 100
+                        thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
+                        if disc_pct > 0 and days_out <= thresh:
+                            eff = math.floor(raw * disc_mul)
+                        else:
+                            eff = raw
+                    else:
+                        if (
+                            policy == DiscountPolicy.PRESIDENTIAL and days_out <= 60
+                        ) or (policy == DiscountPolicy.EXECUTIVE and days_out <= 30):
+                            eff = math.floor(raw * renter_mul)
+                    if is_owner:
+                        m = c = dp = 0.0
+                        if owner_config and owner_config.get("inc_m", False):
+                            m = math.ceil(eff * rate)
+                        if owner_config and owner_config.get("inc_c", False):
+                            c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                        if owner_config and owner_config.get("inc_d", False):
+                            dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                        cost = m + c + dp
+                    else:
+                        cost = math.ceil(eff * rate)
+                    holiday_data[room][h.name] += cost
+                    holiday_days = (h.end_date - h.start_date).days + 1
+                    i += holiday_days
+                # Regular days
+                elif not h:
+                    raw = pts_map.get(room, 0)
+                    eff = raw
+                    days_out = (d - today).days
+                    if is_owner:
+                        disc_pct = (1 - disc_mul) * 100
+                        thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
+                        if disc_pct > 0 and days_out <= thresh:
+                            eff = math.floor(raw * disc_mul)
+                        else:
+                            eff = raw
+                    else:
+                        if (
+                            policy == DiscountPolicy.PRESIDENTIAL
+                            and days_out <= 60
+                        ) or (
+                            policy == DiscountPolicy.EXECUTIVE
+                            and days_out <= 30
+                        ):
+                            eff = math.floor(raw * renter_mul)
+                    if is_owner:
+                        m = c = dp = 0.0
+                        if owner_config and owner_config.get("inc_m", False):
+                            m = math.ceil(eff * rate)
+                        if owner_config and owner_config.get("inc_c", False):
+                            c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                        if owner_config and owner_config.get("inc_d", False):
+                            dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                        cost = m + c + dp
+                    else:
+                        cost = math.ceil(eff * rate)
+                    daily_data.append(
+                        {
+                            "Day": d.strftime("%a"),
+                            "Date": d,
+                            "Room Type": room,
+                            val_key: cost,
+                            "Holiday": "No",
+                        }
+                    )
+                    i += 1
+                else:
+                    i += 1
+        # Build pivot table using the main breakdown of the primary room as template
+        template_res = self.calculate_breakdown(
+            resort_name,
+            rooms[0],
+            checkin,
+            nights,
+            user_mode,
+            rate,
+            policy,
+            owner_config,
+        )
+        pivot_rows: List[Dict[str, Any]] = []
+        for _, tmpl_row in template_res.breakdown_df.iterrows():
+            new_row: Dict[str, Any] = {"Date": tmpl_row["Date"]}
+            for room in rooms:
+                # Holiday row
+                if "(" in str(tmpl_row["Date"]):
+                    h_name = str(tmpl_row["Date"]).split(" (")[0]
+                    val = holiday_data[room].get(h_name, 0.0)
+                else:
+                    # Day row
+                    try:
+                        d_obj = datetime.strptime(
+                            str(tmpl_row["Date"]), "%Y-%m-%d"
+                        ).date()
+                    except Exception:
+                        d_obj = None
+                    if d_obj is not None:
+                        val = next(
+                            (
+                                x[val_key]
+                                for x in daily_data
+                                if x["Date"] == d_obj and x["Room Type"] == room
+                            ),
+                            0.0,
+                        )
+                    else:
+                        val = 0.0
+                new_row[room] = f"${val:,.0f}"
+            pivot_rows.append(new_row)
+        # Total row
+        total_label = "Total Cost" if is_owner else "Total Rent"
+        tot_row: Dict[str, Any] = {"Date": total_label}
+        for r in rooms:
+            tot_sum = sum(
+                x[val_key] for x in daily_data if x["Room Type"] == r
+            ) + sum(holiday_data[r].values())
+            tot_row[r] = f"${tot_sum:,.0f}"
+        pivot_rows.append(tot_row)
+        # Holiday chart rows
+        h_chart_rows: List[Dict[str, Any]] = []
+        for r, h_map in holiday_data.items():
+            for h_name, val in h_map.items():
+                h_chart_rows.append(
+                    {"Holiday": h_name, "Room Type": r, val_key: val}
+                )
+        daily_df = pd.DataFrame(daily_data)
+        holiday_df = pd.DataFrame(h_chart_rows)
+        return ComparisonResult(
+            pivot_df=pd.DataFrame(pivot_rows),
+            daily_chart_df=daily_df,
+            holiday_chart_df=holiday_df,
+        )
+
+    def adjust_holiday(
+        self, resort_name: str, checkin: date, nights: int
+    ) -> Tuple[date, int, bool]:
+        """If stay overlaps holidays, expand to full holiday span."""
+        resort = self.repo.get_resort(resort_name)
+        if not resort or str(checkin.year) not in resort.years:
+            return checkin, nights, False
+        end = checkin + timedelta(days=nights - 1)
+        yd = resort.years[str(checkin.year)]
+        overlapping: List[Holiday] = []
+        for h in yd.holidays:
+            if h.start_date <= end and h.end_date >= checkin:
+                overlapping.append(h)
+        if not overlapping:
+            return checkin, nights, False
+        earliest_start = min(h.start_date for h in overlapping)
+        latest_end = max(h.end_date for h in overlapping)
+        adjusted_start = min(checkin, earliest_start)
+        adjusted_end = max(end, latest_end)
+        adjusted_nights = (adjusted_end - adjusted_start).days + 1
+        return adjusted_start, adjusted_nights, True
+
+# ==============================================================================
+# LAYER 4: UI HELPERS
+# ==============================================================================
+def render_metrics_grid(
+    result: CalculationResult,
+    mode: UserMode,
+    owner_params: Optional[dict],
+    policy: DiscountPolicy,
+) -> None:
+    """Render summary metrics in a responsive grid."""
+    owner_params = owner_params or {}
+    if mode == UserMode.OWNER:
+        num_components = sum(
+            [
+                owner_params.get("inc_m", False),
+                owner_params.get("inc_c", False),
+                owner_params.get("inc_d", False),
+            ]
+        )
+        cols = st.columns(2 + max(num_components, 0))
+        with cols[0]:
+            st.metric(
+                label="📊 Total Points",
+                value=f"{result.total_points:,}",
+                help="Total vacation points required for this stay",
+            )
+        with cols[1]:
+            st.metric(
+                label="💰 Total Cost",
+                value=f"${result.financial_total:,.0f}",
+                help="Total ownership cost including all selected components",
+            )
+        col_idx = 2
+        if owner_params.get("inc_m"):
+            with cols[col_idx]:
+                st.metric(
+                    label="🔧 Maintenance",
+                    value=f"${result.m_cost:,.0f}",
+                    help="Annual Maintenance attributable to this stay",
+                )
+            col_idx += 1
+        if owner_params.get("inc_c"):
+            with cols[col_idx]:
+                st.metric(
+                    label="💼 Capital Cost",
+                    value=f"${result.c_cost:,.0f}",
+                    help="Opportunity cost of capital tied up in ownership",
+                )
+            col_idx += 1
+        if owner_params.get("inc_d"):
+            with cols[col_idx]:
+                st.metric(
+                    label="📉 Depreciation",
+                    value=f"${result.d_cost:,.0f}",
+                    help="Share of asset depreciation for this usage",
+                )
+            col_idx += 1
+    else:
+        if result.discount_applied:
+            cols = st.columns(3)
+            pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
+            with cols[0]:
+                st.metric(
+                    label="📊 Total Points",
+                    value=f"{result.total_points:,}",
+                    help="Discounted points required",
+                )
+            with cols[1]:
+                st.metric(
+                    label="💰 Total Rent",
+                    value=f"${result.financial_total:,.0f}",
+                    help="Total rental cost (based on discounted points)",
+                )
+            with cols[2]:
+                st.metric(
+                    label="🎉 Discount Applied",
+                    value=pct,
+                    delta=f"{len(result.discounted_days)} days",
+                    help="Points discount for last-minute booking",
+                )
+        else:
+            cols = st.columns(2)
+            with cols[0]:
+                st.metric(
+                    label="📊 Total Points",
+                    value=f"{result.total_points:,}",
+                    help="Total vacation points required",
+                )
+            with cols[1]:
+                st.metric(
+                    label="💰 Total Rent",
+                    value=f"${result.financial_total:,.0f}",
+                    help="Total rental cost (no points discount)",
+                )
+
+# ==============================================================================
+# MAIN PAGE LOGIC
+# ==============================================================================
+def main() -> None:
+    # Initialise session state (calculator-specific keys)
+    if "current_resort" not in st.session_state:
+        st.session_state.current_resort = None
+    if "current_resort_id" not in st.session_state:
+        st.session_state.current_resort_id = None
+    if "show_help" not in st.session_state:
+        st.session_state.show_help = False
+
+    # 1) Shared data auto-load (no uploader here)
+    ensure_data_in_session()
+
+    # ===== Calculator check-in date state =====
+    today = datetime.now().date()
+    initial_default = today + timedelta(days=1)
+
+    # First-ever initialisation for this session
+    if "calc_initial_default" not in st.session_state:
+        st.session_state.calc_initial_default = initial_default
+        st.session_state.calc_checkin = initial_default
+        st.session_state.calc_checkin_user_set = False
+
+    # 2) If no data, bail out early
+    if not st.session_state.data:
+        st.warning("⚠️ Please open the Editor and upload/merge data_v2.json first.")
+        st.info(
+            "The calculator reads the same in-memory data as the Editor. "
+            "Once the Editor has loaded your JSON file, you can use the calculator here."
+        )
+        return
+
+    # 3) Sidebar: user settings only
+    with st.sidebar:
+        st.divider()
+        st.markdown("### 👤 User Profile")
+        mode_sel = st.radio(
+            "Mode:",
+            [m.value for m in UserMode],
+            index=0,
+            help="Select whether you're renting points or own them",
+            horizontal=True,
+        )
+        mode = UserMode(mode_sel)
+        owner_params: Optional[dict] = None
+        policy: DiscountPolicy = DiscountPolicy.NONE
+        rate = 0.50
+        opt = "No Discount"
+
+        st.divider()
+        
+        if mode == UserMode.OWNER:
+            # Owner mode
+            st.markdown("##### 💰 Basic Costs")
+            rate = st.number_input(
+                "Annual Maintenance Fee ($/point)",
+                value=0.50,
+                step=0.01,
+                min_value=0.0,
+                help="Your annual maintenance fee per point",
+            )
+            
+            opt = st.radio(
+                "Discount Tier:",
+                [
+                    "No Discount",
+                    "Executive (25% off within 30 days)",
+                    "Presidential (30% off within 60 days)",
+                ],
+                help="Last-minute booking discounts based on your membership tier",
+            )
+            
+            with st.expander("🔧 Advanced Options", expanded=False):
+                st.markdown("**What to Include in Calculation**")
+                inc_m = st.checkbox(
+                    "✓ Maintenance Fees",
+                    True,
+                    help="Include annual maintenance costs",
+                )
+                inc_c = st.checkbox(
+                    "✓ Capital Cost",
+                    True,
+                    help="Include opportunity cost of capital invested",
+                )
+                inc_d = st.checkbox(
+                    "✓ Depreciation",
+                    True,
+                    help="Include asset depreciation over time",
+                )
+                
+                st.divider()
+                
+                # Only show relevant fields based on checkboxes
+                if inc_c or inc_d:
+                    st.markdown("**Purchase Details**")
+                    cap = st.number_input(
+                        "Purchase Price ($/point)",
+                        value=18.0,
+                        step=1.0,
+                        min_value=0.0,
+                        help="What you paid per point when purchasing",
+                        disabled=not (inc_c or inc_d),
+                    )
+                else:
+                    cap = 18.0  # Default value when not needed
+                
+                if inc_c:
+                    coc = (
+                        st.number_input(
+                            "Cost of Capital (%/year)",
+                            value=6.0,
+                            step=0.5,
+                            min_value=0.0,
+                            help="Your expected return on alternative investments",
+                        )
+                        / 100.0
+                    )
+                else:
+                    coc = 0.06  # Default value
+                
+                if inc_d:
+                    st.markdown("**Depreciation Details**")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        life = st.number_input(
+                            "Useful Life (years)",
+                            value=15,
+                            min_value=1,
+                            help="Expected ownership duration",
+                        )
+                    with col2:
+                        salvage = st.number_input(
+                            "Salvage Value ($/pt)",
+                            value=3.0,
+                            step=0.5,
+                            min_value=0.0,
+                            help="Expected resale value per point",
+                        )
+                else:
+                    life = 15  # Default value
+                    salvage = 3.0  # Default value
+            
+            owner_params = {
+                "disc_mul": 1.0,
+                "inc_m": inc_m,
+                "inc_c": inc_c,
+                "inc_d": inc_d,
+                "cap_rate": cap * coc,
+                "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
+            }
+        else:
+            # Renter mode
+            st.markdown("##### 💵 Rental Rate")
+            rate = st.number_input(
+                "Cost per Point ($)",
+                value=0.50,
+                step=0.01,
+                min_value=0.0,
+                help="The rental rate you're paying per point",
+            )
+            
+            st.markdown("##### 🎯 Available Discounts")
+            opt = st.radio(
+                "Discount tier available:",
+                [
+                    "No Discount",
+                    "Executive (25% off within 30 days)",
+                    "Presidential (30% off within 60 days)",
+                ],
+                help="Last-minute discounts reduce required points",
+            )
+            
+            if "Presidential" in opt:
+                policy = DiscountPolicy.PRESIDENTIAL
+            elif "Executive" in opt:
+                policy = DiscountPolicy.EXECUTIVE
+
+        # Set disc_mul for owners
+        disc_mul = 1.0
+        if "Executive" in opt:
+            disc_mul = 0.75
+        elif "Presidential" in opt:
+            disc_mul = 0.7
+
+        if owner_params:
+            owner_params["disc_mul"] = disc_mul
+        
+        st.divider()
+        st.markdown(
+            "<small>💡 **Tip:** Adjust settings above, then select your resort, dates, and room type in the main area.</small>",
+            unsafe_allow_html=True,
+        )
+
+    # ===== Core calculator objects =====
+    repo = MVCRepository(st.session_state.data)
+    calc = MVCCalculator(repo)
+
+    # ===== Main content header =====
+    render_page_header(
+        "Calculator",
+        f"👤 {mode.value} Mode: {'Ownership' if mode == UserMode.OWNER else 'Rental'} Cost Analysis",
+        icon="🏨",
+        badge_color="#059669" if mode == UserMode.OWNER else "#2563eb",
+    )
+
+    # ===== Resort selection via grid (RESTORED) =====
+    resorts_full = repo.get_resort_list_full()  # list of resort dicts
+    if resorts_full and st.session_state.current_resort_id is None:
+        st.session_state.current_resort_id = resorts_full[0].get("id")
+    current_resort_id = st.session_state.current_resort_id
+
+    # Shared grid (column-first) from common.ui
+    render_resort_grid(resorts_full, current_resort_id)
+
+    # Resolve selected resort object
+    resort_obj = next(
+        (r for r in resorts_full if r.get("id") == current_resort_id),
+        None,
+    )
+    if not resort_obj:
+        return
+    r_name = resort_obj.get("display_name")
+    if not r_name:
+        return
+
+    # Resort info card
+    resort_info = repo.get_resort_info(r_name)
+    render_resort_card(
+        resort_info["full_name"],
+        resort_info["timezone"],
+        resort_info["address"],
+    )
+    st.divider()
+
+    # ===== Calculator check-in date state (simple, robust) =====
+    today = datetime.now().date()
+    initial_default = today + timedelta(days=1)
+
+    # First-ever initialisation for this session
+    if "calc_initial_default" not in st.session_state:
+        st.session_state.calc_initial_default = initial_default
+        st.session_state.calc_checkin = initial_default
+        st.session_state.calc_checkin_user_set = False
+
+    # ===== Booking details =====
+    st.markdown("### 📅 Booking Details")
+    input_cols = st.columns([2, 1, 2, 2])
+
+    # --- Check-in widget ---
+    with input_cols[0]:
+        # IMPORTANT:
+        # - value comes from our own state (calc_checkin)
+        # - widget uses its own key ("calc_checkin_widget")
+        checkin = st.date_input(
+            "Check-in Date",
+            value=st.session_state.calc_checkin,
+            key="calc_checkin_widget",
+            format="YYYY/MM/DD",
+            help="Your arrival date.",
+        )
+
+    # Sync our own state from the widget (safe because keys are different)
+    st.session_state.calc_checkin = checkin
+
+    # Detect first time the user moves away from the default
+    if (
+        not st.session_state.calc_checkin_user_set
+        and checkin != st.session_state.calc_initial_default
+    ):
+        st.session_state.calc_checkin_user_set = True
+
+    user_changed_date = st.session_state.calc_checkin_user_set
+
+    with input_cols[1]:
+        nights = st.number_input(
+            "Nights",
+            min_value=1,
+            max_value=60,
+            value=7,
+            help="Number of nights to stay.",
+        )
+
+
+    # Holiday adjustment (extend stay to full holiday span)
+    # Only activate AFTER the user has changed the default date at least once.
+    if user_changed_date:
+        adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
+    else:
+        adj_in, adj_n, adj = checkin, nights, False
+
+    if adj:
+        end_date = adj_in + timedelta(days=adj_n - 1)
+        st.info(
+            f"ℹ️ **Adjusted to full holiday period:** "
+            f"{adj_in.strftime('%b %d, %Y')} — {end_date.strftime('%b %d, %Y')} "
+            f"({adj_n} nights)"
+        )
+
+
+
+    # Derive available room types from daily points for adjusted start
+    pts, _ = calc._get_daily_points(calc.repo.get_resort(r_name), adj_in)
+    if not pts:
+        rd = calc.repo.get_resort(r_name)
+        if rd and str(adj_in.year) in rd.years:
+            yd = rd.years[str(adj_in.year)]
+            if yd.seasons:
+                pts = yd.seasons[0].day_categories[0].room_points
+    room_types = sorted(pts.keys()) if pts else []
+    if not room_types:
+        st.error("❌ No room data available for selected dates.")
+        return
+
+    with input_cols[2]:
+        room_sel = st.selectbox(
+            "Room Type",
+            room_types,
+            help="Select your primary room type.",
+        )
+    with input_cols[3]:
+        comp_rooms = st.multiselect(
+            "Compare With",
+            [r for r in room_types if r != room_sel],
+            help="Select additional room types to compare.",
+        )
+    st.divider()
+
+    # ===== Calculation =====
+    res = calc.calculate_breakdown(
+        r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params
+    )
+    st.markdown(f"### 📊 Results: {room_sel}")
+    render_metrics_grid(res, mode, owner_params, policy)
+
+    if res.discount_applied and mode == UserMode.RENTER:
+        pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
+        st.success(
+            f"🎉 **Discount Applied!** {pct} off points for {len(res.discounted_days)} day(s)."
+        )
+    st.divider()
+
+    # Detailed breakdown
+    st.markdown("### 📋 Detailed Breakdown")
+    st.dataframe(
+        res.breakdown_df,
+        use_container_width=True,
+        hide_index=True,
+        height=min(400, (len(res.breakdown_df) + 1) * 35 + 50),
+    )
+
+    # Actions
+    col1, col2, _ = st.columns([1, 1, 2])
+    with col1:
+        csv_data = res.breakdown_df.to_csv(index=False)
+        st.download_button(
+            "⬇️ Download CSV",
+            csv_data,
+            f"{r_name}_{room_sel}_{'rental' if mode == UserMode.RENTER else 'cost'}.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+    with col2:
+        if st.button("ℹ️ How it is calculated", use_container_width=True):
+            st.session_state.show_help = not st.session_state.show_help
+
+    # Comparison section
+    if comp_rooms:
+        st.divider()
+        st.markdown("### 🔍 Room Type Comparison")
+        all_rooms = [room_sel] + comp_rooms
+        comp_res = calc.compare_stays(
+            r_name, all_rooms, adj_in, adj_n, mode, rate, policy, owner_params
+        )
+        st.dataframe(
+            comp_res.pivot_df,
+            use_container_width=True,
+            hide_index=True,
+        )
+        # Visual analysis
+        st.markdown("#### 📈 Visual Analysis")
+        chart_cols = st.columns(2)
+        with chart_cols[0]:
+            if not comp_res.daily_chart_df.empty:
+                y_col = "TotalCostValue" if mode == UserMode.OWNER else "RentValue"
+                clean_df = comp_res.daily_chart_df[
+                    comp_res.daily_chart_df["Holiday"] == "No"
+                ]
+                if not clean_df.empty:
+                    fig = px.bar(
+                        clean_df,
+                        x="Day",
+                        y=y_col,
+                        color="Room Type",
+                        barmode="group",
+                        text=y_col,
+                        category_orders={
+                            "Day": ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+                        },
+                        title="Daily Costs by Day of Week",
+                        color_discrete_sequence=px.colors.qualitative.Set2,
+                    )
+                    fig.update_traces(
+                        texttemplate="$%{text:.0f}",
+                        textposition="outside",
+                    )
+                    fig.update_layout(
+                        height=450,
+                        xaxis_title="Day of Week",
+                        yaxis_title="Cost ($)",
+                        legend_title="Room Type",
+                        hovermode="x unified",
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+        with chart_cols[1]:
+            if not comp_res.holiday_chart_df.empty:
+                y_col = "TotalCostValue" if mode == UserMode.OWNER else "RentValue"
+                h_fig = px.bar(
+                    comp_res.holiday_chart_df,
+                    x="Holiday",
+                    y=y_col,
+                    color="Room Type",
+                    barmode="group",
+                    text=y_col,
+                    title="Holiday Period Costs",
+                    color_discrete_sequence=px.colors.qualitative.Set2,
+                )
+                h_fig.update_traces(
+                    texttemplate="$%{text:.0f}",
+                    textposition="outside",
+                )
+                h_fig.update_layout(
+                    height=450,
+                    xaxis_title="Holiday Period",
+                    yaxis_title="Cost ($)",
+                    legend_title="Room Type",
+                    hovermode="x unified",
+                )
+                st.plotly_chart(h_fig, use_container_width=True)
+
+    # Season / Holiday timeline
+    year_str = str(adj_in.year)
+    
+    # Use the raw dict directly for the chart, avoiding the duplicated chart function
+    raw_resort_dict = repo.get_resort_raw(r_name)
+    
+    if raw_resort_dict and year_str in raw_resort_dict.get("years", {}):
+        st.divider()
+        with st.expander("📅 Season and Holiday Calendar", expanded=False):
+            # Pass raw dicts to the shared chart function
+            gantt_fig = create_gantt_chart_from_working(
+                working=raw_resort_dict,
+                year=year_str,
+                data=st.session_state.data, # contains global_holidays
+                height=500,
+            )
+            st.plotly_chart(gantt_fig, use_container_width=True)
+
+    # Help section
+    if st.session_state.show_help:
+        st.divider()
+        with st.expander("ℹ️ How the Calculation Works", expanded=True):
+            if mode == UserMode.OWNER:
+                st.markdown(
+                    f"""
+                    ### 💰 Owner Cost Calculation
+                    **Maintenance** Maintenance per point × points used; Currently **${rate:.2f}** per point  
+
+                    **Capital Cost** Purchase price × cost of capital rate × points used  
+
+                    **Depreciation Cost** (Purchase price − salvage value) ÷ useful life × points used
+                    """
+                )
+            else:
+                if policy == DiscountPolicy.PRESIDENTIAL:
+                    discount_text = (
+                        "**Presidential last-minute 30% points discount:** when booked "
+                        "within 60 days of check-in."
+                    )
+                elif policy == DiscountPolicy.EXECUTIVE:
+                    discount_text = (
+                        "**Executive last-minute 25% points discount:** when booked "
+                        "within 30 days of check-in."
+                    )
+                else:
+                    discount_text = "**Standard points applied (no discount).**"
+                st.markdown(
+                    f"""
+                    ### 🏨 Rent Calculation
+                    **Current Rate:** **${rate:.2f}** per point.  
+
+                    {discount_text}
+
+                    - The **Points** column may show reduced points if last-minute discounts apply.  
+                    - 💰 Rent is always computed from the **discounted** points.  
+                    - Holiday periods are treated as full blocks for pricing.
+                    """
+                )
+
+
+def run() -> None:
+    main()
