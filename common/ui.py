@@ -67,11 +67,31 @@ def setup_page() -> None:
             background-color: var(--card-bg);
             border-right: 1px solid var(--border-color);
         }
+                /* Reduce spacing below expanders */
+        [data-testid="stExpander"] {
+            margin-bottom: 0.5rem !important;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+        }
+
+        /* Reduce the default gap in the sidebar container stack */
+        section[data-testid="stSidebar"] .block-container {
+            gap: 0.5rem; 
+            padding-top: 2rem;
+        }
+        
+        /* Remove extra margin from markdown elements inside sidebar */
+        section[data-testid="stSidebar"] p, 
+        section[data-testid="stSidebar"] h1, 
+        section[data-testid="stSidebar"] h2, 
+        section[data-testid="stSidebar"] h3 {
+            margin-bottom: 0.2rem;
+        }
+
     </style>
     """,
         unsafe_allow_html=True,
     )
-
 # ----------------------------------------------------------------------
 # Resort display components (shared by editor + calculator)
 # ----------------------------------------------------------------------
