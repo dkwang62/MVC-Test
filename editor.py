@@ -1,6 +1,6 @@
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.data import load_data 
+from common.data import load_data
 from functools import lru_cache
 import json
 import pandas as pd
@@ -39,7 +39,6 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
-        "download_verified": False,  # <--- NEW STATE VARIABLE
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -47,22 +46,8 @@ def initialize_session_state():
 
 
 def save_data():
-    # Local helper: mark "recently saved" for UI indicator.
+    # Only update local state timestamp (no disk write)
     st.session_state.last_save_time = datetime.now()
-
-
-def show_save_indicator():
-    if st.session_state.last_save_time:
-        elapsed = (datetime.now() - st.session_state.last_save_time).total_seconds()
-        if elapsed < 3:
-            st.sidebar.markdown(
-                """
-                <div style='background: #4caf50; color: white; padding: 12px; border-radius: 8px; text-align: center; font-weight: 600;'>
-                    ✓ Changes Saved
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
 
 
 def reset_state_for_new_file():
@@ -81,12 +66,10 @@ def reset_state_for_new_file():
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
-    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
-    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 
@@ -95,12 +78,10 @@ def get_resort_full_name(resort_id: str, display_name: str) -> str:
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
 def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
-    """Cached version of get_years_from_data"""
     return tuple(sorted(get_years_from_data(st.session_state.data)))
 
 
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
-    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -157,65 +138,63 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 # ----------------------------------------------------------------------
 # FILE OPERATIONS WITH ENHANCED UI
 # ----------------------------------------------------------------------
+def handle_file_upload():
+    st.sidebar.markdown("### 📤 File to Memory")
+    with st.sidebar.expander("📤 Load", expanded=False):
+        uploaded = st.file_uploader(
+            "Choose JSON file",
+            type="json",
+            key="file_uploader",
+            help="Upload your MVC data file",
+        )
+        if uploaded:
+            size = getattr(uploaded, "size", 0)
+            current_sig = f"{uploaded.name}:{size}"
+            if current_sig != st.session_state.last_upload_sig:
+                try:
+                    raw_data = json.load(uploaded)
+                    if "schema_version" not in raw_data or not raw_data.get("resorts"):
+                        st.error("❌ Invalid file format")
+                        return
+                    reset_state_for_new_file()
+                    st.session_state.data = raw_data
+                    st.session_state.last_upload_sig = current_sig
+                    resorts_list = get_resort_list(raw_data)
+                    st.success(f"✅ Loaded {len(resorts_list)} resorts")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
-    # Ensure state exists (for safety if hot-reloading)
-    if "download_verified" not in st.session_state:
-        st.session_state.download_verified = False
-
-    with st.sidebar.expander("💾 Save & Download", expanded=True):
+    with st.sidebar.expander("💾 File Operations", expanded=True):
         
-        # --- 1. DETECT UNSAVED CHANGES ---
-        current_id = st.session_state.get("current_resort_id")
-        working_resorts = st.session_state.get("working_resorts", {})
-        has_unsaved_changes = False
-        
-        if current_id and current_id in working_resorts:
-            working_copy = working_resorts[current_id]
-            committed_copy = find_resort_by_id(data, current_id)
-            if committed_copy != working_copy:
-                has_unsaved_changes = True
+        filename = st.text_input(
+            "File name",
+            value="data_v2.json",
+            key="download_filename_input",
+        ).strip()
 
-        # --- 2. RENDER INTERFACE BASED ON STATE ---
-        
-        if has_unsaved_changes:
-            # STATE: DIRTY (Unsaved Changes)
-            st.warning("⚠️ Unsaved changes pending.")
-            
-            if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
-                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("✅ Committed to memory.", icon="🧠")
-                st.rerun()
-            
-            st.caption("You must commit changes to memory before downloading.")
+        if not filename:
+            filename = "data_v2.json"
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
 
-        else:
-            # STATE: CLEAN (Saved)
-            st.success("✅ Memory is up to date.")
-            
-            filename = st.text_input(
-                "File name",
-                value="data_v2.json",
-                key="download_filename_input",
-            ).strip()
+        # Directly serialize the data currently in session state
+        json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
-            if not filename:
-                filename = "data_v2.json"
-            if not filename.lower().endswith(".json"):
-                filename += ".json"
+        st.download_button(
+            label="💾 Save to Disk",
+            data=json_data,
+            file_name=filename,
+            mime="application/json",
+            key="download_v2_btn",
+            use_container_width=True,
+        )
 
-            json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
-            st.download_button(
-                label="⬇️ DOWNLOAD JSON FILE",
-                data=json_data,
-                file_name=filename,
-                mime="application/json",
-                key="download_v2_btn",
-                type="primary",
-                use_container_width=True,
-            )
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
@@ -380,8 +359,7 @@ def handle_resort_creation_v2(
                         cloned["id"] = rid
                         cloned["display_name"] = new_name
                         cloned["code"] = code
-                        # NOTE: We intentionally keep 'timezone' and 'address' from src
-                        # cloned["resort_name"] we update to match the new ID/Display
+                        # We intentionally keep 'timezone' and 'address' from src
                         cloned["resort_name"] = get_resort_full_name(rid, new_name)
 
                         resorts.append(cloned)
@@ -1805,13 +1783,20 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-
+#        st.markdown(
+#            """
+#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
+#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
+#            </div>
+#        """,
+#            unsafe_allow_html=True,
+#        )
         with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
             st.markdown(
                 """
             - The most updated data is pre-loaded into memory and can be edited.
             - Loading another file will replace the data in memory.
-            - Edits in memory are temporary; SAVE changes to file REGULARLY.
+            - Edits in memory are temporary — SAVE or they may be lost on refresh.
             - Verify by matching saved file to what’s in memory.
             - Load a different file to merge selected resorts to memory.
             """
@@ -1820,19 +1805,14 @@ def main():
         handle_file_upload()
 
         if st.session_state.data:
-
-            st.markdown("<div style='margin: 20px 0;'></div>", unsafe_allow_html=True)
-        
-            # 1. The Save/Download logic
+            st.markdown(
+                "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
+            )
             create_download_button_v2(st.session_state.data)
-        
-            # 2. The Verification logic
             handle_file_verification()
-        
-            # 3. The Merge logic
             handle_merge_from_another_file_v2(st.session_state.data)
-    
-    #   show_save_indicator()
+
+        # Removed flashing indicator
     
     # Main content
     render_page_header(
