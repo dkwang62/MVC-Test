@@ -671,6 +671,31 @@ def main() -> None:
     if "pref_inc_d" not in st.session_state:
         st.session_state.pref_inc_d = True
 
+        # ------------------------------------------------------------------
+    # Legacy fix: if we see the "all zeros" pattern from older sessions,
+    # force-reset to your preferred defaults. This runs even on refresh.
+    # ------------------------------------------------------------------
+    if (
+        st.session_state.get("pref_maint_rate", 0.0) == 0.0
+        and st.session_state.get("pref_purchase_price", 0.0) == 0.0
+        and st.session_state.get("pref_capital_cost", 0.0) == 0.0
+        and st.session_state.get("pref_useful_life", 1) == 1
+        and st.session_state.get("pref_salvage_value", 0.0) == 0.0
+        and not st.session_state.get("pref_inc_m", False)
+        and not st.session_state.get("pref_inc_c", False)
+        and not st.session_state.get("pref_inc_d", False)
+    ):
+        st.session_state.pref_maint_rate = 0.50
+        st.session_state.pref_purchase_price = 18.0
+        st.session_state.pref_capital_cost = 5.0
+        st.session_state.pref_useful_life = 10
+        st.session_state.pref_salvage_value = 3.0
+
+        st.session_state.pref_inc_m = True
+        st.session_state.pref_inc_c = True
+        st.session_state.pref_inc_d = True
+
+
     if "calculator_mode" not in st.session_state:
         st.session_state.calculator_mode = UserMode.RENTER.value
 
@@ -776,23 +801,7 @@ def main() -> None:
         # ------------------------------------------------------------------
         # OWNER MODE
         # ------------------------------------------------------------------
-        if mode == UserMode.OWNER:
-            # One-time override to ensure starting values match your screenshot,
-            # even if old sessions had zeros cached.
-            if not st.session_state.get("owner_defaults_initialized", False):
-                st.session_state.pref_maint_rate = 0.50
-                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
 
-                st.session_state.pref_inc_m = True
-                st.session_state.pref_inc_c = True
-                st.session_state.pref_inc_d = True
-
-                st.session_state.pref_purchase_price = 18.0
-                st.session_state.pref_capital_cost = 5.0
-                st.session_state.pref_useful_life = 10
-                st.session_state.pref_salvage_value = 3.0
-
-                st.session_state.owner_defaults_initialized = True
 
             st.markdown("##### 💰 Basic Costs")
 
