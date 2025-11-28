@@ -763,36 +763,35 @@ def load_user_settings(uploaded_file):
 
 
 def main() -> None:
-    # Basic session init
-    if "current_resort" not in st.session_state:
-        st.session_state.current_resort = None
-    if "current_resort_id" not in st.session_state:
-        st.session_state.current_resort_id = None
-    if "show_help" not in st.session_state:
-        st.session_state.show_help = False
-
-    ensure_data_in_session()
-
-    # Defaults for persisted owner config
+    # -------------------------------------------------
+    # Session defaults (run only once per session)
+    # -------------------------------------------------
     if "pref_maint_rate" not in st.session_state:
-        st.session_state.pref_maint_rate = 0.55
+        st.session_state.pref_maint_rate = 0.50      # $0.50 / point
+
     if "pref_purchase_price" not in st.session_state:
-        st.session_state.pref_purchase_price = 18.0
+        st.session_state.pref_purchase_price = 18.00  # $18 / point
+
     if "pref_capital_cost" not in st.session_state:
-        st.session_state.pref_capital_cost = 5.0
+        st.session_state.pref_capital_cost = 5.00     # 5 %
+
     if "pref_salvage_value" not in st.session_state:
-        st.session_state.pref_salvage_value = 3.0
+        st.session_state.pref_salvage_value = 3.00    # $3 / point
+
     if "pref_useful_life" not in st.session_state:
-        st.session_state.pref_useful_life = 10
+        st.session_state.pref_useful_life = 10        # 10 years
+
     if "pref_discount_tier" not in st.session_state:
         st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
 
     if "pref_inc_m" not in st.session_state:
-        st.session_state.pref_inc_m = True
+        st.session_state.pref_inc_m = True            # Maintenance ON by default
+
     if "pref_inc_c" not in st.session_state:
-        st.session_state.pref_inc_c = True
+        st.session_state.pref_inc_c = True            # Capital cost ON by default
+
     if "pref_inc_d" not in st.session_state:
-        st.session_state.pref_inc_d = True
+        st.session_state.pref_inc_d = True            # Depreciation ON by default
 
     if "calculator_mode" not in st.session_state:
         st.session_state.calculator_mode = UserMode.RENTER.value
