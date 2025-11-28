@@ -4,10 +4,11 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from enum import Enum
 from typing import List, Dict, Optional, Tuple, Any
-from collections import defaultdict
+
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
 from common.ui import render_resort_card, render_resort_grid, render_page_header
 from common.charts import create_gantt_chart_from_resort_data
 from common.data import ensure_data_in_session
@@ -15,6 +16,8 @@ from common.data import ensure_data_in_session
 # ==============================================================================
 # LAYER 1: DOMAIN MODELS
 # ==============================================================================
+
+
 class UserMode(Enum):
     RENTER = "Renter"
     OWNER = "Owner"
@@ -88,6 +91,8 @@ class ComparisonResult:
 # ==============================================================================
 # LAYER 2: REPOSITORY
 # ==============================================================================
+
+
 class MVCRepository:
     def __init__(self, raw_data: dict):
         self._raw = raw_data
@@ -114,12 +119,14 @@ class MVCRepository:
     def get_resort(self, resort_name: str) -> Optional[ResortData]:
         if resort_name in self._resort_cache:
             return self._resort_cache[resort_name]
+
         raw_r = next(
             (r for r in self._raw.get("resorts", []) if r["display_name"] == resort_name),
             None,
         )
         if not raw_r:
             return None
+
         years_data: Dict[str, YearData] = {}
         for year_str, y_content in raw_r.get("years", {}).items():
             holidays: List[Holiday] = []
@@ -135,6 +142,7 @@ class MVCRepository:
                             room_points=h.get("room_points", {}),
                         )
                     )
+
             seasons: List[Season] = []
             for s in y_content.get("seasons", []):
                 periods: List[SeasonPeriod] = []
@@ -148,6 +156,7 @@ class MVCRepository:
                         )
                     except Exception:
                         continue
+
                 day_cats: List[DayCategory] = []
                 for cat in s.get("day_categories", {}).values():
                     day_cats.append(
@@ -157,13 +166,11 @@ class MVCRepository:
                         )
                     )
                 seasons.append(
-                    Season(
-                        name=s["name"],
-                        periods=periods,
-                        day_categories=day_cats,
-                    )
+                    Season(name=s["name"], periods=periods, day_categories=day_cats)
                 )
+
             years_data[year_str] = YearData(holidays=holidays, seasons=seasons)
+
         resort_obj = ResortData(
             id=raw_r["id"], name=raw_r["display_name"], years=years_data
         )
@@ -191,6 +198,8 @@ class MVCRepository:
 # ==============================================================================
 # LAYER 3: SERVICE
 # ==============================================================================
+
+
 class MVCCalculator:
     def __init__(self, repo: MVCRepository):
         self.repo = repo
@@ -201,14 +210,15 @@ class MVCCalculator:
         year_str = str(day.year)
         if year_str not in resort.years:
             return {}, None
+
         yd = resort.years[year_str]
 
-        # Holiday first
+        # 1) Holidays
         for h in yd.holidays:
             if h.start_date <= day <= h.end_date:
                 return h.room_points, h
 
-        # Otherwise season / day-of-week
+        # 2) Seasons
         dow_map = {
             0: "Mon",
             1: "Tue",
@@ -219,12 +229,14 @@ class MVCCalculator:
             6: "Sun",
         }
         dow = dow_map[day.weekday()]
+
         for s in yd.seasons:
             for p in s.periods:
                 if p.start <= day <= p.end:
                     for cat in s.day_categories:
                         if dow in cat.days:
                             return cat.room_points, None
+
         return {}, None
 
     def calculate_breakdown(
@@ -248,16 +260,17 @@ class MVCCalculator:
         tot_m = tot_c = tot_d = 0.0
         disc_applied = False
         disc_days: List[str] = []
-        is_owner = user_mode == UserMode.OWNER
         processed_holidays: set[str] = set()
-        i = 0
+
+        is_owner = user_mode == UserMode.OWNER
         today = datetime.now().date()
+        i = 0
 
         while i < nights:
             d = checkin + timedelta(days=i)
             pts_map, holiday = self._get_daily_points(resort, d)
 
-            # -------------------- HOLIDAY BLOCK --------------------
+            # --- HOLIDAY BLOCK (whole holiday treated as one row) ---
             if holiday and holiday.name not in processed_holidays:
                 processed_holidays.add(holiday.name)
                 raw = pts_map.get(room, 0)
@@ -266,10 +279,16 @@ class MVCCalculator:
                 is_disc = False
                 days_out = (holiday.start_date - today).days
 
-                if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
+                if is_owner and owner_config:
+                    disc_mul = owner_config.get("disc_mul", 1.0)
                     disc_pct = (1 - disc_mul) * 100
-                    thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
+                    thresh = (
+                        30
+                        if disc_pct == 25
+                        else 60
+                        if disc_pct == 30
+                        else 0
+                    )
                     if disc_pct > 0 and days_out <= thresh:
                         eff = math.floor(raw * disc_mul)
                         is_disc = True
@@ -281,8 +300,12 @@ class MVCCalculator:
                         if discount_policy == DiscountPolicy.EXECUTIVE
                         else 1.0
                     )
-                    if (discount_policy == DiscountPolicy.PRESIDENTIAL and days_out <= 60) or (
-                        discount_policy == DiscountPolicy.EXECUTIVE and days_out <= 30
+                    if (
+                        discount_policy == DiscountPolicy.PRESIDENTIAL
+                        and days_out <= 60
+                    ) or (
+                        discount_policy == DiscountPolicy.EXECUTIVE
+                        and days_out <= 30
                     ):
                         eff = math.floor(raw * renter_mul)
                         is_disc = True
@@ -315,11 +338,11 @@ class MVCCalculator:
                     "Points": eff,
                 }
                 if is_owner:
-                    if owner_config and owner_config.get("inc_m"):
+                    if owner_config.get("inc_m"):
                         row["Maintenance"] = m
-                    if owner_config and owner_config.get("inc_c"):
+                    if owner_config.get("inc_c"):
                         row["Capital Cost"] = c
-                    if owner_config and owner_config.get("inc_d"):
+                    if owner_config.get("inc_d"):
                         row["Depreciation"] = dp
                     row["Total Cost"] = cost
                 else:
@@ -332,18 +355,25 @@ class MVCCalculator:
                 tot_c += c
                 tot_d += dp
                 i += holiday_days
+                continue
 
-            # -------------------- NORMAL DAY BLOCK --------------------
-            elif not holiday:
+            # --- NORMAL DAY BLOCK ---
+            if not holiday:
                 raw = pts_map.get(room, 0)
                 eff = raw
                 is_disc = False
                 days_out = (d - today).days
 
-                if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
+                if is_owner and owner_config:
+                    disc_mul = owner_config.get("disc_mul", 1.0)
                     disc_pct = (1 - disc_mul) * 100
-                    thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
+                    thresh = (
+                        30
+                        if disc_pct == 25
+                        else 60
+                        if disc_pct == 30
+                        else 0
+                    )
                     if disc_pct > 0 and days_out <= thresh:
                         eff = math.floor(raw * disc_mul)
                         is_disc = True
@@ -355,8 +385,12 @@ class MVCCalculator:
                         if discount_policy == DiscountPolicy.EXECUTIVE
                         else 1.0
                     )
-                    if (discount_policy == DiscountPolicy.PRESIDENTIAL and days_out <= 60) or (
-                        discount_policy == DiscountPolicy.EXECUTIVE and days_out <= 30
+                    if (
+                        discount_policy == DiscountPolicy.PRESIDENTIAL
+                        and days_out <= 60
+                    ) or (
+                        discount_policy == DiscountPolicy.EXECUTIVE
+                        and days_out <= 30
                     ):
                         eff = math.floor(raw * renter_mul)
                         is_disc = True
@@ -384,11 +418,11 @@ class MVCCalculator:
                     "Points": eff,
                 }
                 if is_owner:
-                    if owner_config and owner_config.get("inc_m"):
+                    if owner_config.get("inc_m"):
                         row["Maintenance"] = m
-                    if owner_config and owner_config.get("inc_c"):
+                    if owner_config.get("inc_c"):
                         row["Capital Cost"] = c
-                    if owner_config and owner_config.get("inc_d"):
+                    if owner_config.get("inc_d"):
                         row["Depreciation"] = dp
                     row["Total Cost"] = cost
                 else:
@@ -401,17 +435,21 @@ class MVCCalculator:
                 tot_c += c
                 tot_d += dp
                 i += 1
+                continue
 
-            else:
-                # Should not really hit this, but keep loop safe
-                i += 1
+            # Fallback (should not normally hit)
+            i += 1
 
         df = pd.DataFrame(rows)
         if not df.empty:
-            fmt_cols = [c for c in df.columns if c not in ["Date", "Day", "Points"]]
+            fmt_cols = [
+                c for c in df.columns if c not in ["Date", "Day", "Points"]
+            ]
             for col in fmt_cols:
                 df[col] = df[col].apply(
-                    lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x
+                    lambda x: f"${x:,.0f}"
+                    if isinstance(x, (int, float))
+                    else x
                 )
 
         return CalculationResult(
@@ -419,7 +457,7 @@ class MVCCalculator:
             tot_eff_pts,
             tot_financial,
             disc_applied,
-            list(set(disc_days)),
+            sorted(set(disc_days)),
             tot_m,
             tot_c,
             tot_d,
@@ -427,53 +465,66 @@ class MVCCalculator:
 
     def compare_stays(
         self,
-        resort_name,
-        rooms,
-        checkin,
-        nights,
-        user_mode,
-        rate,
-        policy,
-        owner_config,
-    ):
-        # Simplified compare logic for brevity; relies on calculate_breakdown
-        base = self.calculate_breakdown(
-            resort_name, rooms[0], checkin, nights, user_mode, rate, policy, owner_config
-        )
-        if base.breakdown_df.empty:
+        resort_name: str,
+        rooms: List[str],
+        checkin: date,
+        nights: int,
+        user_mode: UserMode,
+        rate: float,
+        discount_policy: DiscountPolicy,
+        owner_config: Optional[dict],
+    ) -> ComparisonResult:
+        if not rooms:
             return ComparisonResult(
-                pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+                pivot_df=pd.DataFrame(),
+                daily_chart_df=pd.DataFrame(),
+                holiday_chart_df=pd.DataFrame(),
             )
 
-        pivot_data = []
-        chart_data = []
+        pivot_rows = []
+        chart_rows = []
 
         for room in rooms:
             res = self.calculate_breakdown(
-                resort_name, room, checkin, nights, user_mode, rate, policy, owner_config
+                resort_name,
+                room,
+                checkin,
+                nights,
+                user_mode,
+                rate,
+                discount_policy,
+                owner_config,
             )
-            val = res.financial_total
-            pivot_data.append(
+            pivot_rows.append(
                 {
                     "Room Type": room,
-                    "Total Cost": f"${val:,.0f}",
+                    "Total Cost": f"${res.financial_total:,.0f}",
                     "Points": f"{res.total_points:,}",
                 }
             )
-            chart_data.append({"Room Type": room, "Cost": val})
+            chart_rows.append(
+                {"Room Type": room, "Cost": res.financial_total}
+            )
 
         return ComparisonResult(
-            pd.DataFrame(pivot_data), pd.DataFrame(chart_data), pd.DataFrame()
+            pivot_df=pd.DataFrame(pivot_rows),
+            daily_chart_df=pd.DataFrame(chart_rows),
+            holiday_chart_df=pd.DataFrame(),  # Not used in this simplified version
         )
 
-    def adjust_holiday(self, resort_name, checkin, nights):
+    def adjust_holiday(
+        self, resort_name: str, checkin: date, nights: int
+    ) -> Tuple[date, int, bool]:
         resort = self.repo.get_resort(resort_name)
         if not resort or str(checkin.year) not in resort.years:
             return checkin, nights, False
+
         end = checkin + timedelta(days=nights - 1)
         yd = resort.years[str(checkin.year)]
         overlapping = [
-            h for h in yd.holidays if h.start_date <= end and h.end_date >= checkin
+            h
+            for h in yd.holidays
+            if h.start_date <= end and h.end_date >= checkin
         ]
         if not overlapping:
             return checkin, nights, False
@@ -486,195 +537,59 @@ class MVCCalculator:
 
 
 # ==============================================================================
-# LAYER 4: UI HELPERS
-# ==============================================================================
-def render_metrics_grid(
-    result: CalculationResult,
-    mode: UserMode,
-    owner_params: Optional[dict],
-    policy: DiscountPolicy,
-) -> None:
-    """Render summary metrics in a responsive grid."""
-    owner_params = owner_params or {}
-    if mode == UserMode.OWNER:
-        num_components = sum(
-            [
-                owner_params.get("inc_m", False),
-                owner_params.get("inc_c", False),
-                owner_params.get("inc_d", False),
-            ]
-        )
-        cols = st.columns(2 + max(num_components, 0))
-        with cols[0]:
-            st.metric(
-                label="📊 Total Points",
-                value=f"{result.total_points:,}",
-                help="Total vacation points required for this stay",
-            )
-        with cols[1]:
-            st.metric(
-                label="💰 Total Cost",
-                value=f"${result.financial_total:,.0f}",
-                help="Total ownership cost including all selected components",
-            )
-        col_idx = 2
-        if owner_params.get("inc_m"):
-            with cols[col_idx]:
-                st.metric(
-                    label="🔧 Maintenance",
-                    value=f"${result.m_cost:,.0f}",
-                    help="Annual Maintenance attributable to this stay",
-                )
-            col_idx += 1
-        if owner_params.get("inc_c"):
-            with cols[col_idx]:
-                st.metric(
-                    label="💼 Capital Cost",
-                    value=f"${result.c_cost:,.0f}",
-                    help="Opportunity cost of capital tied up in ownership",
-                )
-            col_idx += 1
-        if owner_params.get("inc_d"):
-            with cols[col_idx]:
-                st.metric(
-                    label="📉 Depreciation",
-                    value=f"${result.d_cost:,.0f}",
-                    help="Share of asset depreciation for this usage",
-                )
-            col_idx += 1
-    else:
-        if result.discount_applied:
-            cols = st.columns(3)
-            pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Discounted points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (based on discounted points)",
-                )
-            with cols[2]:
-                st.metric(
-                    label="🎉 Discount Applied",
-                    value=pct,
-                    delta=f"{len(result.discounted_days)} days",
-                    help="Points discount for last-minute booking",
-                )
-        else:
-            cols = st.columns(2)
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Total vacation points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (no points discount)",
-                )
-
-
-# ==============================================================================
-# MAIN PAGE LOGIC
+# CONSTANTS
 # ==============================================================================
 
-# --- CONSTANTS FOR TIER MAPPING ---
+
 TIER_NO_DISCOUNT = "No Discount"
 TIER_EXECUTIVE = "Executive (25% off within 30 days)"
 TIER_PRESIDENTIAL = "Presidential / Chairman (30% off within 60 days)"
 TIER_OPTIONS = [TIER_NO_DISCOUNT, TIER_EXECUTIVE, TIER_PRESIDENTIAL]
 
 
-def load_user_settings(uploaded_file):
-    """Load user preferences from uploaded JSON file into session state."""
-    try:
-        uploaded_file.seek(0)
-        user_data = json.load(uploaded_file)
-
-        if "maintenance_rate" in user_data:
-            st.session_state.pref_maint_rate = float(user_data["maintenance_rate"])
-        if "purchase_price" in user_data:
-            st.session_state.pref_purchase_price = float(user_data["purchase_price"])
-        if "capital_cost_pct" in user_data:
-            st.session_state.pref_capital_cost = float(user_data["capital_cost_pct"])
-        if "salvage_value" in user_data:
-            st.session_state.pref_salvage_value = float(user_data["salvage_value"])
-        if "useful_life" in user_data:
-            st.session_state.pref_useful_life = int(user_data["useful_life"])
-
-        if "discount_tier" in user_data:
-            raw_tier = str(user_data["discount_tier"])
-            if "Executive" in raw_tier:
-                st.session_state.pref_discount_tier = TIER_EXECUTIVE
-            elif "Presidential" in raw_tier or "Chairman" in raw_tier:
-                st.session_state.pref_discount_tier = TIER_PRESIDENTIAL
-            else:
-                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
-
-        if "include_maintenance" in user_data:
-            st.session_state.pref_inc_m = bool(user_data["include_maintenance"])
-        if "include_capital" in user_data:
-            st.session_state.pref_inc_c = bool(user_data["include_capital"])
-        if "include_depreciation" in user_data:
-            st.session_state.pref_inc_d = bool(user_data["include_depreciation"])
-
-        if "preferred_resort_id" in user_data:
-            st.session_state.pref_resort_id = str(user_data["preferred_resort_id"])
-            st.session_state.current_resort_id = str(user_data["preferred_resort_id"])
-
-        st.session_state.calculator_mode = UserMode.OWNER.value
-
-        st.toast("✅ Settings loaded! Switched to Owner Mode.", icon="📂")
-
-    except Exception as e:
-        st.error(f"Error loading settings: {e}")
+# ==============================================================================
+# MAIN PAGE
+# ==============================================================================
 
 
 def main() -> None:
-    # --------------------------------------------------------------------------
-    # BASIC SESSION KEYS
-    # --------------------------------------------------------------------------
-    if "current_resort" not in st.session_state:
-        st.session_state.current_resort = None
+    # ---- Core session defaults ----
     if "current_resort_id" not in st.session_state:
         st.session_state.current_resort_id = None
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
 
-    ensure_data_in_session()
+    # Owner preferences (persist between runs)
+    if "owner_maint_rate" not in st.session_state:
+        st.session_state.owner_maint_rate = 0.55
+    if "owner_purchase_price" not in st.session_state:
+        st.session_state.owner_purchase_price = 18.0
+    if "owner_capital_cost_pct" not in st.session_state:
+        st.session_state.owner_capital_cost_pct = 5.0
+    if "owner_salvage_value" not in st.session_state:
+        st.session_state.owner_salvage_value = 3.0
+    if "owner_useful_life" not in st.session_state:
+        st.session_state.owner_useful_life = 10
+    if "owner_discount_tier" not in st.session_state:
+        st.session_state.owner_discount_tier = TIER_NO_DISCOUNT
+    if "owner_inc_m" not in st.session_state:
+        st.session_state.owner_inc_m = True
+    if "owner_inc_c" not in st.session_state:
+        st.session_state.owner_inc_c = True
+    if "owner_inc_d" not in st.session_state:
+        st.session_state.owner_inc_d = True
 
-    # --- Initial defaults (used if keys don't exist) ---
-    if "pref_maint_rate" not in st.session_state:
-        st.session_state.pref_maint_rate = 0.50  # Default $0.50
-    if "pref_purchase_price" not in st.session_state:
-        st.session_state.pref_purchase_price = 18.0  # $18
-    if "pref_capital_cost" not in st.session_state:
-        st.session_state.pref_capital_cost = 5.0  # %
-    if "pref_salvage_value" not in st.session_state:
-        st.session_state.pref_salvage_value = 3.0  # $3
-    if "pref_useful_life" not in st.session_state:
-        st.session_state.pref_useful_life = 10  # years
-    if "pref_discount_tier" not in st.session_state:
-        st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
+    # Renter preferences (separate from owner)
+    if "renter_cost_per_point" not in st.session_state:
+        st.session_state.renter_cost_per_point = 0.50
+    if "renter_discount_tier" not in st.session_state:
+        st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
 
-    if "pref_inc_m" not in st.session_state:
-        st.session_state.pref_inc_m = True
-    if "pref_inc_c" not in st.session_state:
-        st.session_state.pref_inc_c = True
-    if "pref_inc_d" not in st.session_state:
-        st.session_state.pref_inc_d = True
-
+    # Mode
     if "calculator_mode" not in st.session_state:
         st.session_state.calculator_mode = UserMode.RENTER.value
 
-    # Checkin state
+    # Check-in defaults
     today = datetime.now().date()
     initial_default = today + timedelta(days=1)
     if "calc_initial_default" not in st.session_state:
@@ -682,6 +597,8 @@ def main() -> None:
         st.session_state.calc_checkin = initial_default
         st.session_state.calc_checkin_user_set = False
 
+    # Load data
+    ensure_data_in_session()
     if not st.session_state.data:
         st.warning("⚠️ Please open the Editor and upload/merge data_v2.json first.")
         return
@@ -690,215 +607,145 @@ def main() -> None:
     calc = MVCCalculator(repo)
     resorts_full = repo.get_resort_list_full()
 
-    # ----------------------------------------------------------------------
-    # SIDEBAR
-    # ----------------------------------------------------------------------
+    # ---- SIDEBAR ----
     with st.sidebar:
         st.divider()
         st.markdown("### 👤 User Profile")
 
-        # ----------------- USER CONFIGURATION (LOAD/SAVE) -----------------
-        with st.expander("⚙️ User Configuration", expanded=False):
-            with st.expander("ℹ️ About User Settings", expanded=False):
-                st.markdown(
-                    """
-                This feature lets you save your personal ownership profile so you don't have to re-enter your numbers every time.
-
-                **What gets saved?**
-                * **💰 Your Costs:** Maintenance fees, purchase price, and financial assumptions.
-                * **👤 Your Status:** Your membership tier (e.g., Executive, Presidential).
-                * **✅ Your Preferences:** Which costs you want to include in the final calculation.
-                * **🏨 Your Resort:** The resort you currently have selected.
-
-                **How to use:**
-                * **Save:** Click the button to download a small file to your computer.
-                * **Load:** Upload that file anytime to instantly restore your settings and switch to Owner Mode.
-                """
-                )
-
-            st.markdown("###### 📂 Load/Save Settings")
-            config_file = st.file_uploader(
-                "Load Settings (JSON)", type="json", key="user_cfg_upload"
-            )
-
-            if config_file:
-                file_sig = f"{config_file.name}_{config_file.size}"
-                if (
-                    "last_loaded_cfg" not in st.session_state
-                    or st.session_state.last_loaded_cfg != file_sig
-                ):
-                    load_user_settings(config_file)
-                    st.session_state.last_loaded_cfg = file_sig
-                    st.rerun()
-
-            current_pref_resort = (
-                st.session_state.current_resort_id
-                if st.session_state.current_resort_id
-                else ""
-            )
-            current_settings = {
-                "maintenance_rate": st.session_state.pref_maint_rate,
-                "purchase_price": st.session_state.pref_purchase_price,
-                "capital_cost_pct": st.session_state.pref_capital_cost,
-                "salvage_value": st.session_state.pref_salvage_value,
-                "useful_life": st.session_state.pref_useful_life,
-                "discount_tier": st.session_state.pref_discount_tier,
-                "include_maintenance": st.session_state.pref_inc_m,
-                "include_capital": st.session_state.pref_inc_c,
-                "include_depreciation": st.session_state.pref_inc_d,
-                "preferred_resort_id": current_pref_resort,
-            }
-            st.download_button(
-                "💾 Save Settings",
-                json.dumps(current_settings, indent=2),
-                "mvc_owner_settings.json",
-                "application/json",
-                use_container_width=True,
-            )
-
-        st.divider()
-
-        # MODE SELECTOR
-        mode_sel = st.radio(
+        # Mode selector
+        mode_label = st.radio(
             "Mode:",
             [m.value for m in UserMode],
             key="calculator_mode",
             horizontal=True,
         )
-        mode = UserMode(mode_sel)
+        mode = UserMode(mode_label)
 
-        owner_params = None
+        owner_params: Optional[dict] = None
         policy = DiscountPolicy.NONE
-        rate = 0.50
+        rate: float = 0.5
 
         st.divider()
 
-        # ------------------------------------------------------------------
-        # OWNER MODE
-        # ------------------------------------------------------------------
         if mode == UserMode.OWNER:
-            # One-time override to ensure starting values match your screenshot,
-            # even if old sessions had zeros cached.
-            if not st.session_state.get("owner_defaults_initialized", False):
-                st.session_state.pref_maint_rate = 0.50
-                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
-
-                st.session_state.pref_inc_m = True
-                st.session_state.pref_inc_c = True
-                st.session_state.pref_inc_d = True
-
-                st.session_state.pref_purchase_price = 18.0
-                st.session_state.pref_capital_cost = 5.0
-                st.session_state.pref_useful_life = 10
-                st.session_state.pref_salvage_value = 3.0
-
-                st.session_state.owner_defaults_initialized = True
-
+            # OWNER MODE CONTROLS
             st.markdown("##### 💰 Basic Costs")
-
-            rate = st.number_input(
+            owner_rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
-                key="pref_maint_rate",
+                key="owner_maint_rate",
                 step=0.01,
                 min_value=0.0,
             )
+            rate = owner_rate  # used in calculation
 
-            opt = st.radio(
+            # Owner discount tier (separate state)
+            owner_tier = st.radio(
                 "Discount Tier:",
                 TIER_OPTIONS,
-                key="pref_discount_tier",
+                key="owner_discount_tier",
             )
 
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
-                inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
-                inc_c = st.checkbox("Capital Cost", key="pref_inc_c")
-                inc_d = st.checkbox("Depreciation", key="pref_inc_d")
+                inc_m = st.checkbox("Maintenance Fees", key="owner_inc_m")
+                inc_c = st.checkbox("Capital Cost", key="owner_inc_c")
+                inc_d = st.checkbox("Depreciation", key="owner_inc_d")
 
                 st.divider()
                 if inc_c or inc_d:
                     st.markdown("**Purchase Details**")
-                    cap = st.number_input(
+                    purchase_price = st.number_input(
                         "Purchase Price ($/pt)",
-                        key="pref_purchase_price",
+                        key="owner_purchase_price",
                         step=1.0,
+                        min_value=0.0,
                     )
                 else:
-                    cap = st.session_state.pref_purchase_price
+                    purchase_price = st.session_state.owner_purchase_price
 
                 if inc_c:
-                    coc = (
-                        st.number_input(
-                            "Cost of Capital (%)",
-                            key="pref_capital_cost",
-                            step=0.5,
-                        )
-                        / 100.0
+                    capital_pct = st.number_input(
+                        "Cost of Capital (%)",
+                        key="owner_capital_cost_pct",
+                        step=0.5,
+                        min_value=0.0,
                     )
+                    coc = capital_pct / 100.0
                 else:
                     coc = 0.06
 
                 if inc_d:
                     st.markdown("**Depreciation**")
-                    life = st.number_input(
+                    useful_life = st.number_input(
                         "Useful Life (years)",
-                        key="pref_useful_life",
+                        key="owner_useful_life",
                         min_value=1,
                     )
                     salvage = st.number_input(
                         "Salvage Value ($/pt)",
-                        key="pref_salvage_value",
+                        key="owner_salvage_value",
                         step=0.5,
+                        min_value=0.0,
                     )
                 else:
-                    life, salvage = 15, 3.0
+                    useful_life = st.session_state.owner_useful_life
+                    salvage = st.session_state.owner_salvage_value
+
+            # Map owner_tier → discount policy and multiplier
+            if "Executive" in owner_tier:
+                policy = DiscountPolicy.EXECUTIVE
+            elif "Presidential" in owner_tier or "Chairman" in owner_tier:
+                policy = DiscountPolicy.PRESIDENTIAL
+            else:
+                policy = DiscountPolicy.NONE
+
+            disc_mul = (
+                0.75
+                if policy == DiscountPolicy.EXECUTIVE
+                else 0.7
+                if policy == DiscountPolicy.PRESIDENTIAL
+                else 1.0
+            )
 
             owner_params = {
-                "disc_mul": 1.0,
+                "disc_mul": disc_mul,
                 "inc_m": inc_m,
                 "inc_c": inc_c,
                 "inc_d": inc_d,
-                "cap_rate": cap * coc,
-                "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
+                "cap_rate": purchase_price * coc,
+                "dep_rate": (purchase_price - salvage) / useful_life
+                if useful_life > 0
+                else 0.0,
             }
 
-        # ------------------------------------------------------------------
-        # RENTER MODE
-        # ------------------------------------------------------------------
         else:
+            # RENTER MODE CONTROLS
             st.markdown("##### 💵 Rental Rate")
-            rate = st.number_input(
-                "Cost per Point ($)", value=0.50, step=0.01
+            renter_rate = st.number_input(
+                "Cost per Point ($)",
+                key="renter_cost_per_point",
+                step=0.01,
+                min_value=0.0,
             )
+            rate = renter_rate
+
             st.markdown("##### 🎯 Available Discounts")
-            opt = st.radio("Discount tier available:", TIER_OPTIONS)
-            if "Presidential" in opt or "Chairman" in opt:
-                policy = DiscountPolicy.PRESIDENTIAL
-            elif "Executive" in opt:
-                policy = DiscountPolicy.EXECUTIVE
+            renter_tier = st.radio(
+                "Discount tier available:",
+                TIER_OPTIONS,
+                key="renter_discount_tier",
+            )
 
-        # Discount mapping for Owner as well
-        if mode == UserMode.OWNER:
-            if "Executive" in opt:
-                policy = DiscountPolicy.EXECUTIVE
-            elif "Presidential" in opt or "Chairman" in opt:
+            if "Presidential" in renter_tier or "Chairman" in renter_tier:
                 policy = DiscountPolicy.PRESIDENTIAL
-
-        disc_mul = (
-            0.75
-            if "Executive" in opt
-            else 0.7
-            if "Presidential" in opt or "Chairman" in opt
-            else 1.0
-        )
-        if owner_params:
-            owner_params["disc_mul"] = disc_mul
+            elif "Executive" in renter_tier:
+                policy = DiscountPolicy.EXECUTIVE
+            else:
+                policy = DiscountPolicy.NONE
 
         st.divider()
 
-    # ----------------------------------------------------------------------
-    # MAIN BODY
-    # ----------------------------------------------------------------------
+    # ---- MAIN BODY ----
     render_page_header(
         "Calculator",
         f"👤 {mode.value} Mode",
@@ -908,12 +755,7 @@ def main() -> None:
 
     # Resort selection
     if resorts_full and st.session_state.current_resort_id is None:
-        if "pref_resort_id" in st.session_state and any(
-            r.get("id") == st.session_state.pref_resort_id for r in resorts_full
-        ):
-            st.session_state.current_resort_id = st.session_state.pref_resort_id
-        else:
-            st.session_state.current_resort_id = resorts_full[0].get("id")
+        st.session_state.current_resort_id = resorts_full[0].get("id")
 
     render_resort_grid(resorts_full, st.session_state.current_resort_id)
 
@@ -926,12 +768,15 @@ def main() -> None:
 
     r_name = resort_obj.get("display_name")
     info = repo.get_resort_info(r_name)
-    render_resort_card(info["full_name"], info["timezone"], info["address"])
+    render_resort_card(
+        info["full_name"], info["timezone"], info["address"]
+    )
     st.divider()
 
-    # Booking section
+    # Booking controls
     st.markdown("### 📅 Booking Details")
     c1, c2, c3, c4 = st.columns([2, 1, 2, 2])
+
     with c1:
         checkin = st.date_input(
             "Check-in",
@@ -949,6 +794,7 @@ def main() -> None:
     with c2:
         nights = st.number_input("Nights", 1, 60, 7)
 
+    # Holiday adjustment only after user has actively set a date
     if st.session_state.calc_checkin_user_set:
         adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
     else:
@@ -960,6 +806,7 @@ def main() -> None:
             f"{(adj_in + timedelta(days=adj_n - 1)).strftime('%b %d')}"
         )
 
+    # Room types available for this date
     pts, _ = calc._get_daily_points(calc.repo.get_resort(r_name), adj_in)
     if not pts:
         rd = calc.repo.get_resort(r_name)
@@ -970,7 +817,7 @@ def main() -> None:
 
     room_types = sorted(pts.keys()) if pts else []
     if not room_types:
-        st.error("❌ No room data available.")
+        st.error("❌ No room data available for this date/year.")
         return
 
     with c3:
@@ -982,36 +829,45 @@ def main() -> None:
 
     st.divider()
 
+    # Core calculation
     res = calc.calculate_breakdown(
-        r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params
+        r_name,
+        room_sel,
+        adj_in,
+        adj_n,
+        mode,
+        rate,
+        policy,
+        owner_params,
     )
 
     st.markdown(f"### 📊 Results: {room_sel}")
 
+    # Summary metrics
     if mode == UserMode.OWNER:
         cols = st.columns(5)
         cols[0].metric("Total Points", f"{res.total_points:,}")
         cols[1].metric("Total Cost", f"${res.financial_total:,.0f}")
-        inc_m = owner_params.get("inc_m") if owner_params else False
-        inc_c = owner_params.get("inc_c") if owner_params else False
-        inc_d = owner_params.get("inc_d") if owner_params else False
-        if inc_m:
+        if owner_params and owner_params.get("inc_m"):
             cols[2].metric("Maintenance", f"${res.m_cost:,.0f}")
-        if inc_c:
+        if owner_params and owner_params.get("inc_c"):
             cols[3].metric("Capital Cost", f"${res.c_cost:,.0f}")
-        if inc_d:
+        if owner_params and owner_params.get("inc_d"):
             cols[4].metric("Depreciation", f"${res.d_cost:,.0f}")
     else:
         cols = st.columns(2)
         cols[0].metric("Total Points", f"{res.total_points:,}")
         cols[1].metric("Total Rent", f"${res.financial_total:,.0f}")
         if res.discount_applied:
-            st.success(f"Discount Applied: {len(res.discounted_days)} days")
+            st.success(
+                f"Discount applied on {len(res.discounted_days)} day(s)."
+            )
 
     st.divider()
     st.markdown("### 📋 Detailed Breakdown")
     st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
 
+    # Comparison
     if comp_rooms:
         st.divider()
         st.markdown("### 🔍 Comparison")
@@ -1027,49 +883,27 @@ def main() -> None:
         )
         st.dataframe(comp_res.pivot_df, use_container_width=True)
 
-        c1, c2 = st.columns(2)
         if not comp_res.daily_chart_df.empty:
-            with c1:
-                st.plotly_chart(
-                    px.bar(
-                        comp_res.daily_chart_df[
-                            comp_res.daily_chart_df["Holiday"] == "No"
-                        ],
-                        x="Day",
-                        y="TotalCostValue" if mode == UserMode.OWNER else "RentValue",
-                        color="Room Type",
-                        barmode="group",
-                        title="Daily Cost",
-                    ),
-                    use_container_width=True,
-                )
-        if not comp_res.holiday_chart_df.empty:
-            with c2:
-                st.plotly_chart(
-                    px.bar(
-                        comp_res.holiday_chart_df,
-                        x="Holiday",
-                        y="TotalCostValue" if mode == UserMode.OWNER else "RentValue",
-                        color="Room Type",
-                        barmode="group",
-                        title="Holiday Cost",
-                    ),
-                    use_container_width=True,
-                )
+            fig = px.bar(
+                comp_res.daily_chart_df,
+                x="Room Type",
+                y="Cost",
+                title="Total Cost by Room Type",
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
+    # Season / holiday chart
     year_str = str(adj_in.year)
     res_data = calc.repo.get_resort(r_name)
     if res_data and year_str in res_data.years:
         st.divider()
         with st.expander("📅 Season and Holiday Calendar", expanded=False):
-            st.plotly_chart(
-                create_gantt_chart_from_resort_data(
-                    res_data,
-                    year_str,
-                    st.session_state.data.get("global_holidays", {}),
-                ),
-                use_container_width=True,
+            gantt = create_gantt_chart_from_resort_data(
+                res_data,
+                year_str,
+                st.session_state.data.get("global_holidays", {}),
             )
+            st.plotly_chart(gantt, use_container_width=True)
 
 
 def run() -> None:
