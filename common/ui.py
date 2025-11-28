@@ -23,15 +23,13 @@ def setup_page() -> None:
             --text-color: #111827;
         }
 
-        /* -------------------------------------------------------- */
-        /* HIDE STREAMLIT UI ELEMENTS                               */
-        /* -------------------------------------------------------- */
+        /* HIDE DEFAULT STREAMLIT UI ELEMENTS */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
-        header {visibility: hidden;}
+        /* REMOVED: header {visibility: hidden;} -> This was hiding the sidebar toggle! */
 
         /* -------------------------------------------------------- */
-        /* SIDEBAR SPACING & STYLING (AGGRESSIVE FIXES)             */
+        /* SIDEBAR STYLING (AGGRESSIVE SPACING FIXES)               */
         /* -------------------------------------------------------- */
         
         /* 1. Force Sidebar background */
@@ -40,17 +38,25 @@ def setup_page() -> None:
             border-right: 1px solid var(--border-color);
         }
 
-        /* 2. REMOVE DEFAULT STREAMLIT GAPS */
-        /* Streamlit adds a large 'gap' between every element by default. */
-        /* We set it to 0 so we can control spacing manually via margins. */
+        /* 2. Remove Default Gaps & Padding */
         section[data-testid="stSidebar"] .block-container {
             gap: 0rem !important;
-            padding-top: 1.5rem !important;
+            padding-top: 2rem !important;
             padding-bottom: 2rem !important;
         }
 
-        /* 3. TIGHTEN EXPANDERS */
-        /* This sets the specific gap between expanders to be narrow (8px). */
+        /* 3. Standardize Headers (e.g. "File to Memory") */
+        section[data-testid="stSidebar"] h3 {
+            margin-top: 1.5rem !important;    
+            margin-bottom: 0.5rem !important; 
+            font-size: 1.0rem !important;
+            font-weight: 600 !important;
+            color: var(--primary-color) !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* 4. Standardize Expanders */
         [data-testid="stExpander"] {
             margin-bottom: 0.5rem !important;
             border: 1px solid var(--border-color);
@@ -59,32 +65,15 @@ def setup_page() -> None:
             box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         }
 
-        /* 4. REDUCE INTERNAL PADDING OF EXPANDERS */
-        [data-testid="stExpanderDetails"] {
-            padding: 0.75rem !important;
+        /* 5. Fix Divider Spacing */
+        section[data-testid="stSidebar"] hr {
+            margin: 1.5rem 0 1rem 0 !important;
         }
 
-        /* 5. ADJUST HEADERS (e.g., "File to Memory") */
-        /* Add space ABOVE headers to separate sections, remove space BELOW */
-        section[data-testid="stSidebar"] h3 {
-            margin-top: 1.5rem !important;    /* Push away from previous section */
-            margin-bottom: 0.4rem !important; /* Pull closer to the expander below */
-            font-size: 1.0rem !important;
-            font-weight: 600 !important;
-            color: var(--primary-color) !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-        
-        /* 6. ADJUST PARAGRAPHS/TEXT */
+        /* 6. General Text Spacing */
         section[data-testid="stSidebar"] p {
             margin-bottom: 0.25rem !important;
             font-size: 0.9rem;
-        }
-
-        /* 7. TIGHTEN THE DIVIDER LINE */
-        section[data-testid="stSidebar"] hr {
-            margin: 1rem 0 !important;
         }
 
         /* -------------------------------------------------------- */
@@ -128,7 +117,7 @@ def setup_page() -> None:
             opacity: 0.9;
         }
         
-        /* Utility boxes */
+        /* Message Box Styles */
         .success-box, .info-box, .error-box {
             padding: 1rem;
             border-radius: 0.5rem;
@@ -138,14 +127,13 @@ def setup_page() -> None:
         .success-box { background-color: #ECFDF5; border-color: #A7F3D0; color: #065F46; }
         .info-box { background-color: #EFF6FF; border-color: #BFDBFE; color: #1E40AF; }
         .error-box { background-color: #FEF2F2; border-color: #FECACA; color: #991B1B; }
-
     </style>
     """,
         unsafe_allow_html=True,
     )
 
 # ----------------------------------------------------------------------
-# Resort display components (shared by editor + calculator)
+# Resort display components
 # ----------------------------------------------------------------------
 def render_page_header(title: str, subtitle: str | None = None, icon: str | None = None, badge_color: str | None = None):
     icon_html = f"{icon} " if icon else ""
@@ -167,7 +155,6 @@ def render_page_header(title: str, subtitle: str | None = None, icon: str | None
     )
     
 def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
-    """Standard resort info card."""
     st.markdown(
         f"""
         <div class="resort-card">
@@ -185,15 +172,6 @@ def render_resort_grid(
     *,
     title: str = "🏨 Resorts in Memory (West to East) 🖖 Select Resort",
 ) -> None:
-    """
-    Shared resort grid, sorted West → East, laid out COLUMN-first.
-    `current_resort_key` may be:
-      • resort["id"] (editor)
-      • resort["display_name"] (calculator)
-    On click, this sets BOTH:
-      • st.session_state.current_resort_id
-      • st.session_state.current_resort
-    """
     st.markdown(f"<div class='section-header'>{title}</div>", unsafe_allow_html=True)
     if not resorts:
         st.info("No resorts available.")
@@ -202,7 +180,7 @@ def render_resort_grid(
     num_cols = 6
     cols = st.columns(num_cols)
     num_resorts = len(sorted_resorts)
-    num_rows = (num_resorts + num_cols - 1) // num_cols # ceil division (column-first)
+    num_rows = (num_resorts + num_cols - 1) // num_cols 
     for col_idx, col in enumerate(cols):
         with col:
             for row in range(num_rows):
@@ -212,8 +190,6 @@ def render_resort_grid(
                 resort = sorted_resorts[idx]
                 rid = resort.get("id")
                 name = resort.get("display_name", rid or f"Resort {idx+1}")
-                tz = resort.get("timezone", "UTC")
-                region = get_region_label(tz) # currently not displayed, but available
                 is_current = current_resort_key in (rid, name)
                 btn_type = "primary" if is_current else "secondary"
                 if st.button(
@@ -222,7 +198,6 @@ def render_resort_grid(
                     type=btn_type,
                     use_container_width=True,
                 ):
-                    # Normalised selection for both apps
                     st.session_state.current_resort_id = rid
                     st.session_state.current_resort = name
                     if "delete_confirm" in st.session_state:
