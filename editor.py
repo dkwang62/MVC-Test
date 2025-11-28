@@ -194,7 +194,6 @@ def create_download_button_v2(data: Dict[str, Any]):
             use_container_width=True,
         )
 
-
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
