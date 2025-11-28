@@ -458,6 +458,7 @@ def main() -> None:
         st.divider()
         
         if mode == UserMode.OWNER:
+            # Owner mode inputs linked to session state keys
             st.markdown("##### 💰 Basic Costs")
             rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
