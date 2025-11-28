@@ -181,7 +181,7 @@ def create_download_button_v2(data: Dict[str, Any]):
     if "download_verified" not in st.session_state:
         st.session_state.download_verified = False
 
-    with st.sidebar.expander("💾 Save & Download", expanded=True):
+    with st.sidebar.expander("💾 Save & Download", expanded=False):
         
         # --- 1. DETECT UNSAVED CHANGES ---
         current_id = st.session_state.get("current_resort_id")
