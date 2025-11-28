@@ -593,9 +593,9 @@ def render_metrics_grid(
     if mode == UserMode.OWNER:
         num_components = sum(
             [
-                owner_params.get("inc_m", False),
-                owner_params.get("inc_c", False),
-                owner_params.get("inc_d", False),
+                owner_params.get("inc_m", True),
+                owner_params.get("inc_c", True),
+                owner_params.get("inc_d", True),
             ]
         )
         cols = st.columns(2 + max(num_components, 0))
