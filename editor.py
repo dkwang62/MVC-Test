@@ -1,6 +1,6 @@
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.data import load_data
+from common.data import load_data 
 from functools import lru_cache
 import json
 import pandas as pd
@@ -39,6 +39,7 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
+        "download_verified": False,  # <--- NEW STATE VARIABLE
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -169,30 +170,81 @@ def handle_file_upload():
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
-    with st.sidebar.expander("💾 File Operations", expanded=True):
+    # Ensure state exists (for safety if hot-reloading)
+    if "download_verified" not in st.session_state:
+        st.session_state.download_verified = False
+
+    with st.sidebar.expander("💾 Save & Download", expanded=True):
         
-        filename = st.text_input(
-            "File name",
-            value="data_v2.json",
-            key="download_filename_input",
-        ).strip()
+        # --- 1. DETECT UNSAVED CHANGES ---
+        current_id = st.session_state.get("current_resort_id")
+        working_resorts = st.session_state.get("working_resorts", {})
+        has_unsaved_changes = False
+        
+        if current_id and current_id in working_resorts:
+            working_copy = working_resorts[current_id]
+            committed_copy = find_resort_by_id(data, current_id)
+            if committed_copy != working_copy:
+                has_unsaved_changes = True
 
-        if not filename:
-            filename = "data_v2.json"
-        if not filename.lower().endswith(".json"):
-            filename += ".json"
+        # --- 2. STATE MACHINE ---
 
-        # Directly serialize the data currently in session state
-        json_data = json.dumps(data, indent=2, ensure_ascii=False)
+        if has_unsaved_changes:
+            # STATE: DIRTY
+            # Action: Must Commit to Memory
+            # Effect: Resets verification status
+            st.session_state.download_verified = False 
+            
+            st.warning("⚠️ Unsaved changes pending.")
+            
+            if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
+                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
+                st.toast("✅ Committed to memory.", icon="🧠")
+                st.rerun()
+            
+            st.caption("You must commit changes to memory before proceeding.")
 
-        st.download_button(
-            label="💾 Save to Disk",
-            data=json_data,
-            file_name=filename,
-            mime="application/json",
-            key="download_v2_btn",
-            use_container_width=True,
-        )
+        elif not st.session_state.download_verified:
+            # STATE: CLEAN BUT UNVERIFIED
+            # Action: Must Verify
+            # Effect: Shows Download button next
+            st.info("ℹ️ Memory updated.")
+            
+            if st.button("🔍 Verify that memory is up to date", use_container_width=True):
+                # This button 'actively checks' status (logic is implicit since we are in the else block)
+                st.session_state.download_verified = True
+                st.rerun()
+                
+            st.caption("Please confirm the current memory state is correct to unlock the download.")
+
+        else:
+            # STATE: VERIFIED
+            # Action: Allow Download
+            st.success("✅ Verified & Ready.")
+            
+            # This is the ONLY place this widget is rendered
+            filename = st.text_input(
+                "File name",
+                value="data_v2.json",
+                key="download_filename_input",
+            ).strip()
+
+            if not filename:
+                filename = "data_v2.json"
+            if not filename.lower().endswith(".json"):
+                filename += ".json"
+
+            json_data = json.dumps(data, indent=2, ensure_ascii=False)
+
+            st.download_button(
+                label="⬇️ DOWNLOAD JSON FILE",
+                data=json_data,
+                file_name=filename,
+                mime="application/json",
+                key="download_v2_btn",
+                type="primary",
+                use_container_width=True,
+            )
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
@@ -359,6 +411,7 @@ def handle_resort_creation_v2(
                         cloned["display_name"] = new_name
                         cloned["code"] = code
                         # We intentionally keep 'timezone' and 'address' from src
+                        # cloned["resort_name"] we update to match the new ID/Display
                         cloned["resort_name"] = get_resort_full_name(rid, new_name)
 
                         resorts.append(cloned)
@@ -1752,159 +1805,4 @@ def render_global_settings_v2(data: Dict[str, Any], years: List[str]):
     )
     with st.expander("💰 Maintenance Fee Rates", expanded=False):
         render_maintenance_fees_v2(data)
-    with st.expander("🎅 Global Holiday Calendar", expanded=False):
-        render_global_holiday_dates_editor_v2(data, years)
-
-
-# ----------------------------------------------------------------------
-# MAIN APPLICATION
-# ----------------------------------------------------------------------
-def main():
-    # Page config is now handled centrally in common.ui.setup_page() via app.py
-    initialize_session_state()
-
-    # Auto-load data file (optional)
-    if st.session_state.data is None:
-        try:
-            with open("data_v2.json", "r") as f:
-                raw_data = json.load(f)
-                if "schema_version" in raw_data and "resorts" in raw_data:
-                    st.session_state.data = raw_data
-                    st.toast(
-                        f"✅ Auto-loaded {len(raw_data.get('resorts', []))} resorts",
-                        icon="✅",
-                    )
-        except FileNotFoundError:
-            pass
-        except Exception as e:
-            st.toast(f"⚠️ Auto-load error: {str(e)}", icon="⚠️")
-
-    # Sidebar
-    with st.sidebar:
-        st.divider()
-#        st.markdown(
-#            """
-#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
-#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
-#            </div>
-#        """,
-#            unsafe_allow_html=True,
-#        )
-        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
-            st.markdown(
-                """
-            - The most updated data is pre-loaded into memory and can be edited.
-            - Loading another file will replace the data in memory.
-            - Edits in memory are temporary — SAVE or they may be lost on refresh.
-            - Verify by matching saved file to what’s in memory.
-            - Load a different file to merge selected resorts to memory.
-            """
-            )
-
-        handle_file_upload()
-
-        if st.session_state.data:
-            st.markdown(
-                "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
-            )
-            create_download_button_v2(st.session_state.data)
-            handle_file_verification()
-            handle_merge_from_another_file_v2(st.session_state.data)
-
-        # Removed flashing indicator
-    
-    # Main content
-    render_page_header(
-    "Editor",
-    "Data Management",
-    icon="🏨",
-    badge_color="#EF4444"  # Adjust to match the red color in the image, e.g., #DC2626 or #EF4444
-)
-
-    if not st.session_state.data:
-        st.markdown(
-            """
-            <div class='info-box'>
-                <h3>👋 Welcome!</h3>
-                <p>Load json file from the sidebar to begin editing resort data.</p>
-            </div>
-        """,
-            unsafe_allow_html=True,
-        )
-        return
-
-    data = st.session_state.data
-    resorts = get_resort_list(data)
-    years = get_years_from_data(data)
-
-    current_resort_id = st.session_state.current_resort_id
-    previous_resort_id = st.session_state.previous_resort_id
-
-    # Shared grid (column-first, West → East) from common.ui
-    render_resort_grid(resorts, current_resort_id)
-
-    handle_resort_switch_v2(data, current_resort_id, previous_resort_id)
-
-    # Working resort
-    working = load_resort(data, current_resort_id)
-
-    if working:
-        resort_name = (
-            working.get("resort_name")
-            or working.get("display_name")
-            or current_resort_id
-        )
-        timezone = working.get("timezone", "UTC")
-        address = working.get("address", "No address provided")
-
-        # Shared resort card from common.ui
-        render_resort_card(resort_name, timezone, address)
-
-        render_validation_panel_v2(working, data, years)
-        render_save_button_v2(data, working, current_resort_id)
-        handle_resort_creation_v2(data, current_resort_id)
-        handle_resort_deletion_v2(data, current_resort_id)
-
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(
-            [
-                "📊 Overview",
-                "📅 Season Dates",
-                "💰 Room Points",
-                "🎄 Holidays",
-                "📈 Points Summary",
-            ]
-        )
-
-        with tab1:
-            edit_resort_basics(working, current_resort_id)
-        with tab2:
-            render_gantt_charts_v2(working, years, data)
-            render_season_dates_editor_v2(working, years, current_resort_id)
-        with tab3:
-            render_reference_points_editor_v2(working, years, current_resort_id)
-        with tab4:
-            render_holiday_management_v2(working, years, current_resort_id)
-        with tab5:
-            render_resort_summary_v2(working)
-
-    st.markdown("---")
-    render_global_settings_v2(data, years)
-    st.markdown(
-        """
-        <div class='success-box'>
-            <p style='margin: 0;'>✨ MVC Resort Editor V2</p>
-            <p style='margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;'>
-                Master data management • Real-time sync across years • Professional-grade tools
-            </p>
-        </div>
-    """,
-        unsafe_allow_html=True,
-    )
-
-
-def run():
-    main()
-
-
-if __name__ == "__main__":
-    main()
+    with st.expander("🎅 Global Holiday Calendar", expanded=False
