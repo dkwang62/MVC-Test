@@ -1842,7 +1842,7 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-    with st.expander("ℹ️ Using your own personalised resort dataset", expanded=False):
+    with st.expander("ℹ️ How to create your own personalised resort dataset", expanded=False):
         st.markdown(
             """
 If you want a wider set of resorts or need to fix errors in the data without waiting for the author to update it, you can make the changes yourself. The Editor allows you to modify the default dataset in memory and create your own personalised JSON file to reuse each time you open the app. You may also merge resorts from your personalised file into the dataset currently in memory.
