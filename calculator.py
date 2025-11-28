@@ -773,10 +773,6 @@ def main() -> None:
         )
         mode = UserMode(mode_sel)
 
-        owner_params = None
-        policy = DiscountPolicy.NONE
-        rate = 0.50
-
         st.divider()
 
         # ------------------------------------------------------------------
@@ -802,23 +798,23 @@ def main() -> None:
 
             st.markdown("##### 💰 Basic Costs")
 
-            rate = st.number_input(
+            owner_rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
                 key="pref_maint_rate",
                 step=0.01,
                 min_value=0.0,
             )
 
-            opt = st.radio(
+            owner_opt = st.radio(
                 "Discount Tier:",
                 TIER_OPTIONS,
                 key="pref_discount_tier",
             )
 
             disc_mul = 1.0
-            if "Executive" in opt:
+            if "Executive" in owner_opt:
                 disc_mul = 0.75
-            elif "Presidential" in opt or "Chairman" in opt:
+            elif "Presidential" in owner_opt or "Chairman" in owner_opt:
                 disc_mul = 0.7
 
             with st.expander("🔧 Advanced Options", expanded=False):
@@ -879,17 +875,16 @@ def main() -> None:
         # ------------------------------------------------------------------
         else:
             st.markdown("##### 💵 Rental Rate")
-            rate = st.number_input(
+            renter_rate = st.number_input(
                 "Cost per Point ($)", step=0.01, min_value=0.0, key="renter_rate"
             )
             st.markdown("##### 🎯 Available Discounts")
-            opt = st.radio("Discount tier available:", TIER_OPTIONS, key="renter_discount_tier")
-            if "Presidential" in opt or "Chairman" in opt:
-                policy = DiscountPolicy.PRESIDENTIAL
-            elif "Executive" in opt:
-                policy = DiscountPolicy.EXECUTIVE
-            else:
-                policy = DiscountPolicy.NONE
+            renter_opt = st.radio("Discount tier available:", TIER_OPTIONS, key="renter_discount_tier")
+            renter_policy = DiscountPolicy.NONE
+            if "Presidential" in renter_opt or "Chairman" in renter_opt:
+                renter_policy = DiscountPolicy.PRESIDENTIAL
+            elif "Executive" in renter_opt:
+                renter_policy = DiscountPolicy.EXECUTIVE
 
         st.divider()
 
@@ -979,9 +974,14 @@ def main() -> None:
 
     st.divider()
 
-    res = calc.calculate_breakdown(
-        r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params
-    )
+    if mode == UserMode.OWNER:
+        res = calc.calculate_breakdown(
+            r_name, room_sel, adj_in, adj_n, mode, owner_rate, DiscountPolicy.NONE, owner_params
+        )
+    else:
+        res = calc.calculate_breakdown(
+            r_name, room_sel, adj_in, adj_n, mode, renter_rate, renter_policy, None
+        )
 
     st.markdown(f"### 📊 Results: {room_sel}")
 
@@ -1012,16 +1012,28 @@ def main() -> None:
     if comp_rooms:
         st.divider()
         st.markdown("### 🔍 Comparison")
-        comp_res = calc.compare_stays(
-            r_name,
-            [room_sel] + comp_rooms,
-            adj_in,
-            adj_n,
-            mode,
-            rate,
-            policy,
-            owner_params,
-        )
+        if mode == UserMode.OWNER:
+            comp_res = calc.compare_stays(
+                r_name,
+                [room_sel] + comp_rooms,
+                adj_in,
+                adj_n,
+                mode,
+                owner_rate,
+                DiscountPolicy.NONE,
+                owner_params,
+            )
+        else:
+            comp_res = calc.compare_stays(
+                r_name,
+                [room_sel] + comp_rooms,
+                adj_in,
+                adj_n,
+                mode,
+                renter_rate,
+                renter_policy,
+                None,
+            )
         st.dataframe(comp_res.pivot_df, use_container_width=True)
 
         c1, c2 = st.columns(2)
