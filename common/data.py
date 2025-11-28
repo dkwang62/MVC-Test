@@ -6,16 +6,6 @@ from datetime import datetime
 
 DEFAULT_DATA_PATH = "data_v2.json"
 
-# --- NEW: Default values for the Owner Profile ---
-DEFAULT_OWNER_DATA = {
-    "maintenance_fee": 0.75,
-    "purchase_price": 15.0,
-    "salvage_value": 0.0,
-    "cost_of_capital": 6.0,  # percent
-    "useful_life": 10,       # years
-    "discount_tier": "No Discount" # "No Discount", "Executive...", "Presidential..."
-}
-
 def load_data() -> Dict[str, Any]:
     if "data" not in st.session_state or st.session_state.data is None:
         try:
@@ -35,33 +25,33 @@ def ensure_data_in_session(auto_path: str = DEFAULT_DATA_PATH) -> None:
     """
     Make sure st.session_state.data and st.session_state.uploaded_file_name exist
     and, if empty, try to auto-load from disk.
-    Also ensures owner_data exists.
     """
-    # 1. Ensure Resort Data
+    # Ensure keys exist
     if "data" not in st.session_state:
         st.session_state.data = None
     if "uploaded_file_name" not in st.session_state:
         st.session_state.uploaded_file_name = None
 
+    # If nothing loaded yet, try auto-load from disk
     if st.session_state.data is None:
         try:
             with open(auto_path, "r") as f:
                 data = json.load(f)
+            # Basic schema sanity check
             if "schema_version" in data and "resorts" in data:
                 st.session_state.data = data
                 st.session_state.uploaded_file_name = auto_path
+                # Optional toast, safe even if it fires only once
                 st.toast(
-                    f"✅ Auto-loaded {len(data.get('resorts', []))} resorts",
+                    f"✅ Auto-loaded {len(data.get('resorts', []))} resorts from {auto_path}",
                     icon="✅",
                 )
         except FileNotFoundError:
+            # No default file, just start empty
             pass
         except Exception as e:
+            # Silent failure; individual pages can show their own messaging
             st.toast(f"⚠️ Auto-load error: {e}", icon="⚠️")
-
-    # 2. Ensure Owner Data (Initialize with defaults if missing)
-    if "owner_data" not in st.session_state:
-        st.session_state.owner_data = DEFAULT_OWNER_DATA.copy()
 
 
 def render_data_file_uploader(
