@@ -249,9 +249,10 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    if owner_config.get("inc_m"): m = math.ceil(eff * rate)
-                    if owner_config.get("inc_c"): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
-                    if owner_config.get("inc_d"): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                    # Use passed 'rate' explicitly
+                    if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
+                    if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                    if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
                     cost = m + c + dp
                 else:
                     cost = math.ceil(eff * rate)
@@ -300,9 +301,10 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    if owner_config.get("inc_m"): m = math.ceil(eff * rate)
-                    if owner_config.get("inc_c"): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
-                    if owner_config.get("inc_d"): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                    # Use passed 'rate' explicitly
+                    if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
+                    if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                    if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
                     cost = m + c + dp
                 else:
                     cost = math.ceil(eff * rate)
@@ -362,101 +364,6 @@ class MVCCalculator:
         adj_s = min(checkin, s)
         adj_e = max(end, e)
         return adj_s, (adj_e - adj_s).days + 1, True
-
-# ==============================================================================
-# LAYER 4: UI HELPERS
-# ==============================================================================
-def render_metrics_grid(
-    result: CalculationResult,
-    mode: UserMode,
-    owner_params: Optional[dict],
-    policy: DiscountPolicy,
-) -> None:
-    """Render summary metrics in a responsive grid."""
-    owner_params = owner_params or {}
-    if mode == UserMode.OWNER:
-        num_components = sum(
-            [
-                owner_params.get("inc_m", False),
-                owner_params.get("inc_c", False),
-                owner_params.get("inc_d", False),
-            ]
-        )
-        cols = st.columns(2 + max(num_components, 0))
-        with cols[0]:
-            st.metric(
-                label="📊 Total Points",
-                value=f"{result.total_points:,}",
-                help="Total vacation points required for this stay",
-            )
-        with cols[1]:
-            st.metric(
-                label="💰 Total Cost",
-                value=f"${result.financial_total:,.0f}",
-                help="Total ownership cost including all selected components",
-            )
-        col_idx = 2
-        if owner_params.get("inc_m"):
-            with cols[col_idx]:
-                st.metric(
-                    label="🔧 Maintenance",
-                    value=f"${result.m_cost:,.0f}",
-                    help="Annual Maintenance attributable to this stay",
-                )
-            col_idx += 1
-        if owner_params.get("inc_c"):
-            with cols[col_idx]:
-                st.metric(
-                    label="💼 Capital Cost",
-                    value=f"${result.c_cost:,.0f}",
-                    help="Opportunity cost of capital tied up in ownership",
-                )
-            col_idx += 1
-        if owner_params.get("inc_d"):
-            with cols[col_idx]:
-                st.metric(
-                    label="📉 Depreciation",
-                    value=f"${result.d_cost:,.0f}",
-                    help="Share of asset depreciation for this usage",
-                )
-            col_idx += 1
-    else:
-        if result.discount_applied:
-            cols = st.columns(3)
-            pct = "30%" if policy == DiscountPolicy.PRESIDENTIAL else "25%"
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Discounted points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (based on discounted points)",
-                )
-            with cols[2]:
-                st.metric(
-                    label="🎉 Discount Applied",
-                    value=pct,
-                    delta=f"{len(result.discounted_days)} days",
-                    help="Points discount for last-minute booking",
-                )
-        else:
-            cols = st.columns(2)
-            with cols[0]:
-                st.metric(
-                    label="📊 Total Points",
-                    value=f"{result.total_points:,}",
-                    help="Total vacation points required",
-                )
-            with cols[1]:
-                st.metric(
-                    label="💰 Total Rent",
-                    value=f"${result.financial_total:,.0f}",
-                    help="Total rental cost (no points discount)",
-                )
 
 # ==============================================================================
 # MAIN PAGE LOGIC
@@ -524,7 +431,6 @@ def main() -> None:
     ensure_data_in_session()
 
     # --- 1. INITIALIZE SESSION STATE DEFAULTS (User Requested Defaults) ---
-    # This prevents the "created without default" errors
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.55  # Default $0.55
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0 # Default $18
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 5.0 # Default 5%
@@ -617,7 +523,7 @@ def main() -> None:
         
         owner_params = None
         policy = DiscountPolicy.NONE
-        rate = 0.50
+        rate = 0.50  # Default rate, will be overwritten if in Owner mode
 
         st.divider()
         
@@ -682,13 +588,15 @@ def main() -> None:
         disc_mul = 0.75 if "Executive" in opt else 0.7 if "Presidential" in opt or "Chairman" in opt else 1.0
         if owner_params: owner_params["disc_mul"] = disc_mul
         
-        # FIX: Pass the correct rate for calculation
-        calc_rate = rate if mode == UserMode.OWNER else rate
-        # Wait, 'rate' in OWNER mode comes from widget tied to 'pref_maint_rate'
-        # 'rate' in RENTER mode comes from local widget 'value=0.50'
-        # Both are assigned to variable 'rate', so we can just use 'rate'
-        
         st.divider()
+        
+    # --- IMPORTANT: Use the correct rate based on mode ---
+    if mode == UserMode.OWNER:
+        # Use session state value because the widget 'rate' variable above is bound to it
+        calc_rate = st.session_state.pref_maint_rate
+    else:
+        # Use local widget value
+        calc_rate = rate
 
     render_page_header("Calculator", f"👤 {mode.value} Mode", icon="🏨", badge_color="#059669" if mode == UserMode.OWNER else "#2563eb")
 
@@ -745,8 +653,9 @@ def main() -> None:
     with c4: comp_rooms = st.multiselect("Compare With", [r for r in room_types if r != room_sel])
     
     st.divider()
-    # Pass 'rate' which holds the correct value from either mode
-    res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params)
+    
+    # --- PASS CORRECT RATE TO CALCULATOR ---
+    res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, calc_rate, policy, owner_params)
     
     st.markdown(f"### 📊 Results: {room_sel}")
     
@@ -771,7 +680,7 @@ def main() -> None:
     if comp_rooms:
         st.divider()
         st.markdown("### 🔍 Comparison")
-        comp_res = calc.compare_stays(r_name, [room_sel] + comp_rooms, adj_in, adj_n, mode, rate, policy, owner_params)
+        comp_res = calc.compare_stays(r_name, [room_sel] + comp_rooms, adj_in, adj_n, mode, calc_rate, policy, owner_params)
         st.dataframe(comp_res.pivot_df, use_container_width=True)
         
         c1, c2 = st.columns(2)
