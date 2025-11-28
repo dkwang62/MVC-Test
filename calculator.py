@@ -717,7 +717,8 @@ def load_user_settings(uploaded_file):
     """Load user preferences from uploaded JSON file into session state."""
     try:
         user_data = json.load(uploaded_file)
-        # Safely set session state only if keys exist in JSON
+        
+        # 1. Load Basic Numeric Settings
         if "maintenance_rate" in user_data:
             st.session_state["pref_maint_rate"] = float(user_data["maintenance_rate"])
         if "purchase_price" in user_data:
@@ -730,12 +731,25 @@ def load_user_settings(uploaded_file):
             st.session_state["pref_useful_life"] = int(user_data["useful_life"])
         if "discount_tier" in user_data:
             st.session_state["pref_discount_tier"] = str(user_data["discount_tier"])
+        
+        # 2. Load Boolean Checkbox States (What to Include)
+        if "include_maintenance" in user_data:
+            st.session_state["pref_inc_m"] = bool(user_data["include_maintenance"])
+        if "include_capital" in user_data:
+            st.session_state["pref_inc_c"] = bool(user_data["include_capital"])
+        if "include_depreciation" in user_data:
+            st.session_state["pref_inc_d"] = bool(user_data["include_depreciation"])
+
+        # 3. Load Preferred Resort
         if "preferred_resort_id" in user_data:
             st.session_state["pref_resort_id"] = str(user_data["preferred_resort_id"])
-            # Also trigger current selection update
+            # Immediately update current selection to this preferred resort
             st.session_state.current_resort_id = str(user_data["preferred_resort_id"])
         
-        st.success("✅ Settings Loaded!")
+        # 4. Force Mode to Owner
+        st.session_state.calculator_mode = UserMode.OWNER.value
+        
+        st.toast("✅ Settings loaded! Switched to Owner Mode.", icon="📂")
     except Exception as e:
         st.error(f"Error loading settings: {e}")
 
@@ -750,6 +764,32 @@ def main() -> None:
 
     # 1) Shared data auto-load (no uploader here)
     ensure_data_in_session()
+
+    # Initialize defaults in session state if not present
+    if "pref_maint_rate" not in st.session_state:
+        st.session_state.pref_maint_rate = 0.50
+    if "pref_purchase_price" not in st.session_state:
+        st.session_state.pref_purchase_price = 18.0
+    if "pref_capital_cost" not in st.session_state:
+        st.session_state.pref_capital_cost = 6.0
+    if "pref_salvage_value" not in st.session_state:
+        st.session_state.pref_salvage_value = 3.0
+    if "pref_useful_life" not in st.session_state:
+        st.session_state.pref_useful_life = 15
+    if "pref_discount_tier" not in st.session_state:
+        st.session_state.pref_discount_tier = "No Discount"
+    
+    # Initialize Checkbox Defaults
+    if "pref_inc_m" not in st.session_state:
+        st.session_state.pref_inc_m = True
+    if "pref_inc_c" not in st.session_state:
+        st.session_state.pref_inc_c = True
+    if "pref_inc_d" not in st.session_state:
+        st.session_state.pref_inc_d = True
+
+    # Initialize Mode if not set
+    if "calculator_mode" not in st.session_state:
+        st.session_state.calculator_mode = UserMode.RENTER.value
 
     # ===== Calculator check-in date state =====
     today = datetime.now().date()
@@ -778,64 +818,19 @@ def main() -> None:
     # 3) Sidebar: user settings
     with st.sidebar:
         st.divider()
-        
-        # --- User Configuration Save/Load ---
-        with st.expander("⚙️ User Configuration", expanded=False):
-            # Load
-            config_file = st.file_uploader("📂 Load Settings (JSON)", type="json", key="user_cfg_upload")
-            
-            # CHECK: Only load if this specific file hasn't been loaded yet
-            if config_file:
-                file_sig = f"{config_file.name}_{config_file.size}"
-                if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
-                    load_user_settings(config_file)
-                    st.session_state.last_loaded_cfg = file_sig
-                    st.rerun() # Rerun to apply settings immediately
-
-            # Initialize defaults in session state if not present (first run)
-            if "pref_maint_rate" not in st.session_state:
-                st.session_state.pref_maint_rate = 0.50
-            if "pref_purchase_price" not in st.session_state:
-                st.session_state.pref_purchase_price = 18.0
-            if "pref_capital_cost" not in st.session_state:
-                st.session_state.pref_capital_cost = 6.0
-            if "pref_salvage_value" not in st.session_state:
-                st.session_state.pref_salvage_value = 3.0
-            if "pref_useful_life" not in st.session_state:
-                st.session_state.pref_useful_life = 15
-            if "pref_discount_tier" not in st.session_state:
-                st.session_state.pref_discount_tier = "No Discount"
-
-            # Prepare current settings for download
-            current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
-            
-            current_settings = {
-                "maintenance_rate": st.session_state.pref_maint_rate,
-                "purchase_price": st.session_state.pref_purchase_price,
-                "capital_cost_pct": st.session_state.pref_capital_cost,
-                "salvage_value": st.session_state.pref_salvage_value,
-                "useful_life": st.session_state.pref_useful_life,
-                "discount_tier": st.session_state.pref_discount_tier,
-                "preferred_resort_id": current_pref_resort
-            }
-            
-            st.download_button(
-                label="💾 Save Settings to File",
-                data=json.dumps(current_settings, indent=2),
-                file_name="mvc_owner_settings.json",
-                mime="application/json",
-                use_container_width=True
-            )
-
         st.markdown("### 👤 User Profile")
+        
+        # Main Mode Selector (Linked to State)
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
-            index=0,
+            index=0 if st.session_state.calculator_mode == UserMode.RENTER.value else 1,
+            key="calculator_mode", 
             help="Select whether you're renting points or own them",
             horizontal=True,
         )
         mode = UserMode(mode_sel)
+        
         owner_params: Optional[dict] = None
         policy: DiscountPolicy = DiscountPolicy.NONE
         rate = 0.50
@@ -846,13 +841,18 @@ def main() -> None:
             "Executive (25% off within 30 days)",
             "Presidential / Chairman (30% off within 60 days)",
         ]
-        # Calculate index for the radio button based on loaded preference
-        tier_index = 0
-        loaded_tier = st.session_state.pref_discount_tier
-        if "Executive" in loaded_tier:
-            tier_index = 1
-        elif "Presidential" in loaded_tier or "Chairman" in loaded_tier:
-            tier_index = 2
+        
+        # Determine current tier index safely
+        try:
+            current_tier_val = st.session_state.pref_discount_tier
+            if "Executive" in current_tier_val:
+                tier_index = 1
+            elif "Presidential" in current_tier_val or "Chairman" in current_tier_val:
+                tier_index = 2
+            else:
+                tier_index = 0
+        except:
+            tier_index = 0
 
         st.divider()
         
@@ -862,7 +862,7 @@ def main() -> None:
             rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
                 value=st.session_state.pref_maint_rate,
-                key="pref_maint_rate",  # Link to state
+                key="pref_maint_rate",
                 step=0.01,
                 min_value=0.0,
                 help="Your annual maintenance fee per point",
@@ -872,27 +872,55 @@ def main() -> None:
                 "Discount Tier:",
                 tier_options,
                 index=tier_index,
-                key="pref_discount_tier", # Link to state
+                key="pref_discount_tier",
                 help="Last-minute booking discounts based on your membership tier",
             )
             
             with st.expander("🔧 Advanced Options", expanded=False):
+                
+                # --- SAVE / LOAD SECTION INSIDE ADVANCED OPTIONS ---
+                st.markdown("###### 📂 Save/Load User Settings")
+                config_file = st.file_uploader("Load Settings File", type="json", key="user_cfg_upload_inner")
+                
+                if config_file:
+                    # Only load if the file is new to avoid re-loading on every interaction
+                    file_sig = f"{config_file.name}_{config_file.size}"
+                    if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
+                        load_user_settings(config_file)
+                        st.session_state.last_loaded_cfg = file_sig
+                        st.rerun()
+
+                # Prepare current settings for download
+                current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
+                current_settings = {
+                    "maintenance_rate": st.session_state.pref_maint_rate,
+                    "purchase_price": st.session_state.pref_purchase_price,
+                    "capital_cost_pct": st.session_state.pref_capital_cost,
+                    "salvage_value": st.session_state.pref_salvage_value,
+                    "useful_life": st.session_state.pref_useful_life,
+                    "discount_tier": st.session_state.pref_discount_tier,
+                    "include_maintenance": st.session_state.pref_inc_m,
+                    "include_capital": st.session_state.pref_inc_c,
+                    "include_depreciation": st.session_state.pref_inc_d,
+                    "preferred_resort_id": current_pref_resort
+                }
+                
+                st.download_button(
+                    label="💾 Save Settings",
+                    data=json.dumps(current_settings, indent=2),
+                    file_name="mvc_owner_settings.json",
+                    mime="application/json",
+                    use_container_width=True
+                )
+                
+                st.divider()
+                # ---------------------------------------------------
+
                 st.markdown("**What to Include in Calculation**")
-                inc_m = st.checkbox(
-                    "✓ Maintenance Fees",
-                    True,
-                    help="Include annual maintenance costs",
-                )
-                inc_c = st.checkbox(
-                    "✓ Capital Cost",
-                    True,
-                    help="Include opportunity cost of capital invested",
-                )
-                inc_d = st.checkbox(
-                    "✓ Depreciation",
-                    True,
-                    help="Include asset depreciation over time",
-                )
+                # Linked directly to session state
+                inc_m = st.checkbox("✓ Maintenance Fees", key="pref_inc_m")
+                inc_c = st.checkbox("✓ Capital Cost", key="pref_inc_c")
+                inc_d = st.checkbox("✓ Depreciation", key="pref_inc_d")
                 
                 st.divider()
                 
@@ -902,10 +930,9 @@ def main() -> None:
                     cap = st.number_input(
                         "Purchase Price ($/point)",
                         value=st.session_state.pref_purchase_price,
-                        key="pref_purchase_price", # Link to state
+                        key="pref_purchase_price",
                         step=1.0,
                         min_value=0.0,
-                        help="What you paid per point when purchasing",
                         disabled=not (inc_c or inc_d),
                     )
                 else:
@@ -915,10 +942,9 @@ def main() -> None:
                     coc_val = st.number_input(
                         "Cost of Capital (%/year)",
                         value=st.session_state.pref_capital_cost,
-                        key="pref_capital_cost", # Link to state
+                        key="pref_capital_cost",
                         step=0.5,
                         min_value=0.0,
-                        help="Your expected return on alternative investments",
                     )
                     coc = coc_val / 100.0
                 else:
@@ -931,18 +957,16 @@ def main() -> None:
                         life = st.number_input(
                             "Useful Life (years)",
                             value=st.session_state.pref_useful_life,
-                            key="pref_useful_life", # Link to state
+                            key="pref_useful_life",
                             min_value=1,
-                            help="Expected ownership duration",
                         )
                     with col2:
                         salvage = st.number_input(
                             "Salvage Value ($/pt)",
                             value=st.session_state.pref_salvage_value,
-                            key="pref_salvage_value", # Link to state
+                            key="pref_salvage_value",
                             step=0.5,
                             min_value=0.0,
-                            help="Expected resale value per point",
                         )
                 else:
                     life = 15
