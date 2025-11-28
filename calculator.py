@@ -435,6 +435,34 @@ def main() -> None:
 
     with st.sidebar:
         st.divider()
+        
+        # --- 1. CONFIGURATION SECTION (TOP) ---
+        with st.expander("⚙️ User Configuration", expanded=False):
+            st.markdown("###### 📂 Load/Save Settings")
+            config_file = st.file_uploader("Load Settings File", type="json", key="user_cfg_upload_main")
+            
+            if config_file:
+                 if st.button("🔄 Load Parameters from File", type="primary", use_container_width=True):
+                     load_user_settings(config_file)
+                     st.rerun()
+
+            # Prepare download data
+            current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
+            current_settings = {
+                "maintenance_rate": st.session_state.pref_maint_rate,
+                "purchase_price": st.session_state.pref_purchase_price,
+                "capital_cost_pct": st.session_state.pref_capital_cost,
+                "salvage_value": st.session_state.pref_salvage_value,
+                "useful_life": st.session_state.pref_useful_life,
+                "discount_tier": st.session_state.pref_discount_tier,
+                "include_maintenance": st.session_state.pref_inc_m,
+                "include_capital": st.session_state.pref_inc_c,
+                "include_depreciation": st.session_state.pref_inc_d,
+                "preferred_resort_id": current_pref_resort
+            }
+            st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
+
+        st.divider()
         st.markdown("### 👤 User Profile")
         
         # MODE SELECTOR (No index, relies on key/state)
@@ -475,35 +503,8 @@ def main() -> None:
             # Discount Tier Radio - use the calculated index to ensure UI sync
             opt = st.radio("Discount Tier:", tier_options, index=t_idx, key="pref_discount_tier")
             
-            # --- ADVANCED OPTIONS & LOAD BUTTON ---
+            # --- ADVANCED OPTIONS (NOW JUST PARAMS) ---
             with st.expander("🔧 Advanced Options", expanded=False):
-                
-                st.markdown("###### 📂 Load/Save Settings")
-                config_file = st.file_uploader("Settings File (JSON)", type="json", key="user_cfg_upload_inner")
-                
-                # BUTTON TO TRIGGER LOAD - Solves the 'freeze' issue
-                if config_file:
-                     if st.button("🔄 Load Parameters from File", type="primary", use_container_width=True):
-                         load_user_settings(config_file)
-                         st.rerun()
-
-                # Prepare download data
-                current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
-                current_settings = {
-                    "maintenance_rate": st.session_state.pref_maint_rate,
-                    "purchase_price": st.session_state.pref_purchase_price,
-                    "capital_cost_pct": st.session_state.pref_capital_cost,
-                    "salvage_value": st.session_state.pref_salvage_value,
-                    "useful_life": st.session_state.pref_useful_life,
-                    "discount_tier": st.session_state.pref_discount_tier,
-                    "include_maintenance": st.session_state.pref_inc_m,
-                    "include_capital": st.session_state.pref_inc_c,
-                    "include_depreciation": st.session_state.pref_inc_d,
-                    "preferred_resort_id": current_pref_resort
-                }
-                st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
-                
-                st.divider()
                 st.markdown("**Include in Cost:**")
                 inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
                 inc_c = st.checkbox("Capital Cost", key="pref_inc_c")
