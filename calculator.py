@@ -608,16 +608,16 @@ def main() -> None:
     if "show_help" not in st.session_state:
         st.session_state.show_help = False
 
-    # Owner preferences
-    if "owner_maint_rate" not in st.session_state:
+    # Owner preferences (defensive defaults: never leave as 0.0)
+    if "owner_maint_rate" not in st.session_state or st.session_state.owner_maint_rate <= 0.0:
         st.session_state.owner_maint_rate = 0.55
-    if "owner_purchase_price" not in st.session_state:
+    if "owner_purchase_price" not in st.session_state or st.session_state.owner_purchase_price <= 0.0:
         st.session_state.owner_purchase_price = 18.0
-    if "owner_capital_cost_pct" not in st.session_state:
+    if "owner_capital_cost_pct" not in st.session_state or st.session_state.owner_capital_cost_pct < 0.0:
         st.session_state.owner_capital_cost_pct = 5.0
-    if "owner_salvage_value" not in st.session_state:
+    if "owner_salvage_value" not in st.session_state or st.session_state.owner_salvage_value < 0.0:
         st.session_state.owner_salvage_value = 3.0
-    if "owner_useful_life" not in st.session_state:
+    if "owner_useful_life" not in st.session_state or st.session_state.owner_useful_life <= 0:
         st.session_state.owner_useful_life = 10
     if "owner_discount_tier" not in st.session_state:
         st.session_state.owner_discount_tier = TIER_NO_DISCOUNT
@@ -628,11 +628,12 @@ def main() -> None:
     if "owner_inc_d" not in st.session_state:
         st.session_state.owner_inc_d = True
 
-    # Renter preferences
-    if "renter_cost_per_point" not in st.session_state:
+    # Renter preferences (defensive defaults)
+    if "renter_cost_per_point" not in st.session_state or st.session_state.renter_cost_per_point <= 0.0:
         st.session_state.renter_cost_per_point = 0.50
     if "renter_discount_tier" not in st.session_state:
         st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
+
 
     # Mode
     if "calculator_mode" not in st.session_state:
@@ -739,11 +740,13 @@ This feature lets you save your personal ownership profile so you do not have to
             st.markdown("##### 💰 Basic Costs")
             owner_rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
+                value=float(st.session_state.owner_maint_rate),
                 key="owner_maint_rate",
                 step=0.01,
                 min_value=0.0,
             )
             rate = owner_rate
+
 
             owner_tier = st.radio(
                 "Discount Tier:",
@@ -829,11 +832,13 @@ This feature lets you save your personal ownership profile so you do not have to
             st.markdown("##### 💵 Rental Rate")
             renter_rate = st.number_input(
                 "Cost per Point ($)",
+                value=float(st.session_state.renter_cost_per_point),
                 key="renter_cost_per_point",
                 step=0.01,
                 min_value=0.0,
             )
             rate = renter_rate
+
 
             st.markdown("##### 🎯 Available Discounts")
             renter_tier = st.radio(
