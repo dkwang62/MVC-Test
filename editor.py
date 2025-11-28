@@ -39,6 +39,7 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
+        "download_verified": False,  # <--- NEW STATE VARIABLE
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -187,49 +188,57 @@ def handle_file_upload():
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
+    # Ensure state exists (for safety if hot-reloading)
+    if "download_verified" not in st.session_state:
+        st.session_state.download_verified = False
+
     with st.sidebar.expander("💾 Save & Download", expanded=True):
         
         # --- 1. DETECT UNSAVED CHANGES ---
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
-        
-        # Assume clean unless proven dirty
         has_unsaved_changes = False
         
         if current_id and current_id in working_resorts:
             working_copy = working_resorts[current_id]
             committed_copy = find_resort_by_id(data, current_id)
-            
-            # Simple equality check handles deep comparison
             if committed_copy != working_copy:
                 has_unsaved_changes = True
 
-        # --- 2. RENDER INTERFACE BASED ON STATE ---
-        
+        # --- 2. STATE MACHINE ---
+
         if has_unsaved_changes:
-            # STATE: DIRTY (Unsaved Changes)
-            # ---------------------------------------------------------
-            # We ONLY show the "Commit to Memory" button.
-            # The Download button is NOT RENDERED.
-            # ---------------------------------------------------------
+            # STATE: DIRTY
+            # Action: Must Commit to Memory
+            # Effect: Resets verification status
+            st.session_state.download_verified = False 
+            
             st.warning("⚠️ Unsaved changes pending.")
             
-            # Changed icon to Brain (Memory) to distinguish from Disk (Storage)
             if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
-                # 1. Commit to main memory
                 commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                # 2. Force a rerun immediately so the UI updates to "Clean" state
                 st.toast("✅ Committed to memory.", icon="🧠")
                 st.rerun()
             
-            st.caption("You must commit changes to memory before downloading.")
+            st.caption("You must commit changes to memory before proceeding.")
+
+        elif not st.session_state.download_verified:
+            # STATE: CLEAN BUT UNVERIFIED
+            # Action: Must Verify
+            # Effect: Shows Download button next
+            st.info("ℹ️ Memory updated.")
+            
+            if st.button("🔍 Verify that memory is up to date", use_container_width=True):
+                # This button 'actively checks' status (logic is implicit since we are in the else block)
+                st.session_state.download_verified = True
+                st.rerun()
+                
+            st.caption("Please confirm the current memory state is correct to unlock the download.")
 
         else:
-            # STATE: CLEAN (Saved)
-            # ---------------------------------------------------------
-            # We ONLY show the "Download" button.
-            # ---------------------------------------------------------
-            st.success("✅ Memory is up to date.")
+            # STATE: VERIFIED
+            # Action: Allow Download
+            st.success("✅ Verified & Ready.")
             
             # This is the ONLY place this widget is rendered
             filename = st.text_input(
@@ -243,7 +252,6 @@ def create_download_button_v2(data: Dict[str, Any]):
             if not filename.lower().endswith(".json"):
                 filename += ".json"
 
-            # Serialize the NOW CURRENT data
             json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
             st.download_button(
@@ -255,7 +263,6 @@ def create_download_button_v2(data: Dict[str, Any]):
                 type="primary",
                 use_container_width=True,
             )
-
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
         verify_upload = st.file_uploader(
