@@ -1842,7 +1842,7 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
+    with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
         st.markdown(
             """
 1. The system starts with a default list of resorts in memory.  
