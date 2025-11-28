@@ -249,12 +249,9 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    if owner_config.get("inc_m", False):
-                        m = math.ceil(eff * rate)
-                    if owner_config.get("inc_c", False):
-                        c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
-                    if owner_config.get("inc_d", False):
-                        dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                    if owner_config.get("inc_m"): m = math.ceil(eff * rate)
+                    if owner_config.get("inc_c"): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                    if owner_config.get("inc_d"): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
                     cost = m + c + dp
                 else:
                     cost = math.ceil(eff * rate)
@@ -303,34 +300,26 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    if owner_config.get("inc_m", False):
-                        m = math.ceil(eff * rate)
-                    if owner_config.get("inc_c", False):
-                        c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
-                    if owner_config.get("inc_d", False):
-                        dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
-                    day_cost = m + c + dp
+                    if owner_config.get("inc_m"): m = math.ceil(eff * rate)
+                    if owner_config.get("inc_c"): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
+                    if owner_config.get("inc_d"): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
+                    cost = m + c + dp
                 else:
-                    day_cost = math.ceil(eff * rate)
-                row = {
-                    "Date": d.strftime("%Y-%m-%d"), "Day": d.strftime("%a"), "Points": eff
-                }
+                    cost = math.ceil(eff * rate)
+
+                row = {"Date": d.strftime("%Y-%m-%d"), "Day": d.strftime("%a"), "Points": eff}
                 if is_owner:
-                    if owner_config.get("inc_m", False):
-                        row["Maintenance"] = m
-                    if owner_config.get("inc_c", False):
-                        row["Capital Cost"] = c
-                    if owner_config.get("inc_d", False):
-                        row["Depreciation"] = dp
-                    row["Total Cost"] = day_cost
+                    if owner_config.get("inc_m"): row["Maintenance"] = m
+                    if owner_config.get("inc_c"): row["Capital Cost"] = c
+                    if owner_config.get("inc_d"): row["Depreciation"] = dp
+                    row["Total Cost"] = cost
                 else:
-                    row[room] = day_cost
+                    row[room] = cost
+                
                 rows.append(row)
                 tot_eff_pts += eff
-                tot_financial += day_cost
-                tot_m += m
-                tot_c += c
-                tot_d += dp
+                tot_financial += cost
+                tot_m += m; tot_c += c; tot_d += dp
                 i += 1
             else:
                 i += 1
@@ -535,6 +524,7 @@ def main() -> None:
     ensure_data_in_session()
 
     # --- 1. INITIALIZE SESSION STATE DEFAULTS (User Requested Defaults) ---
+    # This prevents the "created without default" errors
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.55  # Default $0.55
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0 # Default $18
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 5.0 # Default 5%
@@ -692,8 +682,11 @@ def main() -> None:
         disc_mul = 0.75 if "Executive" in opt else 0.7 if "Presidential" in opt or "Chairman" in opt else 1.0
         if owner_params: owner_params["disc_mul"] = disc_mul
         
-        # IMPORTANT: Pass the CORRECT RATE from the session state (or widget) to the calculator
-        # If we are in owner mode, 'rate' variable was updated by the widget above.
+        # FIX: Pass the correct rate for calculation
+        calc_rate = rate if mode == UserMode.OWNER else rate
+        # Wait, 'rate' in OWNER mode comes from widget tied to 'pref_maint_rate'
+        # 'rate' in RENTER mode comes from local widget 'value=0.50'
+        # Both are assigned to variable 'rate', so we can just use 'rate'
         
         st.divider()
 
@@ -752,111 +745,7 @@ def main() -> None:
     with c4: comp_rooms = st.multiselect("Compare With", [r for r in room_types if r != room_sel])
     
     st.divider()
-    # Correctly pass the rate for owner mode
-    if mode == UserMode.OWNER:
-        calc_rate = st.session_state.pref_maint_rate
-    else:
-        calc_rate = rate # use the renter rate defined earlier
-
-    res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, calc_rate, policy, owner_params)
-    
-    st.markdown(f"### 📊 Results: {room_sel}")
-    
-    # Custom Metrics Display
-    if mode == UserMode.OWNER:
-        cols = st.columns(5)
-        cols[0].metric("Total Points", f"{res.total_points:,}")
-        cols[1].metric("Total Cost", f"${res.financial_total:,.0f}")
-        if inc_m: cols[2].metric("Maintenance", f"${res.m_cost:,.0f}")
-        if inc_c: cols[3].metric("Capital Cost", f"${res.c_cost:,.0f}")
-        if inc_d: cols[4].metric("Depreciation", f"${res.d_cost:,.0f}")
-    else:
-        cols = st.columns(2)
-        cols[0].metric("Total Points", f"{res.total_points:,}")
-        cols[1].metric("Total Rent", f"${res.financial_total:,.0f}")
-        if res.discount_applied: st.success(f"Discount Applied: {len(res.discounted_days)} days")
-
-    st.divider()
-    st.markdown("### 📋 Detailed Breakdown")
-    st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
-
-    if comp_rooms:
-        st.divider()
-        st.markdown("### 🔍 Comparison")
-        comp_res = calc.compare_stays(r_name, [room_sel] + comp_rooms, adj_in, adj_n, mode, calc_rate, policy, owner_params)
-        st.dataframe(comp_res.pivot_df, use_container_width=True)
-        
-        c1, c2 = st.columns(2)
-        if not comp_res.daily_chart_df.empty:
-             with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"]=="No"], x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
-        if not comp_res.holiday_chart_df.empty:
-             with c2: st.plotly_chart(px.bar(comp_res.holiday_chart_df, x="Holiday", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Holiday Cost"), use_container_width=True)
-
-    year_str = str(adj_in.year)
-    res_data = calc.repo.get_resort(r_name)
-    if res_data and year_str in res_data.years:
-        st.divider()
-        with st.expander("📅 Season and Holiday Calendar", expanded=False):
-            st.plotly_chart(create_gantt_chart_from_resort_data(res_data, year_str, st.session_state.data.get("global_holidays", {})), use_container_width=True)
-
-def run() -> None:
-    main()        st.divider()
-
-    render_page_header("Calculator", f"👤 {mode.value} Mode", icon="🏨", badge_color="#059669" if mode == UserMode.OWNER else "#2563eb")
-
-    # Resort Selection
-    if resorts_full and st.session_state.current_resort_id is None:
-        if "pref_resort_id" in st.session_state and any(r.get("id") == st.session_state.pref_resort_id for r in resorts_full):
-            st.session_state.current_resort_id = st.session_state.pref_resort_id
-        else:
-            st.session_state.current_resort_id = resorts_full[0].get("id")
-
-    render_resort_grid(resorts_full, st.session_state.current_resort_id)
-
-    resort_obj = next((r for r in resorts_full if r.get("id") == st.session_state.current_resort_id), None)
-    if not resort_obj: return
-    
-    r_name = resort_obj.get("display_name")
-    info = repo.get_resort_info(r_name)
-    render_resort_card(info["full_name"], info["timezone"], info["address"])
-    st.divider()
-
-    # Booking
-    st.markdown("### 📅 Booking Details")
-    c1, c2, c3, c4 = st.columns([2, 1, 2, 2])
-    with c1:
-        checkin = st.date_input("Check-in", value=st.session_state.calc_checkin, key="calc_checkin_widget")
-        st.session_state.calc_checkin = checkin
-    
-    if not st.session_state.calc_checkin_user_set and checkin != st.session_state.calc_initial_default:
-        st.session_state.calc_checkin_user_set = True
-
-    with c2: nights = st.number_input("Nights", 1, 60, 7)
-    
-    if st.session_state.calc_checkin_user_set:
-        adj_in, adj_n, adj = calc.adjust_holiday(r_name, checkin, nights)
-    else:
-        adj_in, adj_n, adj = checkin, nights, False
-        
-    if adj:
-        st.info(f"ℹ️ Adjusted to holiday: {adj_in.strftime('%b %d')} - {(adj_in+timedelta(days=adj_n-1)).strftime('%b %d')}")
-
-    pts, _ = calc._get_daily_points(calc.repo.get_resort(r_name), adj_in)
-    if not pts:
-        rd = calc.repo.get_resort(r_name)
-        if rd and str(adj_in.year) in rd.years:
-             yd = rd.years[str(adj_in.year)]
-             if yd.seasons: pts = yd.seasons[0].day_categories[0].room_points
-    
-    room_types = sorted(pts.keys()) if pts else []
-    if not room_types:
-        st.error("❌ No room data available.")
-        return
-
-    with c3: room_sel = st.selectbox("Room Type", room_types)
-    with c4: comp_rooms = st.multiselect("Compare With", [r for r in room_types if r != room_sel])
-    
-    st.divider()
+    # Pass 'rate' which holds the correct value from either mode
     res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate, policy, owner_params)
     
     st.markdown(f"### 📊 Results: {room_sel}")
