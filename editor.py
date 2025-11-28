@@ -1,6 +1,6 @@
 import streamlit as st
 from common.ui import render_resort_card, render_resort_grid, render_page_header
-from common.data import load_data 
+from common.data import load_data, DEFAULT_OWNER_DATA
 from functools import lru_cache
 import json
 import pandas as pd
@@ -39,7 +39,8 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
-        "download_verified": False,  # State for the verify button
+        "download_verified": False,
+        "owner_data": DEFAULT_OWNER_DATA.copy(), # Initialize owner data
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -70,12 +71,10 @@ def reset_state_for_new_file():
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
-    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
-    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 
@@ -84,12 +83,10 @@ def get_resort_full_name(resort_id: str, display_name: str) -> str:
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
 def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
-    """Cached version of get_years_from_data"""
     return tuple(sorted(get_years_from_data(st.session_state.data)))
 
 
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
-    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -144,11 +141,11 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
 
 
 # ----------------------------------------------------------------------
-# FILE OPERATIONS WITH ENHANCED UI
+# FILE OPERATIONS
 # ----------------------------------------------------------------------
 def handle_file_upload():
     st.sidebar.markdown("### 📤 File to Memory")
-    with st.sidebar.expander("📤 Load", expanded=False):
+    with st.sidebar.expander("📤 Load Resort Data", expanded=False):
         uploaded = st.file_uploader(
             "Choose JSON file",
             type="json",
@@ -177,81 +174,30 @@ def handle_file_upload():
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
 
-    # Ensure state exists (for safety if hot-reloading)
-    if "download_verified" not in st.session_state:
-        st.session_state.download_verified = False
-
-    with st.sidebar.expander("💾 Save & Download", expanded=False):
+    with st.sidebar.expander("💾 Save Resort Data", expanded=True):
         
-        # --- 1. DETECT UNSAVED CHANGES ---
-        current_id = st.session_state.get("current_resort_id")
-        working_resorts = st.session_state.get("working_resorts", {})
-        has_unsaved_changes = False
-        
-        if current_id and current_id in working_resorts:
-            working_copy = working_resorts[current_id]
-            committed_copy = find_resort_by_id(data, current_id)
-            if committed_copy != working_copy:
-                has_unsaved_changes = True
+        filename = st.text_input(
+            "File name",
+            value="data_v2.json",
+            key="download_filename_input",
+        ).strip()
 
-        # --- 2. STATE MACHINE ---
+        if not filename:
+            filename = "data_v2.json"
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
 
-        if has_unsaved_changes:
-            # STATE: DIRTY
-            # Action: Must Commit to Memory
-            # Effect: Resets verification status
-            st.session_state.download_verified = False 
-            
-            st.warning("⚠️ Unsaved changes pending.")
-            
-            if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
-                commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("✅ Committed to memory.", icon="🧠")
-                st.rerun()
-            
-            st.caption("You must commit changes to memory before proceeding.")
+        # Directly serialize the data currently in session state
+        json_data = json.dumps(data, indent=2, ensure_ascii=False)
 
-        elif not st.session_state.download_verified:
-            # STATE: CLEAN BUT UNVERIFIED
-            # Action: Must Verify
-            # Effect: Shows Download button next
-            st.info("ℹ️ Memory updated.")
-            
-            if st.button("🔍 Verify that memory is up to date", use_container_width=True):
-                # This button 'actively checks' status (logic is implicit since we are in the else block)
-                st.session_state.download_verified = True
-                st.rerun()
-                
-            st.caption("Please confirm the current memory state is correct to unlock the download.")
-
-        else:
-            # STATE: VERIFIED
-            # Action: Allow Download
-            st.success("✅ Verified & Ready.")
-            
-            # This is the ONLY place this widget is rendered
-            filename = st.text_input(
-                "File name",
-                value="data_v2.json",
-                key="download_filename_input",
-            ).strip()
-
-            if not filename:
-                filename = "data_v2.json"
-            if not filename.lower().endswith(".json"):
-                filename += ".json"
-
-            json_data = json.dumps(data, indent=2, ensure_ascii=False)
-
-            st.download_button(
-                label="⬇️ DOWNLOAD JSON FILE",
-                data=json_data,
-                file_name=filename,
-                mime="application/json",
-                key="download_v2_btn",
-                type="primary",
-                use_container_width=True,
-            )
+        st.download_button(
+            label="💾 Save to Disk",
+            data=json_data,
+            file_name=filename,
+            mime="application/json",
+            key="download_v2_btn",
+            use_container_width=True,
+        )
 
 def handle_file_verification():
     with st.sidebar.expander("🔍 Verify File", expanded=False):
@@ -328,6 +274,74 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
                     st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {str(e)}")
+
+# ----------------------------------------------------------------------
+# OWNER PROFILE MANAGEMENT (NEW SECTION)
+# ----------------------------------------------------------------------
+def handle_owner_profile_sidebar():
+    st.sidebar.divider()
+    st.sidebar.markdown("### 👤 Owner Profile")
+    
+    with st.sidebar.expander("⚙️ Manage Profile", expanded=False):
+        # 1. LOAD
+        uploaded_profile = st.file_uploader("📂 Load Profile JSON", type="json", key="owner_profile_upload")
+        if uploaded_profile:
+            try:
+                profile_data = json.load(uploaded_profile)
+                # Basic validation: check for at least one expected key
+                if "maintenance_fee" in profile_data:
+                    st.session_state.owner_data = profile_data
+                    st.toast("✅ Owner profile loaded!", icon="👤")
+                else:
+                    st.error("Invalid profile format")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        st.markdown("---")
+        
+        # 2. EDIT (Inputs update session state directly)
+        current = st.session_state.owner_data
+        
+        new_maint = st.number_input("Maintenance Cost ($/pt)", value=float(current.get("maintenance_fee", 0.70)), step=0.01, format="%.2f")
+        new_price = st.number_input("Purchase Price ($/pt)", value=float(current.get("purchase_price", 15.0)), step=0.5, format="%.2f")
+        new_salvage = st.number_input("Salvage Value ($/pt)", value=float(current.get("salvage_value", 0.0)), step=0.5, format="%.2f")
+        new_coc = st.number_input("Cost of Capital (%)", value=float(current.get("cost_of_capital", 6.0)), step=0.1, format="%.1f")
+        new_life = st.number_input("Useful Life (Years)", value=int(current.get("useful_life", 10)), step=1)
+        
+        discount_options = ["No Discount", "Executive (25% off <30d)", "Presidential (30% off <60d)"]
+        current_disc = current.get("discount_tier", "No Discount")
+        # Map stored value to index if possible, else 0
+        try:
+            disc_idx = [d.split(" (")[0] for d in discount_options].index(current_disc.split(" (")[0])
+        except:
+            disc_idx = 0
+            
+        new_discount = st.selectbox("Default Discount", discount_options, index=disc_idx)
+        
+        # Update State
+        st.session_state.owner_data = {
+            "maintenance_fee": new_maint,
+            "purchase_price": new_price,
+            "salvage_value": new_salvage,
+            "cost_of_capital": new_coc,
+            "useful_life": new_life,
+            "discount_tier": new_discount
+        }
+
+        st.markdown("---")
+
+        # 3. SAVE
+        profile_filename = st.text_input("Profile Filename", value="my_owner_profile.json")
+        if not profile_filename.endswith(".json"):
+            profile_filename += ".json"
+            
+        st.download_button(
+            label="💾 Save Profile",
+            data=json.dumps(st.session_state.owner_data, indent=2),
+            file_name=profile_filename,
+            mime="application/json",
+            use_container_width=True
+        )
 
 
 # ----------------------------------------------------------------------
@@ -1842,32 +1856,37 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-    with st.expander("ℹ️ How to create your own personalised resort dataset", expanded=False):
-        st.markdown(
+        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
+            st.markdown(
+                """
+            - The most updated data is pre-loaded into memory and can be edited.
+            - Loading another file will replace the data in memory.
+            - Edits in memory are temporary — SAVE or they may be lost on refresh.
+            - Verify by matching saved file to what’s in memory.
+            - Load a different file to merge selected resorts to memory.
             """
-If you want a wider set of resorts or need to fix errors in the data without waiting for the author to update it, you can make the changes yourself. The Editor allows you to modify the default dataset in memory and create your own personalised JSON file to reuse each time you open the app. You may also merge resorts from your personalised file into the dataset currently in memory.
+            )
 
-Restarting the app resets everything to the default dataset, so be sure to save and download the in-memory data to preserve your edits. To confirm your saved file matches what is in memory, use the verification step by loading your personalised JSON file."""
-        )
-            
         handle_file_upload()
 
         if st.session_state.data:
-            # st.markdown(
-            #    "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
-            # )
+            st.markdown(
+                "<div style='margin: 20px 0;'></div>", unsafe_allow_html=True
+            )
             # Move merge logic to File to Memory
             handle_merge_from_another_file_v2(st.session_state.data)
 
             create_download_button_v2(st.session_state.data)
             handle_file_verification()
+            
+            # --- NEW OWNER PROFILE SECTION ---
+            handle_owner_profile_sidebar()
 
     
     # Main content
-    
     render_page_header(
     "Editor",
-    "Personalising Your Dataset",
+    "Data Management",
     icon="🏨",
     badge_color="#EF4444"  # Adjust to match the red color in the image, e.g., #DC2626 or #EF4444
 )
