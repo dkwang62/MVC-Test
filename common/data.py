@@ -1,28 +1,23 @@
 # common/data.py
 import json
 import streamlit as st
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from datetime import datetime
 
 DEFAULT_DATA_PATH = "data_v2.json"
 
 def load_data() -> Dict[str, Any]:
-    """
-    Load data from session state or disk.
-    Returns the mutable dictionary stored in session_state.
-    """
     if "data" not in st.session_state or st.session_state.data is None:
         try:
-            with open(DEFAULT_DATA_PATH, "r") as f:
+            with open("data_v2.json", "r") as f:
                 st.session_state.data = json.load(f)
-                st.session_state.uploaded_file_name = DEFAULT_DATA_PATH
+                st.session_state.uploaded_file_name = "data_v2.json"
         except FileNotFoundError:
             st.session_state.data = None
     return st.session_state.data
 
 def save_data(data: Dict[str, Any]):
-    """Write data to disk (server-side)."""
-    with open(DEFAULT_DATA_PATH, "w") as f:
+    with open("data_v2.json", "w") as f:
         json.dump(data, f, indent=2)
     st.session_state.last_save_time = datetime.now()
 
@@ -58,6 +53,7 @@ def ensure_data_in_session(auto_path: str = DEFAULT_DATA_PATH) -> None:
             # Silent failure; individual pages can show their own messaging
             st.toast(f"⚠️ Auto-load error: {e}", icon="⚠️")
 
+
 def render_data_file_uploader(
     label: str,
     session_key: str,
@@ -66,7 +62,9 @@ def render_data_file_uploader(
     help_text: str = "",
     require_schema: bool = True,
 ) -> None:
-    """Standardized file uploader for JSON data."""
+    import json
+    import streamlit as st
+
     uploaded_file = st.file_uploader(
         label,
         type="json",
