@@ -45,7 +45,119 @@ def _season_bucket(season_name: str) -> str:
 
 
 # ======================================================================
-# SHARED GANTT (working dict + global_holidays from data)
+# CALCULATOR-SIDE GANTT (ResortData / YearData objects)
+# ======================================================================
+
+def create_gantt_chart_from_resort_data(
+    resort_data: Any,
+    year: str,
+    global_holidays: Optional[Dict[str, Dict[str, Dict[str, str]]]] = None,
+    height: int = 500,
+) -> go.Figure:
+    """
+    Build a season + holiday Gantt chart for the calculator app using the
+    typed domain objects defined in calculator.py.
+    """
+    rows: List[Dict[str, Any]] = []
+
+    if not hasattr(resort_data, "years") or year not in resort_data.years:
+        # Fallback: trivial "No Data" bar so the chart area still renders
+        today = datetime.now()
+        rows.append(
+            {
+                "Task": "No Data",
+                "Start": today,
+                "Finish": today + timedelta(days=1),
+                "Type": "No Data",
+            }
+        )
+    else:
+        yd = resort_data.years[year]
+
+        # Seasons
+        for season in getattr(yd, "seasons", []):
+            sname = getattr(season, "name", "(Unnamed)")
+            bucket = _season_bucket(sname)
+            periods = getattr(season, "periods", [])
+            for i, p in enumerate(periods, 1):
+                start: date = getattr(p, "start", None)
+                end: date = getattr(p, "end", None)
+                if isinstance(start, date) and isinstance(end, date) and start <= end:
+                    start_dt = datetime(start.year, start.month, start.day)
+                    end_dt = datetime(end.year, end.month, end.day)
+                    rows.append(
+                        {
+                            "Task": f"{sname} #{i}",
+                            "Start": start_dt,
+                            "Finish": end_dt,
+                            "Type": bucket,
+                        }
+                    )
+
+        # Holidays
+        for h in getattr(yd, "holidays", []):
+            hname = getattr(h, "name", "(Unnamed)")
+            start: date = getattr(h, "start_date", None)
+            end: date = getattr(h, "end_date", None)
+            if isinstance(start, date) and isinstance(end, date) and start <= end:
+                start_dt = datetime(start.year, start.month, start.day)
+                end_dt = datetime(end.year, end.month, end.day)
+                rows.append(
+                    {
+                        "Task": hname,
+                        "Start": start_dt,
+                        "Finish": end_dt,
+                        "Type": "Holiday",
+                    }
+                )
+
+        if not rows:
+            today = datetime.now()
+            rows.append(
+                {
+                    "Task": "No Data",
+                    "Start": today,
+                    "Finish": today + timedelta(days=1),
+                    "Type": "No Data",
+                }
+            )
+
+    df = pd.DataFrame(rows)
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["Finish"] = pd.to_datetime(df["Finish"])
+
+    fig = px.timeline(
+        df,
+        x_start="Start",
+        x_end="Finish",
+        y="Task",
+        color="Type",
+        title=f"{getattr(resort_data, 'name', 'Resort')} – {year} Timeline",
+        height=height if height is not None else max(400, len(df) * 35),
+        color_discrete_map=COLOR_MAP,
+    )
+
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(tickformat="%d %b %Y")
+    fig.update_traces(
+        hovertemplate="<b>%{y}</b><br>"
+        "Start: %{base|%d %b %Y}<br>"
+        "End: %{x|%d %b %Y}<extra></extra>"
+    )
+    fig.update_layout(
+        showlegend=True,
+        xaxis_title="Date",
+        yaxis_title="Period",
+        font=dict(size=12),
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
+
+    return fig
+
+
+# ======================================================================
+# EDITOR-SIDE GANTT (working dict + global_holidays from data)
 # ======================================================================
 
 def create_gantt_chart_from_working(
@@ -56,25 +168,6 @@ def create_gantt_chart_from_working(
 ) -> go.Figure:
     """
     Build a season + holiday Gantt chart for the editor UI.
-
-    This follows your original create_gantt_chart_v2 logic, but the
-    `Type` field is now a semantic bucket (Peak/High/Mid/Low/Holiday/No Data)
-    so we can apply a consistent colour scheme.
-
-    Parameters
-    ----------
-    working : dict
-        Editable resort dict (one resort), structure:
-          working["years"][year]["seasons"]  -> list of dicts with:
-              {"name": str, "periods": [{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}, ...], ...}
-          working["years"][year]["holidays"] -> list of dicts with:
-              {"name": str, "global_reference": str, ...}
-    year : str
-        Year string (e.g. "2025").
-    data : dict
-        Full JSON data (has data["global_holidays"][year][ref] with dates).
-    height : int, optional
-        Preferred figure height. If None, we auto-size: max(400, len(df) * 35).
     """
     rows: List[Dict[str, Any]] = []
 
