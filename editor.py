@@ -39,7 +39,7 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
-        "download_verified": False,  # <--- NEW STATE VARIABLE
+        "download_verified": False,  # State for the verify button
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -59,18 +59,23 @@ def reset_state_for_new_file():
         "working_resorts",
         "delete_confirm",
         "last_save_time",
+        "download_verified",
     ]:
         st.session_state[k] = {} if k == "working_resorts" else None
+        if k == "download_verified":
+            st.session_state[k] = False
 
 
 # ----------------------------------------------------------------------
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
+    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
+    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 
@@ -79,10 +84,12 @@ def get_resort_full_name(resort_id: str, display_name: str) -> str:
 # ----------------------------------------------------------------------
 @lru_cache(maxsize=128)
 def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
+    """Cached version of get_years_from_data"""
     return tuple(sorted(get_years_from_data(st.session_state.data)))
 
 
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
+    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -1835,6 +1842,14 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
+#        st.markdown(
+#            """
+#            <div style='text-align: center; padding: 12px; margin-bottom: 12px;'>
+#                <h3 style='color: #0891b2 !important; margin: 0; font-size: 22px;'>🏨 File Operations</h3>
+#            </div>
+#        """,
+#            unsafe_allow_html=True,
+#        )
         with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
             st.markdown(
                 """
