@@ -929,14 +929,32 @@ This feature lets you save your personal ownership profile so you don't have to 
 
         # --------------- OWNER MODE CONTROLS ------------------ #
         if mode == UserMode.OWNER:
+            # ------------------------------------------------------------------
+            # One-time Owner defaults (what you showed in the screenshot)
+            # ------------------------------------------------------------------
+            if not st.session_state.get("owner_defaults_initialized", False):
+                st.session_state.pref_maint_rate = 0.50        # Annual Maintenance Fee ($/pt)
+                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
+
+                st.session_state.pref_inc_m = True             # Maintenance Fees
+                st.session_state.pref_inc_c = True             # Capital Cost
+                st.session_state.pref_inc_d = True             # Depreciation
+
+                st.session_state.pref_purchase_price = 18.0    # Purchase Price ($/pt)
+                st.session_state.pref_capital_cost = 5.0       # Cost of Capital (%)
+                st.session_state.pref_useful_life = 10         # Useful Life (years)
+                st.session_state.pref_salvage_value = 3.0      # Salvage Value ($/pt)
+
+                st.session_state.owner_defaults_initialized = True
+
             st.markdown("##### 💰 Basic Costs")
 
+            # --- INPUT WIDGETS: KEY ONLY (values now come from session_state) ---
             rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
-                min_value=0.0,
-                step=0.01,
                 key="pref_maint_rate",
-                value=float(st.session_state.pref_maint_rate),
+                step=0.01,
+                min_value=0.0,
             )
 
             opt = st.radio(
