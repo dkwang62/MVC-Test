@@ -1842,7 +1842,18 @@ def main():
     # Sidebar
     with st.sidebar:
         st.divider()
-        
+        with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
+        st.markdown(
+            """
+1. The system starts with a default list of resorts in memory.  
+2. Loading a new file replaces the in-memory dataset.  
+3. You may merge resorts from a file on disk into the in-memory dataset.  
+4. Note: Restarting the app resets everything to the default dataset.  
+5. To keep your edits, save and download the current in-memory dataset (a JSON file on your computer).  
+6. You may reload that JSON file to confirm it matches what’s in memory.
+            """
+        )
+            
         handle_file_upload()
 
         if st.session_state.data:
@@ -1857,20 +1868,6 @@ def main():
 
     
     # Main content
-
-    with st.expander("ℹ️ How data is saved and retrieved", expanded=False):
-    st.markdown(
-        """
-1. The system starts with a default list of resorts in memory.  
-2. Loading a new file replaces the in-memory dataset.  
-3. You may merge resorts from a file on disk into the in-memory dataset.  
-4. Note: Restarting the app resets everything to the default dataset.  
-5. To keep your edits, save and download the current in-memory dataset (a JSON file on your computer).  
-6. You may reload that JSON file to confirm it matches what’s in memory.
-        """
-    )
-    
-    
     
     render_page_header(
     "Editor",
