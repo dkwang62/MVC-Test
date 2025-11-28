@@ -366,33 +366,54 @@ class MVCCalculator:
 # ==============================================================================
 # MAIN PAGE LOGIC
 # ==============================================================================
+
+# --- CONSTANTS FOR TIER MAPPING ---
+TIER_NO_DISCOUNT = "No Discount"
+TIER_EXECUTIVE = "Executive (25% off within 30 days)"
+TIER_PRESIDENTIAL = "Presidential / Chairman (30% off within 60 days)"
+TIER_OPTIONS = [TIER_NO_DISCOUNT, TIER_EXECUTIVE, TIER_PRESIDENTIAL]
+
 def load_user_settings(uploaded_file):
     """Load user preferences from uploaded JSON file into session state."""
     try:
-        # IMPORTANT: Reset file pointer to start
         uploaded_file.seek(0)
         user_data = json.load(uploaded_file)
         
-        if "maintenance_rate" in user_data: st.session_state["pref_maint_rate"] = float(user_data["maintenance_rate"])
-        if "purchase_price" in user_data: st.session_state["pref_purchase_price"] = float(user_data["purchase_price"])
-        if "capital_cost_pct" in user_data: st.session_state["pref_capital_cost"] = float(user_data["capital_cost_pct"])
-        if "salvage_value" in user_data: st.session_state["pref_salvage_value"] = float(user_data["salvage_value"])
-        if "useful_life" in user_data: st.session_state["pref_useful_life"] = int(user_data["useful_life"])
-        if "discount_tier" in user_data: st.session_state["pref_discount_tier"] = str(user_data["discount_tier"])
-        
-        # Checkboxes
-        if "include_maintenance" in user_data: st.session_state["pref_inc_m"] = bool(user_data["include_maintenance"])
-        if "include_capital" in user_data: st.session_state["pref_inc_c"] = bool(user_data["include_capital"])
-        if "include_depreciation" in user_data: st.session_state["pref_inc_d"] = bool(user_data["include_depreciation"])
+        if "maintenance_rate" in user_data: 
+            st.session_state.pref_maint_rate = float(user_data["maintenance_rate"])
+        if "purchase_price" in user_data: 
+            st.session_state.pref_purchase_price = float(user_data["purchase_price"])
+        if "capital_cost_pct" in user_data: 
+            st.session_state.pref_capital_cost = float(user_data["capital_cost_pct"])
+        if "salvage_value" in user_data: 
+            st.session_state.pref_salvage_value = float(user_data["salvage_value"])
+        if "useful_life" in user_data: 
+            st.session_state.pref_useful_life = int(user_data["useful_life"])
+            
+        # Robust Tier Mapping
+        if "discount_tier" in user_data:
+            raw_tier = str(user_data["discount_tier"])
+            if "Executive" in raw_tier:
+                st.session_state.pref_discount_tier = TIER_EXECUTIVE
+            elif "Presidential" in raw_tier or "Chairman" in raw_tier:
+                st.session_state.pref_discount_tier = TIER_PRESIDENTIAL
+            else:
+                st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
 
+        # Checkboxes
+        if "include_maintenance" in user_data: st.session_state.pref_inc_m = bool(user_data["include_maintenance"])
+        if "include_capital" in user_data: st.session_state.pref_inc_c = bool(user_data["include_capital"])
+        if "include_depreciation" in user_data: st.session_state.pref_inc_d = bool(user_data["include_depreciation"])
+
+        # Preferred Resort
         if "preferred_resort_id" in user_data:
-            st.session_state["pref_resort_id"] = str(user_data["preferred_resort_id"])
-            # Apply immediately to current selection
+            st.session_state.pref_resort_id = str(user_data["preferred_resort_id"])
             st.session_state.current_resort_id = str(user_data["preferred_resort_id"])
         
         # Force Owner Mode
         st.session_state.calculator_mode = UserMode.OWNER.value
         st.toast("✅ Settings loaded! Switched to Owner Mode.", icon="📂")
+        
     except Exception as e:
         st.error(f"Error loading settings: {e}")
 
@@ -403,13 +424,14 @@ def main() -> None:
 
     ensure_data_in_session()
 
-    # Defaults - Ensure keys exist
+    # --- 1. INITIALIZE SESSION STATE DEFAULTS ---
+    # This prevents the "created without default" errors
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.50
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 6.0
     if "pref_salvage_value" not in st.session_state: st.session_state.pref_salvage_value = 3.0
     if "pref_useful_life" not in st.session_state: st.session_state.pref_useful_life = 15
-    if "pref_discount_tier" not in st.session_state: st.session_state.pref_discount_tier = "No Discount"
+    if "pref_discount_tier" not in st.session_state: st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
     
     if "pref_inc_m" not in st.session_state: st.session_state.pref_inc_m = True
     if "pref_inc_c" not in st.session_state: st.session_state.pref_inc_c = True
@@ -435,41 +457,12 @@ def main() -> None:
 
     with st.sidebar:
         st.divider()
-        
-        # --- 1. CONFIGURATION SECTION (TOP) ---
-        with st.expander("⚙️ User Configuration", expanded=False):
-            st.markdown("###### 📂 Load/Save Settings")
-            config_file = st.file_uploader("Load Settings File", type="json", key="user_cfg_upload_main")
-            
-            if config_file:
-                 if st.button("🔄 Load Parameters from File", type="primary", use_container_width=True):
-                     load_user_settings(config_file)
-                     st.rerun()
-
-            # Prepare download data
-            current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
-            current_settings = {
-                "maintenance_rate": st.session_state.pref_maint_rate,
-                "purchase_price": st.session_state.pref_purchase_price,
-                "capital_cost_pct": st.session_state.pref_capital_cost,
-                "salvage_value": st.session_state.pref_salvage_value,
-                "useful_life": st.session_state.pref_useful_life,
-                "discount_tier": st.session_state.pref_discount_tier,
-                "include_maintenance": st.session_state.pref_inc_m,
-                "include_capital": st.session_state.pref_inc_c,
-                "include_depreciation": st.session_state.pref_inc_d,
-                "preferred_resort_id": current_pref_resort
-            }
-            st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
-
-        st.divider()
         st.markdown("### 👤 User Profile")
         
-        # MODE SELECTOR (No index, relies on key/state)
+        # MODE SELECTOR (No index or value, assumes key is initialized)
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
-            # index is inferred from session_state.calculator_mode by the widget if key matches
             key="calculator_mode",
             horizontal=True,
         )
@@ -479,31 +472,26 @@ def main() -> None:
         policy = DiscountPolicy.NONE
         rate = 0.50
         
-        tier_options = ["No Discount", "Executive (25% off <30 days)", "Presidential / Chairman (30% off <60 days)"]
-        
-        # --- HELPER: DETERMINE INDEX FOR DISPLAY ---
-        # This helps the radio button show the correct option if loaded from file
-        cur_tier = st.session_state.pref_discount_tier
-        t_idx = 0
-        if "Executive" in cur_tier: t_idx = 1
-        elif "Presidential" in cur_tier or "Chairman" in cur_tier: t_idx = 2
-
         st.divider()
         
         if mode == UserMode.OWNER:
             st.markdown("##### 💰 Basic Costs")
             
-            # Rate Input
+            # --- FIX: NO 'value' ARGUMENT ---
+            # Since 'key' is present and initialized above, we do NOT pass 'value'.
+            # This fixes the Duplicate/SessionState error.
             rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
                 key="pref_maint_rate", 
                 step=0.01, min_value=0.0
             )
             
-            # Discount Tier Radio - use the calculated index to ensure UI sync
-            opt = st.radio("Discount Tier:", tier_options, index=t_idx, key="pref_discount_tier")
+            # --- FIX: NO 'index' ARGUMENT ---
+            # Since 'key' is present, we do NOT pass 'index'.
+            # The 'options' list must match the string in session_state EXACTLY.
+            opt = st.radio("Discount Tier:", TIER_OPTIONS, key="pref_discount_tier")
             
-            # --- ADVANCED OPTIONS (NOW JUST PARAMS) ---
+            # --- ADVANCED OPTIONS ---
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
                 inc_m = st.checkbox("Maintenance Fees", key="pref_inc_m")
@@ -513,21 +501,53 @@ def main() -> None:
                 st.divider()
                 if inc_c or inc_d:
                     st.markdown("**Purchase Details**")
+                    # FIX: No value argument
                     cap = st.number_input("Purchase Price ($/pt)", key="pref_purchase_price", step=1.0)
                 else:
                     cap = st.session_state.pref_purchase_price
                 
                 if inc_c:
+                    # FIX: No value argument
                     coc = st.number_input("Cost of Capital (%)", key="pref_capital_cost", step=0.5) / 100.0
                 else:
                     coc = 0.06
                 
                 if inc_d:
                     st.markdown("**Depreciation**")
+                    # FIX: No value argument
                     life = st.number_input("Useful Life (years)", key="pref_useful_life", min_value=1)
                     salvage = st.number_input("Salvage Value ($/pt)", key="pref_salvage_value", step=0.5)
                 else:
                     life, salvage = 15, 3.0
+                
+                st.divider()
+                st.markdown("###### 📂 Load/Save Settings")
+                # AUTO-LOADER LOGIC
+                # We detect file change via state to prevent loops
+                config_file = st.file_uploader("Settings File (JSON)", type="json", key="user_cfg_upload_inner")
+                
+                if config_file:
+                    file_sig = f"{config_file.name}_{config_file.size}"
+                    if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
+                        load_user_settings(config_file)
+                        st.session_state.last_loaded_cfg = file_sig
+                        st.rerun() # FORCE REFRESH so widgets update
+
+                # Prepare download data
+                current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
+                current_settings = {
+                    "maintenance_rate": st.session_state.pref_maint_rate,
+                    "purchase_price": st.session_state.pref_purchase_price,
+                    "capital_cost_pct": st.session_state.pref_capital_cost,
+                    "salvage_value": st.session_state.pref_salvage_value,
+                    "useful_life": st.session_state.pref_useful_life,
+                    "discount_tier": st.session_state.pref_discount_tier,
+                    "include_maintenance": st.session_state.pref_inc_m,
+                    "include_capital": st.session_state.pref_inc_c,
+                    "include_depreciation": st.session_state.pref_inc_d,
+                    "preferred_resort_id": current_pref_resort
+                }
+                st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
             
             owner_params = {
                 "disc_mul": 1.0, "inc_m": inc_m, "inc_c": inc_c, "inc_d": inc_d,
@@ -537,7 +557,7 @@ def main() -> None:
             st.markdown("##### 💵 Rental Rate")
             rate = st.number_input("Cost per Point ($)", value=0.50, step=0.01)
             st.markdown("##### 🎯 Available Discounts")
-            opt = st.radio("Discount tier available:", tier_options)
+            opt = st.radio("Discount tier available:", TIER_OPTIONS)
             if "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
 
