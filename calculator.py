@@ -369,6 +369,8 @@ class MVCCalculator:
 def load_user_settings(uploaded_file):
     """Load user preferences from uploaded JSON file into session state."""
     try:
+        # IMPORTANT: Reset file pointer to start
+        uploaded_file.seek(0)
         user_data = json.load(uploaded_file)
         
         if "maintenance_rate" in user_data: st.session_state["pref_maint_rate"] = float(user_data["maintenance_rate"])
@@ -385,6 +387,7 @@ def load_user_settings(uploaded_file):
 
         if "preferred_resort_id" in user_data:
             st.session_state["pref_resort_id"] = str(user_data["preferred_resort_id"])
+            # Apply immediately to current selection
             st.session_state.current_resort_id = str(user_data["preferred_resort_id"])
         
         # Force Owner Mode
@@ -400,7 +403,7 @@ def main() -> None:
 
     ensure_data_in_session()
 
-    # Defaults
+    # Defaults - Ensure keys exist
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.50
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 6.0
@@ -438,6 +441,7 @@ def main() -> None:
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
+            # index is inferred from session_state.calculator_mode by the widget if key matches
             key="calculator_mode",
             horizontal=True,
         )
@@ -448,38 +452,42 @@ def main() -> None:
         rate = 0.50
         
         tier_options = ["No Discount", "Executive (25% off <30 days)", "Presidential / Chairman (30% off <60 days)"]
-        # Helper to find index for display (optional, radio uses key anyway)
-        try:
-            cur = st.session_state.pref_discount_tier
-            t_idx = 1 if "Executive" in cur else 2 if "Presidential" in cur or "Chairman" in cur else 0
-        except:
-            t_idx = 0
+        
+        # --- HELPER: DETERMINE INDEX FOR DISPLAY ---
+        # This helps the radio button show the correct option if loaded from file
+        cur_tier = st.session_state.pref_discount_tier
+        t_idx = 0
+        if "Executive" in cur_tier: t_idx = 1
+        elif "Presidential" in cur_tier or "Chairman" in cur_tier: t_idx = 2
 
         st.divider()
         
         if mode == UserMode.OWNER:
-            # Owner mode inputs linked to session state keys
             st.markdown("##### 💰 Basic Costs")
+            
+            # Rate Input
             rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
-                key="pref_maint_rate", # Direct state binding
+                key="pref_maint_rate", 
                 step=0.01, min_value=0.0
             )
             
+            # Discount Tier Radio - use the calculated index to ensure UI sync
             opt = st.radio("Discount Tier:", tier_options, index=t_idx, key="pref_discount_tier")
             
+            # --- ADVANCED OPTIONS & LOAD BUTTON ---
             with st.expander("🔧 Advanced Options", expanded=False):
+                
                 st.markdown("###### 📂 Load/Save Settings")
-                config_file = st.file_uploader("Load Settings File", type="json", key="user_cfg_upload_inner")
+                config_file = st.file_uploader("Settings File (JSON)", type="json", key="user_cfg_upload_inner")
                 
+                # BUTTON TO TRIGGER LOAD - Solves the 'freeze' issue
                 if config_file:
-                    file_sig = f"{config_file.name}_{config_file.size}"
-                    if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
-                        load_user_settings(config_file)
-                        st.session_state.last_loaded_cfg = file_sig
-                        st.rerun()
-                
-                # Prepare download
+                     if st.button("🔄 Load Parameters from File", type="primary", use_container_width=True):
+                         load_user_settings(config_file)
+                         st.rerun()
+
+                # Prepare download data
                 current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
                 current_settings = {
                     "maintenance_rate": st.session_state.pref_maint_rate,
