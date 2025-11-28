@@ -783,9 +783,15 @@ def main() -> None:
         with st.expander("⚙️ User Configuration", expanded=False):
             # Load
             config_file = st.file_uploader("📂 Load Settings (JSON)", type="json", key="user_cfg_upload")
-            if config_file:
-                load_user_settings(config_file)
             
+            # CHECK: Only load if this specific file hasn't been loaded yet
+            if config_file:
+                file_sig = f"{config_file.name}_{config_file.size}"
+                if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
+                    load_user_settings(config_file)
+                    st.session_state.last_loaded_cfg = file_sig
+                    st.rerun() # Rerun to apply settings immediately
+
             # Initialize defaults in session state if not present (first run)
             if "pref_maint_rate" not in st.session_state:
                 st.session_state.pref_maint_rate = 0.50
@@ -801,7 +807,6 @@ def main() -> None:
                 st.session_state.pref_discount_tier = "No Discount"
 
             # Prepare current settings for download
-            # We grab the current resort ID from the main selector if available
             current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
             
             current_settings = {
@@ -842,7 +847,6 @@ def main() -> None:
             "Presidential / Chairman (30% off within 60 days)",
         ]
         # Calculate index for the radio button based on loaded preference
-        # Use simple string matching for robustness
         tier_index = 0
         loaded_tier = st.session_state.pref_discount_tier
         if "Executive" in loaded_tier:
