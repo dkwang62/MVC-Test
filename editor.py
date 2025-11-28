@@ -1867,7 +1867,7 @@ Restarting the app resets everything to the default dataset, so be sure to save 
     
     render_page_header(
     "Editor",
-    "Data Management",
+    "Personalising Your Dataset",
     icon="🏨",
     badge_color="#EF4444"  # Adjust to match the red color in the image, e.g., #DC2626 or #EF4444
 )
