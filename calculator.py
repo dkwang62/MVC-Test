@@ -250,7 +250,6 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    # Use passed 'rate' explicitly
                     if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
                     if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
                     if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
@@ -282,7 +281,7 @@ class MVCCalculator:
                 days_out = (d - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0)
+                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -302,7 +301,6 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
-                    # Use passed 'rate' explicitly
                     if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
                     if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
                     if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
@@ -442,6 +440,7 @@ def main() -> None:
     if "renter_rate_val" not in st.session_state: st.session_state.renter_rate_val = 0.50
     if "renter_discount_tier" not in st.session_state: st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
 
+
     # Checkin state
     today = datetime.now().date()
     initial_default = today + timedelta(days=1)
@@ -468,8 +467,8 @@ def main() -> None:
                 st.markdown("""
                 This feature lets you save your personal ownership profile so you don't have to re-enter your numbers every time.
                 **How to use:**
-                * **Save:** Click the button to download a small file to your computer.
-                * **Load:** Upload that file anytime to instantly restore your settings and switch to Owner Mode.
+                * **Save:** Download settings to your computer.
+                * **Load:** Upload file to restore settings.
                 """)
             
             st.markdown("###### 📂 Load/Save Settings")
@@ -544,32 +543,24 @@ def main() -> None:
             
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
-                # Checkboxes (Proxy)
-                inc_m_val = st.session_state.get("pref_inc_m", True)
-                inc_m = st.checkbox("Maintenance Fees", value=inc_m_val, key="widget_inc_m")
+                inc_m = st.checkbox("Maintenance Fees", value=st.session_state.get("pref_inc_m", True), key="widget_inc_m")
                 st.session_state.pref_inc_m = inc_m
-                
-                inc_c_val = st.session_state.get("pref_inc_c", True)
-                inc_c = st.checkbox("Capital Cost", value=inc_c_val, key="widget_inc_c")
+                inc_c = st.checkbox("Capital Cost", value=st.session_state.get("pref_inc_c", True), key="widget_inc_c")
                 st.session_state.pref_inc_c = inc_c
-                
-                inc_d_val = st.session_state.get("pref_inc_d", True)
-                inc_d = st.checkbox("Depreciation", value=inc_d_val, key="widget_inc_d")
+                inc_d = st.checkbox("Depreciation", value=st.session_state.get("pref_inc_d", True), key="widget_inc_d")
                 st.session_state.pref_inc_d = inc_d
                 
                 st.divider()
                 if inc_c or inc_d:
                     st.markdown("**Purchase Details**")
-                    curr_cap = st.session_state.get("pref_purchase_price", 18.0)
-                    val_cap = st.number_input("Purchase Price ($/pt)", value=curr_cap, key="widget_purchase_price", step=1.0)
+                    val_cap = st.number_input("Purchase Price ($/pt)", value=st.session_state.get("pref_purchase_price", 18.0), key="widget_purchase_price", step=1.0)
                     st.session_state.pref_purchase_price = val_cap
                     cap = val_cap
                 else:
                     cap = st.session_state.get("pref_purchase_price", 18.0)
                 
                 if inc_c:
-                    curr_coc = st.session_state.get("pref_capital_cost", 5.0)
-                    val_coc = st.number_input("Cost of Capital (%)", value=curr_coc, key="widget_capital_cost", step=0.5)
+                    val_coc = st.number_input("Cost of Capital (%)", value=st.session_state.get("pref_capital_cost", 5.0), key="widget_capital_cost", step=0.5)
                     st.session_state.pref_capital_cost = val_coc
                     coc = val_coc / 100.0
                 else:
@@ -577,13 +568,11 @@ def main() -> None:
                 
                 if inc_d:
                     st.markdown("**Depreciation**")
-                    curr_life = st.session_state.get("pref_useful_life", 10)
-                    val_life = st.number_input("Useful Life (years)", value=curr_life, key="widget_useful_life", min_value=1)
+                    val_life = st.number_input("Useful Life (years)", value=st.session_state.get("pref_useful_life", 10), key="widget_useful_life", min_value=1)
                     st.session_state.pref_useful_life = val_life
                     life = val_life
                     
-                    curr_salvage = st.session_state.get("pref_salvage_value", 3.0)
-                    val_salvage = st.number_input("Salvage Value ($/pt)", value=curr_salvage, key="widget_salvage_value", step=0.5)
+                    val_salvage = st.number_input("Salvage Value ($/pt)", value=st.session_state.get("pref_salvage_value", 3.0), key="widget_salvage_value", step=0.5)
                     st.session_state.pref_salvage_value = val_salvage
                     salvage = val_salvage
                 else:
@@ -608,7 +597,6 @@ def main() -> None:
             if "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
 
-        # Apply discount logic
         if mode == UserMode.OWNER:
              if "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
              elif "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
@@ -701,15 +689,9 @@ def main() -> None:
         st.dataframe(comp_res.pivot_df, use_container_width=True)
         
         c1, c2 = st.columns(2)
-        # --- SAFE PLOTTING ---
         if not comp_res.daily_chart_df.empty:
-            # Ensure 'Holiday' column exists before filtering
-            if "Holiday" in comp_res.daily_chart_df.columns:
-                 clean_df = comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"] == "No"]
-                 with c1: st.plotly_chart(px.bar(clean_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
-            else:
-                 with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
-
+             # FILTER REMOVED HERE TO FIX KEYERROR
+             with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
         if not comp_res.holiday_chart_df.empty:
              with c2: st.plotly_chart(px.bar(comp_res.holiday_chart_df, x="Holiday", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Holiday Cost"), use_container_width=True)
 
