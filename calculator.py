@@ -334,19 +334,77 @@ class MVCCalculator:
         return CalculationResult(df, tot_eff_pts, tot_financial, disc_applied, list(set(disc_days)), tot_m, tot_c, tot_d)
 
     def compare_stays(self, resort_name, rooms, checkin, nights, user_mode, rate, policy, owner_config):
+        # Simplified compare logic for brevity; relies on calculate_breakdown
         base = self.calculate_breakdown(resort_name, rooms[0], checkin, nights, user_mode, rate, policy, owner_config)
         if base.breakdown_df.empty: return ComparisonResult(pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
         
+        # 1. Build PIVOT DataFrame (Summary)
         pivot_data = []
-        chart_data = []
+        for _, tmpl_row in base.breakdown_df.iterrows():
+            new_row = {"Date": tmpl_row["Date"]}
+            # Fill with placeholders, will be populated below if we did it right, 
+            # but actually compare_stays usually re-runs logic.
+            # Let's just use the logic from your previous working version:
+            pass 
+
+        # RE-IMPLEMENTING ROBUST COMPARE LOGIC
+        # We need to gather daily costs for ALL rooms to build the daily_chart_df
         
+        daily_chart_rows = []
+        holiday_chart_rows = []
+        pivot_rows_map = defaultdict(dict) # Date -> {Room: Cost}
+        
+        # Pre-fill pivot keys with dates from base
+        dates_order = []
+        for _, row in base.breakdown_df.iterrows():
+            d = row["Date"]
+            dates_order.append(d)
+            pivot_rows_map[d] = {}
+
+        val_key = "TotalCostValue" if user_mode == UserMode.OWNER else "RentValue"
+
         for room in rooms:
             res = self.calculate_breakdown(resort_name, room, checkin, nights, user_mode, rate, policy, owner_config)
-            val = res.financial_total
-            pivot_data.append({"Room Type": room, "Total Cost": f"${val:,.0f}", "Points": f"{res.total_points:,}"})
-            chart_data.append({"Room Type": room, "Cost": val})
             
-        return ComparisonResult(pd.DataFrame(pivot_data), pd.DataFrame(chart_data), pd.DataFrame())
+            # Populate Charts
+            for _, row in res.breakdown_df.iterrows():
+                d_str = row["Date"]
+                # If it's a holiday range, it looks like "Christmas (Dec 25 - Dec 31)"
+                is_holiday = "(" in d_str
+                
+                # Clean cost value
+                cost_val = 0.0
+                raw_cost = row.get("Total Cost" if user_mode == UserMode.OWNER else room, 0)
+                if isinstance(raw_cost, str):
+                    cost_val = float(raw_cost.replace("$","").replace(",",""))
+                else:
+                    cost_val = float(raw_cost)
+
+                pivot_rows_map[d_str][room] = f"${cost_val:,.0f}"
+
+                if is_holiday:
+                     holiday_name = d_str.split(" (")[0]
+                     holiday_chart_rows.append({"Holiday": holiday_name, "Room Type": room, val_key: cost_val})
+                else:
+                     day_name = row.get("Day", "")
+                     daily_chart_rows.append({"Day": day_name, "Room Type": room, val_key: cost_val})
+
+        # Build Pivot DF
+        final_pivot = []
+        for d in dates_order:
+            row_obj = {"Date": d}
+            row_obj.update(pivot_rows_map[d])
+            final_pivot.append(row_obj)
+            
+        # Add Total Row
+        total_row = {"Date": "Total"}
+        for room in rooms:
+             # Calculate total from the calculated results to be safe
+             res = self.calculate_breakdown(resort_name, room, checkin, nights, user_mode, rate, policy, owner_config)
+             total_row[room] = f"${res.financial_total:,.0f}"
+        final_pivot.append(total_row)
+
+        return ComparisonResult(pd.DataFrame(final_pivot), pd.DataFrame(daily_chart_rows), pd.DataFrame(holiday_chart_rows))
 
     def adjust_holiday(self, resort_name, checkin, nights):
         resort = self.repo.get_resort(resort_name)
@@ -412,7 +470,6 @@ def main() -> None:
 
     # --- 1. AUTO-LOAD LOCAL FILE ON STARTUP ---
     if "settings_auto_loaded" not in st.session_state:
-        # Load local file if exists
         local_settings = "mvc_owner_settings.json"
         if os.path.exists(local_settings):
             try:
@@ -439,7 +496,6 @@ def main() -> None:
     if "calculator_mode" not in st.session_state: st.session_state.calculator_mode = UserMode.RENTER.value
     if "renter_rate_val" not in st.session_state: st.session_state.renter_rate_val = 0.50
     if "renter_discount_tier" not in st.session_state: st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
-
 
     # Checkin state
     today = datetime.now().date()
@@ -478,7 +534,6 @@ def main() -> None:
             if config_file:
                  file_sig = f"{config_file.name}_{config_file.size}"
                  if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
-                     # Reset pointer
                      config_file.seek(0)
                      data = json.load(config_file)
                      apply_settings_from_dict(data)
@@ -497,7 +552,7 @@ def main() -> None:
                 "include_maintenance": st.session_state.get("pref_inc_m", True),
                 "include_capital": st.session_state.get("pref_inc_c", True),
                 "include_depreciation": st.session_state.get("pref_inc_d", True),
-                "renter_rate": st.session_state.get("renter_rate_val", 0.50), # SAVE RENTER RATE
+                "renter_rate": st.session_state.get("renter_rate_val", 0.50),
                 "preferred_resort_id": current_pref_resort
             }
             st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
@@ -515,6 +570,7 @@ def main() -> None:
         
         owner_params = None
         policy = DiscountPolicy.NONE
+        
         rate_to_use = 0.50
 
         st.divider()
@@ -543,11 +599,16 @@ def main() -> None:
             
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
-                inc_m = st.checkbox("Maintenance Fees", value=st.session_state.get("pref_inc_m", True), key="widget_inc_m")
+                inc_m_val = st.session_state.get("pref_inc_m", True)
+                inc_m = st.checkbox("Maintenance Fees", value=inc_m_val, key="widget_inc_m")
                 st.session_state.pref_inc_m = inc_m
-                inc_c = st.checkbox("Capital Cost", value=st.session_state.get("pref_inc_c", True), key="widget_inc_c")
+                
+                inc_c_val = st.session_state.get("pref_inc_c", True)
+                inc_c = st.checkbox("Capital Cost", value=inc_c_val, key="widget_inc_c")
                 st.session_state.pref_inc_c = inc_c
-                inc_d = st.checkbox("Depreciation", value=st.session_state.get("pref_inc_d", True), key="widget_inc_d")
+                
+                inc_d_val = st.session_state.get("pref_inc_d", True)
+                inc_d = st.checkbox("Depreciation", value=inc_d_val, key="widget_inc_d")
                 st.session_state.pref_inc_d = inc_d
                 
                 st.divider()
@@ -597,6 +658,7 @@ def main() -> None:
             if "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
 
+        # Apply discount logic
         if mode == UserMode.OWNER:
              if "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
              elif "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
