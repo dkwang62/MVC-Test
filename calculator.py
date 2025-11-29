@@ -282,7 +282,7 @@ class MVCCalculator:
                 days_out = (d - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
+                    disc_mul = owner_config.get("disc_mul", 1.0)
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -486,7 +486,7 @@ def main() -> None:
                      st.session_state.last_loaded_cfg = file_sig
                      st.rerun()
 
-            # Save Button (Using .get() for safety)
+            # Save Button
             current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
             current_settings = {
                 "maintenance_rate": st.session_state.get("pref_maint_rate", 0.55),
@@ -516,8 +516,6 @@ def main() -> None:
         
         owner_params = None
         policy = DiscountPolicy.NONE
-        
-        # Variable to hold the active rate for the calculation engine
         rate_to_use = 0.50
 
         st.divider()
@@ -703,9 +701,15 @@ def main() -> None:
         st.dataframe(comp_res.pivot_df, use_container_width=True)
         
         c1, c2 = st.columns(2)
+        # --- SAFE PLOTTING ---
         if not comp_res.daily_chart_df.empty:
-             # FIX: REMOVE THE FILTER HERE
-             with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
+            # Ensure 'Holiday' column exists before filtering
+            if "Holiday" in comp_res.daily_chart_df.columns:
+                 clean_df = comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"] == "No"]
+                 with c1: st.plotly_chart(px.bar(clean_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
+            else:
+                 with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df, x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
+
         if not comp_res.holiday_chart_df.empty:
              with c2: st.plotly_chart(px.bar(comp_res.holiday_chart_df, x="Holiday", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Holiday Cost"), use_container_width=True)
 
