@@ -650,35 +650,38 @@ def main() -> None:
 
     ensure_data_in_session()
 
-    # --- Initial defaults (used if keys don't exist) ---
-    if "pref_maint_rate" not in st.session_state:
-        st.session_state.pref_maint_rate = 0.50  # Default $0.50
-    if "pref_purchase_price" not in st.session_state:
-        st.session_state.pref_purchase_price = 18.0  # $18
-    if "pref_capital_cost" not in st.session_state:
-        st.session_state.pref_capital_cost = 5.0  # %
-    if "pref_salvage_value" not in st.session_state:
-        st.session_state.pref_salvage_value = 3.0  # $3
-    if "pref_useful_life" not in st.session_state:
-        st.session_state.pref_useful_life = 10  # years
-    if "pref_discount_tier" not in st.session_state:
-        st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
+    # --- Initial defaults for state dicts ---
+    if "owner_state" not in st.session_state:
+        st.session_state.owner_state = {
+            'pref_maint_rate': 0.50,
+            'pref_purchase_price': 18.0,
+            'pref_capital_cost': 5.0,
+            'pref_salvage_value': 3.0,
+            'pref_useful_life': 10,
+            'pref_discount_tier': TIER_NO_DISCOUNT,
+            'pref_inc_m': True,
+            'pref_inc_c': True,
+            'pref_inc_d': True,
+        }
 
-    if "pref_inc_m" not in st.session_state:
-        st.session_state.pref_inc_m = True
-    if "pref_inc_c" not in st.session_state:
-        st.session_state.pref_inc_c = True
-    if "pref_inc_d" not in st.session_state:
-        st.session_state.pref_inc_d = True
-
-    if "renter_rate" not in st.session_state:
-        st.session_state.renter_rate = 0.50
-
-    if "renter_discount_tier" not in st.session_state:
-        st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
+    if "renter_state" not in st.session_state:
+        st.session_state.renter_state = {
+            'renter_rate': 0.50,
+            'renter_discount_tier': TIER_NO_DISCOUNT,
+        }
 
     if "calculator_mode" not in st.session_state:
         st.session_state.calculator_mode = UserMode.RENTER.value
+
+    # Load initial state for current mode
+    if "mode_initialized" not in st.session_state:
+        if st.session_state.calculator_mode == UserMode.OWNER.value:
+            for key, value in st.session_state.owner_state.items():
+                st.session_state[key] = value
+        else:
+            for key, value in st.session_state.renter_state.items():
+                st.session_state[key] = value
+        st.session_state.mode_initialized = True
 
     # Checkin state
     today = datetime.now().date()
@@ -765,6 +768,9 @@ def main() -> None:
         st.divider()
 
         # MODE SELECTOR
+        if "previous_mode" not in st.session_state:
+            st.session_state.previous_mode = st.session_state.calculator_mode
+
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
@@ -772,6 +778,37 @@ def main() -> None:
             horizontal=True,
         )
         mode = UserMode(mode_sel)
+
+        # Detect mode change and save/load settings
+        if st.session_state.previous_mode != mode_sel:
+            # Save previous mode settings
+            if st.session_state.previous_mode == UserMode.OWNER.value:
+                st.session_state.owner_state = {
+                    'pref_maint_rate': st.session_state.get('pref_maint_rate', 0.50),
+                    'pref_purchase_price': st.session_state.get('pref_purchase_price', 18.0),
+                    'pref_capital_cost': st.session_state.get('pref_capital_cost', 5.0),
+                    'pref_salvage_value': st.session_state.get('pref_salvage_value', 3.0),
+                    'pref_useful_life': st.session_state.get('pref_useful_life', 10),
+                    'pref_discount_tier': st.session_state.get('pref_discount_tier', TIER_NO_DISCOUNT),
+                    'pref_inc_m': st.session_state.get('pref_inc_m', True),
+                    'pref_inc_c': st.session_state.get('pref_inc_c', True),
+                    'pref_inc_d': st.session_state.get('pref_inc_d', True),
+                }
+            else:
+                st.session_state.renter_state = {
+                    'renter_rate': st.session_state.get('renter_rate', 0.50),
+                    'renter_discount_tier': st.session_state.get('renter_discount_tier', TIER_NO_DISCOUNT),
+                }
+
+            # Load new mode settings
+            if mode_sel == UserMode.OWNER.value:
+                for key, value in st.session_state.owner_state.items():
+                    st.session_state[key] = value
+            else:
+                for key, value in st.session_state.renter_state.items():
+                    st.session_state[key] = value
+
+            st.session_state.previous_mode = mode_sel
 
         st.divider()
 
@@ -975,11 +1012,11 @@ def main() -> None:
 
     if mode == UserMode.OWNER:
         res = calc.calculate_breakdown(
-            r_name, room_sel, adj_in, adj_n, mode, owner_rate, DiscountPolicy.NONE, owner_params
+            r_name, room_sel, adj_in, adj_n, mode, st.session_state.pref_maint_rate, DiscountPolicy.NONE, owner_params
         )
     else:
         res = calc.calculate_breakdown(
-            r_name, room_sel, adj_in, adj_n, mode, renter_rate, renter_policy, None
+            r_name, room_sel, adj_in, adj_n, mode, st.session_state.renter_rate, renter_policy, None
         )
 
     st.markdown(f"### 📊 Results: {room_sel}")
@@ -1018,7 +1055,7 @@ def main() -> None:
                 adj_in,
                 adj_n,
                 mode,
-                owner_rate,
+                st.session_state.pref_maint_rate,
                 DiscountPolicy.NONE,
                 owner_params,
             )
@@ -1029,7 +1066,7 @@ def main() -> None:
                 adj_in,
                 adj_n,
                 mode,
-                renter_rate,
+                st.session_state.renter_rate,
                 renter_policy,
                 None,
             )
