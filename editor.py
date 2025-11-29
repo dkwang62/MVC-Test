@@ -229,7 +229,7 @@ class MVCCalculator:
                 days_out = (holiday.start_date - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
+                    disc_mul = owner_config.get("disc_mul", 1.0)
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -281,7 +281,7 @@ class MVCCalculator:
                 days_out = (d - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
+                    disc_mul = owner_config.get("disc_mul", 1.0)
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -421,7 +421,7 @@ def main() -> None:
                 pass 
         st.session_state.settings_auto_loaded = True
 
-    # --- 2. SET DEFAULTS (If values still missing) ---
+    # --- 2. DEFAULTS (If no file was loaded) ---
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.55
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 5.0
@@ -455,6 +455,48 @@ def main() -> None:
         st.divider()
         st.markdown("### 👤 User Profile")
         
+        # --- 1. CONFIGURATION SECTION (TOP) ---
+        with st.expander("⚙️ User Configuration", expanded=False):
+            with st.expander("ℹ️ About User Settings", expanded=False):
+                st.markdown("""
+                This feature lets you save your personal ownership profile so you don't have to re-enter your numbers every time.
+                **How to use:**
+                * **Save:** Click the button to download a small file to your computer.
+                * **Load:** Upload that file anytime to instantly restore your settings and switch to Owner Mode.
+                """)
+            
+            st.markdown("###### 📂 Load/Save Settings")
+            config_file = st.file_uploader("Load Settings (JSON)", type="json", key="user_cfg_upload")
+            
+            # Auto Load & Rerun
+            if config_file:
+                 file_sig = f"{config_file.name}_{config_file.size}"
+                 if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
+                     # Reset pointer
+                     config_file.seek(0)
+                     data = json.load(config_file)
+                     apply_settings_from_dict(data)
+                     st.session_state.last_loaded_cfg = file_sig
+                     st.rerun()
+
+            # Save Button
+            current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
+            current_settings = {
+                "maintenance_rate": st.session_state.get("pref_maint_rate", 0.55),
+                "purchase_price": st.session_state.get("pref_purchase_price", 18.0),
+                "capital_cost_pct": st.session_state.get("pref_capital_cost", 5.0),
+                "salvage_value": st.session_state.get("pref_salvage_value", 3.0),
+                "useful_life": st.session_state.get("pref_useful_life", 10),
+                "discount_tier": st.session_state.get("pref_discount_tier", TIER_NO_DISCOUNT),
+                "include_maintenance": st.session_state.get("pref_inc_m", True),
+                "include_capital": st.session_state.get("pref_inc_c", True),
+                "include_depreciation": st.session_state.get("pref_inc_d", True),
+                "preferred_resort_id": current_pref_resort
+            }
+            st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
+
+        st.divider()
+        
         # MODE SELECTOR
         mode_sel = st.radio(
             "Mode:",
@@ -467,7 +509,7 @@ def main() -> None:
         owner_params = None
         policy = DiscountPolicy.NONE
         
-        # Variable to hold the active rate for calculation
+        # Initialize rate to safe default
         rate_to_use = 0.50
 
         st.divider()
@@ -475,15 +517,17 @@ def main() -> None:
         if mode == UserMode.OWNER:
             st.markdown("##### 💰 Basic Costs")
             
-            # --- OWNER WIDGETS (Bound to Session State) ---
-            # IMPORTANT: We capture the return value into a variable, 
-            # but the widget updates session state directly via 'key'.
-            owner_rate_val = st.number_input(
+            # --- SAFE WIDGET BINDING ---
+            # Use .get() to avoid AttributeError if key is missing for some reason
+            owner_maintenance_rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
-                key="pref_maint_rate", 
+                value=st.session_state.get("pref_maint_rate", 0.55),
+                key="widget_maint_rate", 
                 step=0.01, min_value=0.0
             )
-            rate_to_use = owner_rate_val # Use this for calc
+            # Manually sync back to main state key
+            st.session_state.pref_maint_rate = owner_maintenance_rate
+            rate_to_use = owner_maintenance_rate
 
             opt = st.radio("Discount Tier:", TIER_OPTIONS, key="pref_discount_tier")
             
@@ -496,20 +540,28 @@ def main() -> None:
                 st.divider()
                 if inc_c or inc_d:
                     st.markdown("**Purchase Details**")
-                    cap = st.number_input("Purchase Price ($/pt)", key="pref_purchase_price", step=1.0)
+                    val_cap = st.number_input("Purchase Price ($/pt)", value=st.session_state.get("pref_purchase_price", 18.0), key="widget_purchase_price", step=1.0)
+                    st.session_state.pref_purchase_price = val_cap
+                    cap = val_cap
                 else:
-                    cap = st.session_state.pref_purchase_price
+                    cap = st.session_state.get("pref_purchase_price", 18.0)
                 
                 if inc_c:
-                    coc_input = st.number_input("Cost of Capital (%)", key="pref_capital_cost", step=0.5)
-                    coc = coc_input / 100.0
+                    val_coc = st.number_input("Cost of Capital (%)", value=st.session_state.get("pref_capital_cost", 5.0), key="widget_capital_cost", step=0.5)
+                    st.session_state.pref_capital_cost = val_coc
+                    coc = val_coc / 100.0
                 else:
                     coc = 0.06
                 
                 if inc_d:
                     st.markdown("**Depreciation**")
-                    life = st.number_input("Useful Life (years)", key="pref_useful_life", min_value=1)
-                    salvage = st.number_input("Salvage Value ($/pt)", key="pref_salvage_value", step=0.5)
+                    val_life = st.number_input("Useful Life (years)", value=st.session_state.get("pref_useful_life", 10), key="widget_useful_life", min_value=1)
+                    st.session_state.pref_useful_life = val_life
+                    life = val_life
+                    
+                    val_salvage = st.number_input("Salvage Value ($/pt)", value=st.session_state.get("pref_salvage_value", 3.0), key="widget_salvage_value", step=0.5)
+                    st.session_state.pref_salvage_value = val_salvage
+                    salvage = val_salvage
                 else:
                     life, salvage = 15, 3.0
             
@@ -518,10 +570,10 @@ def main() -> None:
                 "cap_rate": cap * coc, "dep_rate": (cap - salvage) / life if life > 0 else 0.0,
             }
         else:
+            # RENTER MODE
             st.markdown("##### 💵 Rental Rate")
-            # RENTER WIDGET (Local variable, separate from Owner State)
-            renter_rate_val = st.number_input("Cost per Point ($)", value=0.50, step=0.01, key="renter_rate_input")
-            rate_to_use = renter_rate_val
+            renter_rate_input = st.number_input("Cost per Point ($)", value=0.50, step=0.01, key="renter_rate_input")
+            rate_to_use = renter_rate_input
 
             st.markdown("##### 🎯 Available Discounts")
             opt = st.radio("Discount tier available:", TIER_OPTIONS, key="renter_discount_tier")
@@ -529,7 +581,6 @@ def main() -> None:
             if "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
 
-        # Logic for Owner Discount (Shared Opt Variable)
         if mode == UserMode.OWNER:
              if "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
              elif "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
@@ -594,7 +645,7 @@ def main() -> None:
     
     st.divider()
     
-    # --- CRITICAL FIX: Pass the correctly resolved rate_to_use variable ---
+    # --- Pass explicitly resolved rate ---
     res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate_to_use, policy, owner_params)
     
     st.markdown(f"### 📊 Results: {room_sel}")
