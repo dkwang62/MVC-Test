@@ -229,7 +229,7 @@ class MVCCalculator:
                 days_out = (holiday.start_date - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0)
+                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -250,6 +250,7 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
+                    # Use passed 'rate' explicitly
                     if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
                     if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
                     if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
@@ -281,7 +282,7 @@ class MVCCalculator:
                 days_out = (d - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0)
+                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -301,6 +302,7 @@ class MVCCalculator:
                 cost = 0.0
                 m = c = dp = 0.0
                 if is_owner and owner_config:
+                    # Use passed 'rate' explicitly
                     if owner_config.get("inc_m", False): m = math.ceil(eff * rate)
                     if owner_config.get("inc_c", False): c = math.ceil(eff * owner_config.get("cap_rate", 0.0))
                     if owner_config.get("inc_d", False): dp = math.ceil(eff * owner_config.get("dep_rate", 0.0))
@@ -374,22 +376,30 @@ TIER_OPTIONS = [TIER_NO_DISCOUNT, TIER_EXECUTIVE, TIER_PRESIDENTIAL]
 def apply_settings_from_dict(user_data: dict):
     """Update session state variables from a settings dictionary."""
     try:
+        # 1. Basic Owner Settings
         if "maintenance_rate" in user_data: st.session_state.pref_maint_rate = float(user_data["maintenance_rate"])
         if "purchase_price" in user_data: st.session_state.pref_purchase_price = float(user_data["purchase_price"])
         if "capital_cost_pct" in user_data: st.session_state.pref_capital_cost = float(user_data["capital_cost_pct"])
         if "salvage_value" in user_data: st.session_state.pref_salvage_value = float(user_data["salvage_value"])
         if "useful_life" in user_data: st.session_state.pref_useful_life = int(user_data["useful_life"])
         
+        # 2. Renter Rate (NEW)
+        if "renter_rate" in user_data: 
+            st.session_state.renter_rate_val = float(user_data["renter_rate"])
+
+        # 3. Discount Tier
         if "discount_tier" in user_data:
             raw = str(user_data["discount_tier"])
             if "Executive" in raw: st.session_state.pref_discount_tier = TIER_EXECUTIVE
             elif "Presidential" in raw or "Chairman" in raw: st.session_state.pref_discount_tier = TIER_PRESIDENTIAL
             else: st.session_state.pref_discount_tier = TIER_NO_DISCOUNT
 
+        # 4. Checkboxes
         if "include_maintenance" in user_data: st.session_state.pref_inc_m = bool(user_data["include_maintenance"])
         if "include_capital" in user_data: st.session_state.pref_inc_c = bool(user_data["include_capital"])
         if "include_depreciation" in user_data: st.session_state.pref_inc_d = bool(user_data["include_depreciation"])
 
+        # 5. Resort
         if "preferred_resort_id" in user_data:
             rid = str(user_data["preferred_resort_id"])
             st.session_state.pref_resort_id = rid
@@ -409,7 +419,6 @@ def main() -> None:
 
     # --- 1. AUTO-LOAD LOCAL FILE ON STARTUP ---
     if "settings_auto_loaded" not in st.session_state:
-        # Load local file if exists
         local_settings = "mvc_owner_settings.json"
         if os.path.exists(local_settings):
             try:
@@ -434,9 +443,9 @@ def main() -> None:
     if "pref_inc_d" not in st.session_state: st.session_state.pref_inc_d = True
     
     if "calculator_mode" not in st.session_state: st.session_state.calculator_mode = UserMode.RENTER.value
+    # Default Renter Rate
     if "renter_rate_val" not in st.session_state: st.session_state.renter_rate_val = 0.50
     if "renter_discount_tier" not in st.session_state: st.session_state.renter_discount_tier = TIER_NO_DISCOUNT
-
 
     # Checkin state
     today = datetime.now().date()
@@ -475,15 +484,15 @@ def main() -> None:
             if config_file:
                  file_sig = f"{config_file.name}_{config_file.size}"
                  if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
-                     # Reset pointer
                      config_file.seek(0)
                      data = json.load(config_file)
                      apply_settings_from_dict(data)
                      st.session_state.last_loaded_cfg = file_sig
                      st.rerun()
 
-            # Save Button (Using .get() for safety)
+            # Save Button
             current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
+            # Use .get() to build safely
             current_settings = {
                 "maintenance_rate": st.session_state.get("pref_maint_rate", 0.55),
                 "purchase_price": st.session_state.get("pref_purchase_price", 18.0),
@@ -494,7 +503,7 @@ def main() -> None:
                 "include_maintenance": st.session_state.get("pref_inc_m", True),
                 "include_capital": st.session_state.get("pref_inc_c", True),
                 "include_depreciation": st.session_state.get("pref_inc_d", True),
-                "renter_rate": st.session_state.get("renter_rate_val", 0.50),
+                "renter_rate": st.session_state.get("renter_rate_val", 0.50), # SAVE RENTER RATE
                 "preferred_resort_id": current_pref_resort
             }
             st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
@@ -513,7 +522,6 @@ def main() -> None:
         owner_params = None
         policy = DiscountPolicy.NONE
         
-        # Variable to hold the active rate for the calculation engine
         rate_to_use = 0.50
 
         st.divider()
@@ -521,7 +529,7 @@ def main() -> None:
         if mode == UserMode.OWNER:
             st.markdown("##### 💰 Basic Costs")
             
-            # --- PROXY PATTERN FOR OWNER WIDGETS ---
+            # --- OWNER PROXY WIDGET ---
             current_val = st.session_state.get("pref_maint_rate", 0.55)
             val_rate = st.number_input(
                 "Annual Maintenance Fee ($/point)",
@@ -529,12 +537,10 @@ def main() -> None:
                 key="widget_maint_rate", 
                 step=0.01, min_value=0.0
             )
-            # Sync back
             if val_rate != current_val:
                 st.session_state.pref_maint_rate = val_rate
             rate_to_use = val_rate
 
-            # Discount Tier (Proxy)
             current_tier = st.session_state.get("pref_discount_tier", TIER_NO_DISCOUNT)
             try: t_idx = TIER_OPTIONS.index(current_tier)
             except ValueError: t_idx = 0
@@ -544,32 +550,25 @@ def main() -> None:
             
             with st.expander("🔧 Advanced Options", expanded=False):
                 st.markdown("**Include in Cost:**")
-                # Checkboxes (Proxy)
-                inc_m_val = st.session_state.get("pref_inc_m", True)
-                inc_m = st.checkbox("Maintenance Fees", value=inc_m_val, key="widget_inc_m")
+                
+                inc_m = st.checkbox("Maintenance Fees", value=st.session_state.get("pref_inc_m", True), key="widget_inc_m")
                 st.session_state.pref_inc_m = inc_m
-                
-                inc_c_val = st.session_state.get("pref_inc_c", True)
-                inc_c = st.checkbox("Capital Cost", value=inc_c_val, key="widget_inc_c")
+                inc_c = st.checkbox("Capital Cost", value=st.session_state.get("pref_inc_c", True), key="widget_inc_c")
                 st.session_state.pref_inc_c = inc_c
-                
-                inc_d_val = st.session_state.get("pref_inc_d", True)
-                inc_d = st.checkbox("Depreciation", value=inc_d_val, key="widget_inc_d")
+                inc_d = st.checkbox("Depreciation", value=st.session_state.get("pref_inc_d", True), key="widget_inc_d")
                 st.session_state.pref_inc_d = inc_d
                 
                 st.divider()
                 if inc_c or inc_d:
                     st.markdown("**Purchase Details**")
-                    curr_cap = st.session_state.get("pref_purchase_price", 18.0)
-                    val_cap = st.number_input("Purchase Price ($/pt)", value=curr_cap, key="widget_purchase_price", step=1.0)
+                    val_cap = st.number_input("Purchase Price ($/pt)", value=st.session_state.get("pref_purchase_price", 18.0), key="widget_purchase_price", step=1.0)
                     st.session_state.pref_purchase_price = val_cap
                     cap = val_cap
                 else:
                     cap = st.session_state.get("pref_purchase_price", 18.0)
                 
                 if inc_c:
-                    curr_coc = st.session_state.get("pref_capital_cost", 5.0)
-                    val_coc = st.number_input("Cost of Capital (%)", value=curr_coc, key="widget_capital_cost", step=0.5)
+                    val_coc = st.number_input("Cost of Capital (%)", value=st.session_state.get("pref_capital_cost", 5.0), key="widget_capital_cost", step=0.5)
                     st.session_state.pref_capital_cost = val_coc
                     coc = val_coc / 100.0
                 else:
@@ -577,13 +576,11 @@ def main() -> None:
                 
                 if inc_d:
                     st.markdown("**Depreciation**")
-                    curr_life = st.session_state.get("pref_useful_life", 10)
-                    val_life = st.number_input("Useful Life (years)", value=curr_life, key="widget_useful_life", min_value=1)
+                    val_life = st.number_input("Useful Life (years)", value=st.session_state.get("pref_useful_life", 10), key="widget_useful_life", min_value=1)
                     st.session_state.pref_useful_life = val_life
                     life = val_life
                     
-                    curr_salvage = st.session_state.get("pref_salvage_value", 3.0)
-                    val_salvage = st.number_input("Salvage Value ($/pt)", value=curr_salvage, key="widget_salvage_value", step=0.5)
+                    val_salvage = st.number_input("Salvage Value ($/pt)", value=st.session_state.get("pref_salvage_value", 3.0), key="widget_salvage_value", step=0.5)
                     st.session_state.pref_salvage_value = val_salvage
                     salvage = val_salvage
                 else:
@@ -596,11 +593,18 @@ def main() -> None:
         else:
             # RENTER MODE
             st.markdown("##### 💵 Rental Rate")
-            # Proxy Pattern for Renter
+            
+            # --- RENTER PROXY WIDGET ---
             curr_rent = st.session_state.get("renter_rate_val", 0.50)
-            renter_rate_input = st.number_input("Cost per Point ($)", value=curr_rent, step=0.01, key="widget_renter_rate")
-            st.session_state.renter_rate_val = renter_rate_input
-            rate_to_use = renter_rate_input
+            val_rent = st.number_input(
+                "Cost per Point ($)", 
+                value=curr_rent, 
+                step=0.01, 
+                key="widget_renter_rate"
+            )
+            if val_rent != curr_rent:
+                st.session_state.renter_rate_val = val_rent
+            rate_to_use = val_rent
 
             st.markdown("##### 🎯 Available Discounts")
             opt = st.radio("Discount tier available:", TIER_OPTIONS, key="renter_discount_tier")
@@ -673,13 +677,10 @@ def main() -> None:
     
     st.divider()
     
-    # --- DEFENSIVE CHECK: Safe Chart Rendering ---
-    # We wrap chart rendering in a check to ensure 'Holiday' column exists
-    
     res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate_to_use, policy, owner_params)
+    
     st.markdown(f"### 📊 Results: {room_sel}")
     
-    # Custom Metrics
     if mode == UserMode.OWNER:
         cols = st.columns(5)
         cols[0].metric("Total Points", f"{res.total_points:,}")
@@ -704,11 +705,8 @@ def main() -> None:
         st.dataframe(comp_res.pivot_df, use_container_width=True)
         
         c1, c2 = st.columns(2)
-        
-        # --- SAFE PLOTTING ---
-        if not comp_res.daily_chart_df.empty and "Holiday" in comp_res.daily_chart_df.columns:
+        if not comp_res.daily_chart_df.empty:
              with c1: st.plotly_chart(px.bar(comp_res.daily_chart_df[comp_res.daily_chart_df["Holiday"]=="No"], x="Day", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Daily Cost"), use_container_width=True)
-        
         if not comp_res.holiday_chart_df.empty:
              with c2: st.plotly_chart(px.bar(comp_res.holiday_chart_df, x="Holiday", y="TotalCostValue" if mode==UserMode.OWNER else "RentValue", color="Room Type", barmode="group", title="Holiday Cost"), use_container_width=True)
 
