@@ -9,6 +9,6 @@
   "include_capital": true,
   "include_depreciation": false,
   "renter_rate": 0.817,
-  "renter_discount_tier": "No Discount",
+  "renter_discount_tier": "Presidential / Chairman (30% off within 60 days)",
   "preferred_resort_id": "surfers-paradise"
 }
