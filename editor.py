@@ -230,8 +230,8 @@ class MVCCalculator:
     def calculate_breakdown(
         self,
         resort_name: str,
-        room: str,
-        checkin: date,
+        room: str
+        , checkin: date,
         nights: int,
         user_mode: UserMode,
         rate: float,
@@ -753,8 +753,11 @@ def main() -> None:
 
         st.divider()
 
-        # ----------------- USER CONFIGURATION (LOAD/SAVE) -----------------
+        # ------------------------------------------------------------------
+        # OWNER MODE
+        # ------------------------------------------------------------------
         if mode == UserMode.OWNER:
+            # ----------------- USER CONFIGURATION (LOAD/SAVE) -----------------
             with st.expander("⚙️ User Configuration", expanded=False):
                 with st.expander("ℹ️ About User Settings", expanded=False):
                     st.markdown(
@@ -824,10 +827,6 @@ def main() -> None:
                     use_container_width=True,
                 )
 
-        # ------------------------------------------------------------------
-        # OWNER MODE
-        # ------------------------------------------------------------------
-        if mode == UserMode.OWNER:
             st.markdown("##### 💰 Basic Costs")
 
             owner_rate = st.number_input(
