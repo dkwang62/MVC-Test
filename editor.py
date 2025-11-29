@@ -1,6 +1,6 @@
-import os
 import math
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from enum import Enum
@@ -229,7 +229,7 @@ class MVCCalculator:
                 days_out = (holiday.start_date - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0)
+                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -281,7 +281,7 @@ class MVCCalculator:
                 days_out = (d - today).days
                 
                 if is_owner:
-                    disc_mul = owner_config.get("disc_mul", 1.0)
+                    disc_mul = owner_config.get("disc_mul", 1.0) if owner_config else 1.0
                     disc_pct = (1 - disc_mul) * 100
                     thresh = 30 if disc_pct == 25 else 60 if disc_pct == 30 else 0
                     if disc_pct > 0 and days_out <= thresh:
@@ -366,13 +366,11 @@ class MVCCalculator:
 # MAIN PAGE LOGIC
 # ==============================================================================
 
-# --- CONSTANTS ---
 TIER_NO_DISCOUNT = "No Discount"
 TIER_EXECUTIVE = "Executive (25% off within 30 days)"
 TIER_PRESIDENTIAL = "Presidential / Chairman (30% off within 60 days)"
 TIER_OPTIONS = [TIER_NO_DISCOUNT, TIER_EXECUTIVE, TIER_PRESIDENTIAL]
 
-# --- HELPER: Apply dictionary to session state ---
 def apply_settings_from_dict(user_data: dict):
     """Update session state variables from a settings dictionary."""
     try:
@@ -409,9 +407,9 @@ def main() -> None:
 
     ensure_data_in_session()
 
-    # --- 1. AUTO-LOAD LOCAL FILE ON STARTUP ---
+    # --- 1. AUTO-LOAD LOCAL FILE (Run once per session) ---
     if "settings_auto_loaded" not in st.session_state:
-        # Check for local file in repo
+        # Load local file if exists
         local_settings = "mvc_owner_settings.json"
         if os.path.exists(local_settings):
             try:
@@ -420,10 +418,10 @@ def main() -> None:
                     apply_settings_from_dict(data)
                     st.toast("✅ Auto-loaded local settings!", icon="⚙️")
             except Exception:
-                pass # Silent fail on auto-load
+                pass 
         st.session_state.settings_auto_loaded = True
 
-    # --- 2. DEFAULTS (If no file was loaded) ---
+    # --- 2. SET DEFAULTS (If values still missing) ---
     if "pref_maint_rate" not in st.session_state: st.session_state.pref_maint_rate = 0.55
     if "pref_purchase_price" not in st.session_state: st.session_state.pref_purchase_price = 18.0
     if "pref_capital_cost" not in st.session_state: st.session_state.pref_capital_cost = 5.0
@@ -457,45 +455,7 @@ def main() -> None:
         st.divider()
         st.markdown("### 👤 User Profile")
         
-        with st.expander("⚙️ User Configuration", expanded=False):
-            with st.expander("ℹ️ About User Settings", expanded=False):
-                st.markdown("""
-                This feature lets you save your personal ownership profile so you don't have to re-enter your numbers every time.
-                **How to use:**
-                * **Save:** Click the button to download a small file to your computer.
-                * **Load:** Upload that file anytime to instantly restore your settings and switch to Owner Mode.
-                """)
-            
-            st.markdown("###### 📂 Load/Save Settings")
-            config_file = st.file_uploader("Load Settings (JSON)", type="json", key="user_cfg_upload")
-            
-            if config_file:
-                 file_sig = f"{config_file.name}_{config_file.size}"
-                 if "last_loaded_cfg" not in st.session_state or st.session_state.last_loaded_cfg != file_sig:
-                     # Read uploaded file
-                     config_file.seek(0)
-                     data = json.load(config_file)
-                     apply_settings_from_dict(data)
-                     st.session_state.last_loaded_cfg = file_sig
-                     st.rerun()
-
-            current_pref_resort = st.session_state.current_resort_id if st.session_state.current_resort_id else ""
-            current_settings = {
-                "maintenance_rate": st.session_state.pref_maint_rate,
-                "purchase_price": st.session_state.pref_purchase_price,
-                "capital_cost_pct": st.session_state.pref_capital_cost,
-                "salvage_value": st.session_state.pref_salvage_value,
-                "useful_life": st.session_state.pref_useful_life,
-                "discount_tier": st.session_state.pref_discount_tier,
-                "include_maintenance": st.session_state.pref_inc_m,
-                "include_capital": st.session_state.pref_inc_c,
-                "include_depreciation": st.session_state.pref_inc_d,
-                "preferred_resort_id": current_pref_resort
-            }
-            st.download_button("💾 Save Settings", json.dumps(current_settings, indent=2), "mvc_owner_settings.json", "application/json", use_container_width=True)
-
-        st.divider()
-        
+        # MODE SELECTOR
         mode_sel = st.radio(
             "Mode:",
             [m.value for m in UserMode],
@@ -507,21 +467,24 @@ def main() -> None:
         owner_params = None
         policy = DiscountPolicy.NONE
         
-        # Initialize defaults
-        owner_maintenance_rate = 0.55 
-        renter_rate_input = 0.50
+        # Variable to hold the active rate for calculation
+        rate_to_use = 0.50
 
         st.divider()
         
         if mode == UserMode.OWNER:
             st.markdown("##### 💰 Basic Costs")
             
-            # --- KEY-ONLY BINDING TO STATE ---
-            owner_maintenance_rate = st.number_input(
+            # --- OWNER WIDGETS (Bound to Session State) ---
+            # IMPORTANT: We capture the return value into a variable, 
+            # but the widget updates session state directly via 'key'.
+            owner_rate_val = st.number_input(
                 "Annual Maintenance Fee ($/point)",
                 key="pref_maint_rate", 
                 step=0.01, min_value=0.0
             )
+            rate_to_use = owner_rate_val # Use this for calc
+
             opt = st.radio("Discount Tier:", TIER_OPTIONS, key="pref_discount_tier")
             
             with st.expander("🔧 Advanced Options", expanded=False):
@@ -556,14 +519,17 @@ def main() -> None:
             }
         else:
             st.markdown("##### 💵 Rental Rate")
-            renter_rate_input = st.number_input("Cost per Point ($)", value=0.50, step=0.01)
+            # RENTER WIDGET (Local variable, separate from Owner State)
+            renter_rate_val = st.number_input("Cost per Point ($)", value=0.50, step=0.01, key="renter_rate_input")
+            rate_to_use = renter_rate_val
+
             st.markdown("##### 🎯 Available Discounts")
-            opt = st.radio("Discount tier available:", TIER_OPTIONS)
+            opt = st.radio("Discount tier available:", TIER_OPTIONS, key="renter_discount_tier")
             
             if "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
             elif "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
 
-        # Apply discount logic
+        # Logic for Owner Discount (Shared Opt Variable)
         if mode == UserMode.OWNER:
              if "Executive" in opt: policy = DiscountPolicy.EXECUTIVE
              elif "Presidential" in opt or "Chairman" in opt: policy = DiscountPolicy.PRESIDENTIAL
@@ -572,12 +538,6 @@ def main() -> None:
         if owner_params: owner_params["disc_mul"] = disc_mul
         
         st.divider()
-    
-    # --- SELECT CORRECT RATE VARIABLE ---
-    if mode == UserMode.OWNER:
-        final_rate_to_use = owner_maintenance_rate
-    else:
-        final_rate_to_use = renter_rate_input
 
     render_page_header("Calculator", f"👤 {mode.value} Mode", icon="🏨", badge_color="#059669" if mode == UserMode.OWNER else "#2563eb")
 
@@ -634,8 +594,8 @@ def main() -> None:
     
     st.divider()
     
-    # CALCULATION
-    res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, final_rate_to_use, policy, owner_params)
+    # --- CRITICAL FIX: Pass the correctly resolved rate_to_use variable ---
+    res = calc.calculate_breakdown(r_name, room_sel, adj_in, adj_n, mode, rate_to_use, policy, owner_params)
     
     st.markdown(f"### 📊 Results: {room_sel}")
     
@@ -659,7 +619,7 @@ def main() -> None:
     if comp_rooms:
         st.divider()
         st.markdown("### 🔍 Comparison")
-        comp_res = calc.compare_stays(r_name, [room_sel] + comp_rooms, adj_in, adj_n, mode, final_rate_to_use, policy, owner_params)
+        comp_res = calc.compare_stays(r_name, [room_sel] + comp_rooms, adj_in, adj_n, mode, rate_to_use, policy, owner_params)
         st.dataframe(comp_res.pivot_df, use_container_width=True)
         
         c1, c2 = st.columns(2)
