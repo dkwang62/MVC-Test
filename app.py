@@ -1,36 +1,35 @@
-# app.py
-import os
-import sys
-
 import streamlit as st
+import calculator
+import editor
 
-# Ensure local package imports work on Streamlit Cloud
-current_dir = os.path.dirname(os.path.abspath(__file__))
-if current_dir not in sys.path:
-    sys.path.insert(0, current_dir)
-
-from common.ui import setup_page
-
-# Set up base page config and styling
-setup_page()
-
-# --- Initialize Default Theme ---
-if "ui_theme" not in st.session_state:
-    st.session_state.ui_theme = "Light"
-
-# --- App shell: choose which tool to run ---
-st.sidebar.markdown("### 🧰 MVC Tools")
-choice = st.sidebar.radio(
-    "Choose Tool",
-    ["Points & Rent Calculator", "Personalising Your Dataset"],
-    index=0,
+# Page Config MUST be first
+st.set_page_config(
+    page_title="MVC Tools",
+    layout="wide",
+    initial_sidebar_state="collapsed", # Better for mobile
+    menu_items={"About": "MVC Tools Mobile"}
 )
 
-if choice == "Points & Rent Calculator":
-    import calculator
+# Minimal CSS to fix padding on mobile
+st.markdown("""
+    <style>
+        .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+        [data-testid="stSidebar"] { min-width: 200px; max-width: 300px; }
+    </style>
+""", unsafe_allow_html=True)
 
-    calculator.run()
-else:
-    import editor
+def main():
+    # Top Navigation (Segmented Control is cleaner than Sidebar for main switch)
+    # Using columns to center it lightly
+    
+    with st.sidebar:
+        st.markdown("### 🛠️ Menu")
+        tool = st.radio("Select Tool", ["Calculator", "Editor"], label_visibility="collapsed")
 
-    editor.run()
+    if tool == "Calculator":
+        calculator.run()
+    else:
+        editor.run()
+
+if __name__ == "__main__":
+    main()
