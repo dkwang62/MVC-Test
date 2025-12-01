@@ -29,6 +29,13 @@ class CalculationResult:
     c_cost: float = 0.0
     d_cost: float = 0.0
 
+@dataclass
+class HolidayObj:
+    name: str
+    start: date
+    end: date
+    points: dict
+
 # --- REPOSITORY ---
 class MVCRepository:
     def __init__(self, raw_data: dict):
@@ -62,16 +69,25 @@ class MVCCalculator:
         if y not in resort_data.get("years", {}): return {}, None
         yd = resort_data["years"][y]
         
-        # Holiday
+        # 1. Holiday Check (Returns HolidayObj if found)
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
+            
+            # Resolve dates: prefer resort override, fallback to global
+            start, end = None, None
             if ref and ref in self.repo._gh.get(y, {}):
-                s, e = self.repo._gh[y][ref]
-                if s <= day <= e: return h.get("room_points", {}), h.get("name")
+                start, end = self.repo._gh[y][ref]
+            
+            # If explicit dates were in resort data (schema v2 doesn't usually do this but good to be safe)
+            # For now, we rely on Global lookup as per schema
+            
+            if start and end and start <= day <= end:
+                return h.get("room_points", {}), HolidayObj(h.get("name"), start, end, h.get("room_points", {}))
         
-        # Season
+        # 2. Season Check
         dow_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
         dow = dow_map[day.weekday()]
+        
         for s in yd.get("seasons", []):
             for p in s.get("periods", []):
                 try:
@@ -93,6 +109,7 @@ class MVCCalculator:
         total_money = 0.0
         tot_m = tot_c = tot_d = 0.0
         disc_hit = False
+        processed_holidays = set()
         
         mul = 1.0
         if mode == UserMode.RENTER:
@@ -101,34 +118,77 @@ class MVCCalculator:
         elif mode == UserMode.OWNER and owner_cfg:
             mul = owner_cfg.get("disc_mul", 1.0)
 
-        for i in range(nights):
+        i = 0
+        while i < nights:
             d = checkin + timedelta(days=i)
-            pts_map, h_name = self.get_points(r_data, d)
-            raw = int(pts_map.get(room, 0))
+            pts_map, holiday_obj = self.get_points(r_data, d)
             
-            eff = math.floor(raw * mul) if mul < 1.0 else raw
-            if eff < raw: disc_hit = True
+            # --- HOLIDAY LOGIC (Restored) ---
+            if holiday_obj:
+                if holiday_obj.name not in processed_holidays:
+                    processed_holidays.add(holiday_obj.name)
+                    
+                    # Points for the holiday block
+                    raw = int(pts_map.get(room, 0))
+                    eff = math.floor(raw * mul) if mul < 1.0 else raw
+                    if eff < raw: disc_hit = True
+                    
+                    # Calculate cost items
+                    m, c, dp, cost = self._calc_cost_items(eff, mode, rate, owner_cfg)
+                    
+                    # Add Summary Row
+                    rows.append({
+                        "Date": f"{holiday_obj.name} ({holiday_obj.start.strftime('%b %d')} - {holiday_obj.end.strftime('%b %d')})",
+                        "Pts": eff,
+                        "Cost": f"${cost:,.0f}"
+                    })
+                    
+                    # Update Totals
+                    total_pts += eff
+                    total_money += cost
+                    tot_m += m; tot_c += c; tot_d += dp
+                    
+                    # JUMP the loop index by holiday duration
+                    duration = (holiday_obj.end - holiday_obj.start).days + 1
+                    i += duration
+                else:
+                    # We are in a holiday we already processed in a previous iteration
+                    i += 1
             
-            cost = 0.0
-            m = c = dp = 0.0
-            
-            if mode == UserMode.OWNER and owner_cfg:
-                m = math.ceil(eff * rate)
-                if owner_cfg.get("inc_c"): c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
-                if owner_cfg.get("inc_d"): dp = math.ceil(eff * owner_cfg.get("dep_rate", 0))
-                cost = m + c + dp
+            # --- REGULAR DAY LOGIC ---
             else:
-                cost = math.ceil(eff * rate)
-            
-            row = {"Date": d.strftime("%a %d"), "Pts": eff, "Cost": f"${cost}"}
-            if h_name: row["Note"] = "Holiday"
-            rows.append(row)
-            
-            total_pts += eff
-            total_money += cost
-            tot_m += m; tot_c += c; tot_d += dp
+                raw = int(pts_map.get(room, 0))
+                eff = math.floor(raw * mul) if mul < 1.0 else raw
+                if eff < raw: disc_hit = True
+                
+                m, c, dp, cost = self._calc_cost_items(eff, mode, rate, owner_cfg)
+                
+                rows.append({
+                    "Date": d.strftime("%a %d %b"), 
+                    "Pts": eff, 
+                    "Cost": f"${cost:,.0f}"
+                })
+                
+                total_pts += eff
+                total_money += cost
+                tot_m += m; tot_c += c; tot_d += dp
+                i += 1
 
         return CalculationResult(pd.DataFrame(rows), total_pts, total_money, disc_hit, tot_m, tot_c, tot_d)
+
+    def _calc_cost_items(self, eff, mode, rate, owner_cfg):
+        cost = 0.0
+        m = c = dp = 0.0
+        
+        if mode == UserMode.OWNER and owner_cfg:
+            m = math.ceil(eff * rate)
+            if owner_cfg.get("inc_c"): c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
+            if owner_cfg.get("inc_d"): dp = math.ceil(eff * owner_cfg.get("dep_rate", 0))
+            cost = m + c + dp
+        else:
+            cost = math.ceil(eff * rate)
+            
+        return m, c, dp, cost
 
 # --- MAIN ---
 def run():
@@ -152,12 +212,10 @@ def run():
             if cfg_file:
                 try:
                     cfg = json.load(cfg_file)
-                    # Force update session state defaults
                     st.session_state["cfg_loaded"] = cfg
                     st.success("Settings Loaded!")
                 except: st.error("Invalid Settings File")
 
-        # Get defaults from loaded file or empty dict
         defaults = st.session_state.get("cfg_loaded", {})
 
         # 3. Settings Form
@@ -173,15 +231,12 @@ def run():
                 life = st.number_input("Useful Life (yrs)", value=defaults.get("useful_life", 10)) if inc_d else 10
                 salvage = st.number_input("Salvage Value", value=defaults.get("salvage_value", 3.0)) if inc_d else 0.0
                 
-                # Derive internal rates
                 cap_rate = cap_price * (coc_pct/100.0)
                 dep_rate = (cap_price - salvage) / life if life > 0 else 0
                 rate = maint
                 
-                # Discount Logic
                 saved_tier = defaults.get("discount_tier", "No Discount")
                 tier_opts = ["No Discount", "Executive", "Presidential"]
-                # Find index safely
                 try: t_idx = next(i for i, v in enumerate(tier_opts) if v in saved_tier)
                 except: t_idx = 0
                 
@@ -195,7 +250,6 @@ def run():
                 }
                 d_policy = DiscountPolicy.NONE
                 
-                # JSON for Saving
                 save_json = {
                     "maintenance_rate": maint, "purchase_price": cap_price, "capital_cost_pct": coc_pct,
                     "useful_life": life, "salvage_value": salvage, "discount_tier": tier,
@@ -216,16 +270,14 @@ def run():
                 
                 save_json = {"renter_rate": rate, "renter_discount_tier": tier_s}
 
-            # 4. Save Button
             st.download_button("💾 Save Profile", json.dumps(save_json, indent=2), "mvc_owner_settings.json", "application/json")
 
     # --- UI HEADER ---
     render_page_header("Calculator", mode.value, "🧮", "#059669" if mode == UserMode.OWNER else "#2563eb")
     
-    # Resort Selection (Default to preference if available)
+    # Resort Selection
     if "current_resort_id" not in st.session_state:
         pref = defaults.get("preferred_resort_id")
-        # Validate preference exists in loaded data
         if pref and any(r['id'] == pref for r in resorts):
             st.session_state.current_resort_id = pref
         else:
