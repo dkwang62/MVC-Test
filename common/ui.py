@@ -45,7 +45,7 @@ def render_page_header(title: str, sub: str, icon: str, badge_color: str):
 
 def render_resort_selector(resorts: list, current_id: str):
     """
-    Renders a West-to-East sorted dropdown.
+    Renders a West-to-East sorted dropdown with a helper label.
     """
     if not resorts:
         st.warning("No resorts loaded.")
@@ -58,14 +58,16 @@ def render_resort_selector(resorts: list, current_id: str):
     resort_map = {r['id']: r.get('display_name', r['id']) for r in sorted_resorts}
     resort_ids = list(resort_map.keys())
     
-    # 3. Handle selection
-    # If the current_id is no longer valid (e.g. file changed), default to the first one
+    # 3. Handle selection validation
     if current_id not in resort_ids:
         current_id = resort_ids[0]
         st.session_state.current_resort_id = current_id
 
     # Find index for the widget
     curr_index = resort_ids.index(current_id)
+
+    # VISUAL CUE FOR SORTING
+    st.caption("Select Resort (Ordered West ➡️ East)")
 
     selected_id = st.selectbox(
         "Select Resort",
@@ -80,7 +82,7 @@ def render_resort_selector(resorts: list, current_id: str):
         st.rerun()
 
 def render_resort_card(name: str, timezone: str, address: str):
-    """Minimal info card."""
-    st.caption(f"📍 **{name}**")
-    if timezone:
-        st.caption(f"🕒 {timezone}")
+    """Minimal info card showing Address instead of Timezone."""
+    st.markdown(f"**{name}**")
+    if address:
+        st.caption(f"🏠 {address}")
