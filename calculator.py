@@ -1,7 +1,7 @@
 import math
 import pandas as pd
 import json
-import plotly.express as px  # Added for the new chart
+import plotly.express as px
 import streamlit as st
 from datetime import datetime, timedelta, date
 from dataclasses import dataclass
@@ -65,7 +65,6 @@ class MVCCalculator:
         if y not in resort_data.get("years", {}): return {}, None
         yd = resort_data["years"][y]
         
-        # 1. Holiday Check
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
             start, end = None, None
@@ -75,7 +74,6 @@ class MVCCalculator:
             if start and end and start <= day <= end:
                 return h.get("room_points", {}), HolidayObj(h.get("name"), start, end)
         
-        # 2. Season Check
         dow_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
         dow = dow_map[day.weekday()]
         
@@ -109,15 +107,12 @@ class MVCCalculator:
             d = checkin + timedelta(days=i)
             pts_map, holiday_obj = self.get_points(r_data, d)
             
-            # --- HOLIDAY LOGIC ---
             if holiday_obj:
                 if holiday_obj.name not in processed_holidays:
                     processed_holidays.add(holiday_obj.name)
-                    
                     raw = int(pts_map.get(room, 0))
                     eff = math.floor(raw * mul) if mul < 1.0 else raw
                     if eff < raw: disc_hit = True
-                    
                     m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                     
                     rows.append({
@@ -125,7 +120,6 @@ class MVCCalculator:
                         "Pts": eff,
                         "Cost": f"${cost:,.0f}"
                     })
-                    
                     total_pts += eff
                     total_money += cost
                     tot_m += m; tot_c += c; tot_d += dp
@@ -134,13 +128,10 @@ class MVCCalculator:
                     i += duration
                 else:
                     i += 1
-            
-            # --- REGULAR DAY ---
             else:
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * mul) if mul < 1.0 else raw
                 if eff < raw: disc_hit = True
-                
                 m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                 
                 rows.append({
@@ -148,7 +139,6 @@ class MVCCalculator:
                     "Pts": eff, 
                     "Cost": f"${cost:,.0f}"
                 })
-                
                 total_pts += eff
                 total_money += cost
                 tot_m += m; tot_c += c; tot_d += dp
@@ -159,7 +149,6 @@ class MVCCalculator:
     def _calc_costs(self, eff, mode, rate, owner_cfg):
         cost = 0.0
         m = c = dp = 0.0
-        
         if mode == UserMode.OWNER and owner_cfg:
             m = math.ceil(eff * rate)
             if owner_cfg.get("inc_c"): c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
@@ -169,7 +158,6 @@ class MVCCalculator:
             cost = math.ceil(eff * rate)
         return m, c, dp, cost
 
-# --- MAIN ---
 def run():
     ensure_data_in_session()
     if not st.session_state.data:
@@ -203,7 +191,6 @@ def run():
             
             if mode == UserMode.OWNER:
                 maint = st.number_input("Maint. Rate", value=defaults.get("maintenance_rate", 0.55), step=0.01)
-                
                 inc_c = st.checkbox("Capital", value=defaults.get("include_capital", True))
                 cap_price = st.number_input("Purchase Price", value=defaults.get("purchase_price", 18.0)) if inc_c else 0.0
                 coc_pct = st.number_input("Cost of Capital %", value=defaults.get("capital_cost_pct", 5.0)) if inc_c else 0.0
@@ -216,19 +203,13 @@ def run():
                 
                 cap_rate = cap_price * (coc_pct/100.0)
                 dep_rate = (cap_price - salvage) / life if life > 0 else 0
-                
                 rate_to_use = maint
                 owner_cfg = {"inc_c": inc_c, "cap_rate": cap_rate, "inc_d": inc_d, "dep_rate": dep_rate}
-                
-                save_data = {
-                    "maintenance_rate": maint, "purchase_price": cap_price, "capital_cost_pct": coc_pct,
-                    "include_capital": inc_c, "include_depreciation": inc_d, "discount_tier": tier
-                }
+                save_data = {"maintenance_rate": maint, "purchase_price": cap_price, "capital_cost_pct": coc_pct, "include_capital": inc_c, "include_depreciation": inc_d, "discount_tier": tier}
             else:
                 rate_to_use = st.number_input("Rent Rate", value=defaults.get("renter_rate", 0.50), step=0.05)
                 tier = st.selectbox("Discount", tier_opts, index=t_idx)
                 active_mul = 0.7 if "Pres" in tier else 0.75 if "Exec" in tier else 1.0
-                
                 owner_cfg = None
                 save_data = {"renter_rate": rate_to_use, "renter_discount_tier": tier}
 
@@ -244,7 +225,9 @@ def run():
     render_resort_selector(resorts, st.session_state.current_resort_id)
     r_obj = next((r for r in resorts if r["id"] == st.session_state.current_resort_id), None)
     if not r_obj: return
-    render_resort_card(r_obj.get("resort_name", ""), r_obj.get("timezone", ""), "")
+    
+    # --- FIX: Passing Address Correctly ---
+    render_resort_card(r_obj.get("resort_name", ""), r_obj.get("timezone", ""), r_obj.get("address", ""))
 
     c1, c2 = st.columns(2)
     with c1: checkin = st.date_input("Check-in", value=date.today() + timedelta(days=1))
@@ -289,29 +272,10 @@ def run():
                     c_res = calc.calculate(r_obj["display_name"], cr, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
                     if c_res: comp_data.append({"Room": cr, "Total": c_res.financial_total})
                 
-                # --- NEW CHART LOGIC WITH VALUES ---
                 df_chart = pd.DataFrame(comp_data)
-                
-                # Create Plotly Bar chart with text labels
-                fig = px.bar(
-                    df_chart, 
-                    x="Room", 
-                    y="Total", 
-                    text="Total", # This puts the value on the bar
-                    title=None
-                )
-                
-                # Format the text to currency
+                fig = px.bar(df_chart, x="Room", y="Total", text="Total", title=None)
                 fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
-                
-                # Mobile friendly layout
-                fig.update_layout(
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    yaxis_title=None,
-                    xaxis_title=None,
-                    height=300
-                )
-                
+                fig.update_layout(margin=dict(l=10, r=10, t=10, b=10), yaxis_title=None, xaxis_title=None, height=300)
                 st.plotly_chart(fig, use_container_width=True)
 
     if r_obj and str(checkin.year) in r_obj.get("years", {}):
