@@ -6,22 +6,23 @@ import editor
 st.set_page_config(
     page_title="MVC Tools",
     layout="wide",
-    initial_sidebar_state="collapsed", # Better for mobile
+    initial_sidebar_state="collapsed", 
     menu_items={"About": "MVC Tools Mobile"}
 )
 
-# Minimal CSS to fix padding on mobile
+# --- CSS FIX: INCREASED TOP PADDING ---
 st.markdown("""
     <style>
-        .block-container { padding-top: 1rem; padding-bottom: 2rem; }
+        /* Increased padding-top to 3.5rem to clear iPhone Notch/Status Bar */
+        .block-container { 
+            padding-top: 3.5rem !important; 
+            padding-bottom: 2rem !important; 
+        }
         [data-testid="stSidebar"] { min-width: 200px; max-width: 300px; }
     </style>
 """, unsafe_allow_html=True)
 
 def main():
-    # Top Navigation (Segmented Control is cleaner than Sidebar for main switch)
-    # Using columns to center it lightly
-    
     with st.sidebar:
         st.markdown("### 🛠️ Menu")
         tool = st.radio("Select Tool", ["Calculator", "Editor"], label_visibility="collapsed")
