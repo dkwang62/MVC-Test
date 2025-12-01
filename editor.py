@@ -8,57 +8,41 @@ from common.charts import render_gantt, get_season_bucket
 from common.data import ensure_data_in_session, save_data
 
 def sync_room_points(working: dict, base_year: str):
-    """Sync room structure from base year to others."""
     years = working.get("years", {})
     if base_year not in years: return
     base_seasons = years[base_year].get("seasons", [])
-    
     for y_str, y_data in years.items():
         if y_str == base_year: continue
         for s in y_data.get("seasons", []):
             base_match = next((bs for bs in base_seasons if bs["name"] == s["name"]), None)
-            if base_match:
-                s["day_categories"] = deepcopy(base_match["day_categories"])
+            if base_match: s["day_categories"] = deepcopy(base_match["day_categories"])
 
 def run():
     ensure_data_in_session()
     
-    # --- SIDEBAR: LOAD DATA FILE ---
     with st.sidebar:
         with st.expander("📂 Load Data File (data_v2.json)", expanded=True):
             uploaded = st.file_uploader("Upload Master Data", type="json", key="data_uploader")
-            
-            # --- STRICT FILE LOADING LOGIC ---
             if uploaded:
-                # Create a unique signature for this file upload instance
-                current_file_sig = f"{uploaded.name}_{uploaded.size}"
-                
-                # ONLY attempt to read if it's a new file we haven't processed yet
-                if st.session_state.get("last_loaded_data_sig") != current_file_sig:
+                file_sig = f"{uploaded.name}_{uploaded.size}"
+                if st.session_state.get("last_loaded_data_sig") != file_sig or not st.session_state.data:
                     try:
-                        # Reset cursor (Crucial fix)
                         uploaded.seek(0)
                         raw = json.load(uploaded)
-                        
                         if "resorts" in raw:
                             st.session_state.data = raw
-                            st.session_state.last_loaded_data_sig = current_file_sig
+                            st.session_state.last_loaded_data_sig = file_sig
                             st.success(f"✅ Loaded {len(raw['resorts'])} resorts")
                             st.rerun()
-                        else:
-                            st.error("❌ Invalid Schema")
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                        else: st.error("❌ Invalid Schema")
+                    except Exception as e: st.error(f"Error: {e}")
                 else:
-                    # It's the same file as before. Do nothing but show status.
-                    # This prevents the 'Invalid File' error on rerun.
-                    cnt = len(st.session_state.data.get('resorts', [])) if st.session_state.data else 0
+                    cnt = len(st.session_state.data.get('resorts', []))
                     st.success(f"Active: {uploaded.name} ({cnt} resorts)")
 
             if st.session_state.data:
                 st.download_button("💾 Download Data", json.dumps(st.session_state.data, indent=2), "data_v2.json", "application/json")
 
-    # --- MAIN UI ---
     if not st.session_state.data:
         render_page_header("Editor", "Waiting for Data...", "📝", "#9CA3AF")
         st.info("Please upload your 'data_v2.json' file in the sidebar to begin.")
@@ -69,21 +53,17 @@ def run():
     resorts = st.session_state.data.get("resorts", [])
     if not resorts: return
 
-    # Ensure resort ID is valid
     if "current_resort_id" not in st.session_state:
         st.session_state.current_resort_id = resorts[0]["id"]
     
-    # Renders the sorted selector from common.ui
     render_resort_selector(resorts, st.session_state.current_resort_id)
     
-    # Locate working copy based on selection
-    # (Since resorts are sorted in UI but not in list, we must find by ID)
     r_idx = next((i for i, r in enumerate(resorts) if r["id"] == st.session_state.current_resort_id), 0)
     working = resorts[r_idx]
     
-    render_resort_card(working.get("resort_name", ""), working.get("timezone", ""), "")
+    # --- FIX: Passing Address Correctly ---
+    render_resort_card(working.get("resort_name", ""), working.get("timezone", ""), working.get("address", ""))
 
-    # --- TABS ---
     t_ov, t_date, t_pts = st.tabs(["Overview", "Dates", "Points"])
 
     with t_ov:
@@ -99,7 +79,6 @@ def run():
     with t_date:
         years = sorted(working.get("years", {}).keys())
         sel_year = st.selectbox("Year", years) if years else None
-        
         if sel_year:
             y_data = working["years"][sel_year]
             g_rows = []
@@ -121,7 +100,6 @@ def run():
             st.info("Edit points below. 'Save & Sync' will update other years.")
             y_data = working["years"][sel_year]
             seasons = y_data.get("seasons", [])
-            
             for s_idx, season in enumerate(seasons):
                 st.markdown(f"**{season['name']}**")
                 day_cats = season.get("day_categories", {})
@@ -129,15 +107,7 @@ def run():
                     rp = dc_val.get("room_points", {})
                     pts_data = [{"Room Type": k, "Points": v} for k, v in rp.items()]
                     df_pts = pd.DataFrame(pts_data)
-                    
-                    edited_df = st.data_editor(
-                        df_pts,
-                        key=f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}",
-                        use_container_width=True,
-                        num_rows="dynamic",
-                        hide_index=True
-                    )
-                    
+                    edited_df = st.data_editor(df_pts, key=f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}", use_container_width=True, num_rows="dynamic", hide_index=True)
                     if not edited_df.empty:
                         new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
                         dc_val["room_points"] = new_rp
