@@ -20,11 +20,13 @@ def sync_room_points(working: dict, base_year: str):
 def run():
     ensure_data_in_session()
     
+    # --- SIDEBAR: ONLY FILES ---
     with st.sidebar:
         with st.expander("📂 Load Data File (data_v2.json)", expanded=True):
             uploaded = st.file_uploader("Upload Master Data", type="json", key="data_uploader")
             if uploaded:
                 file_sig = f"{uploaded.name}_{uploaded.size}"
+                # Read only if new signature or data is missing
                 if st.session_state.get("last_loaded_data_sig") != file_sig or not st.session_state.data:
                     try:
                         uploaded.seek(0)
@@ -43,6 +45,7 @@ def run():
             if st.session_state.data:
                 st.download_button("💾 Download Data", json.dumps(st.session_state.data, indent=2), "data_v2.json", "application/json")
 
+    # --- MAIN CONTENT ---
     if not st.session_state.data:
         render_page_header("Editor", "Waiting for Data...", "📝", "#9CA3AF")
         st.info("Please upload your 'data_v2.json' file in the sidebar to begin.")
@@ -61,7 +64,6 @@ def run():
     r_idx = next((i for i, r in enumerate(resorts) if r["id"] == st.session_state.current_resort_id), 0)
     working = resorts[r_idx]
     
-    # --- FIX: Passing Address Correctly ---
     render_resort_card(working.get("resort_name", ""), working.get("timezone", ""), working.get("address", ""))
 
     t_ov, t_date, t_pts = st.tabs(["Overview", "Dates", "Points"])
@@ -85,7 +87,9 @@ def run():
             for s in y_data.get("seasons", []):
                 for p in s.get("periods", []):
                     g_rows.append({"Task": s["name"], "Start": p["start"], "Finish": p["end"], "Type": get_season_bucket(s["name"])})
-            st.plotly_chart(render_gantt(g_rows), use_container_width=True)
+            
+            fig = render_gantt(g_rows)
+            st.pyplot(fig, use_container_width=True)
 
             seasons = y_data.get("seasons", [])
             for s in seasons:
