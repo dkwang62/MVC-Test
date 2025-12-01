@@ -1,6 +1,7 @@
 import math
 import pandas as pd
 import json
+import plotly.express as px  # Added for the new chart
 import streamlit as st
 from datetime import datetime, timedelta, date
 from dataclasses import dataclass
@@ -101,7 +102,6 @@ class MVCCalculator:
         disc_hit = False
         processed_holidays = set()
         
-        # Use the passed multiplier directly (Unified Logic)
         mul = discount_multiplier
 
         i = 0
@@ -130,7 +130,6 @@ class MVCCalculator:
                     total_money += cost
                     tot_m += m; tot_c += c; tot_d += dp
                     
-                    # Skip rest of holiday
                     duration = (holiday_obj.end - holiday_obj.start).days + 1
                     i += duration
                 else:
@@ -185,7 +184,6 @@ def run():
         mode_sel = st.radio("Mode", [m.value for m in UserMode], horizontal=True, label_visibility="collapsed")
         mode = UserMode(mode_sel)
         
-        # Load Settings
         with st.expander("📂 Load Profile", expanded=False):
             cfg_file = st.file_uploader("Upload Settings", type="json", key="cfg_up")
             if cfg_file:
@@ -197,7 +195,6 @@ def run():
         defaults = st.session_state.get("cfg_loaded", {})
 
         with st.expander("⚙️ Settings", expanded=False):
-            # SHARED TIER LOGIC
             tier_key = "discount_tier" if mode == UserMode.OWNER else "renter_discount_tier"
             saved_tier = defaults.get(tier_key, "No Discount")
             tier_opts = ["No Discount", "Executive", "Presidential"]
@@ -207,7 +204,6 @@ def run():
             if mode == UserMode.OWNER:
                 maint = st.number_input("Maint. Rate", value=defaults.get("maintenance_rate", 0.55), step=0.01)
                 
-                # Owner Advanced
                 inc_c = st.checkbox("Capital", value=defaults.get("include_capital", True))
                 cap_price = st.number_input("Purchase Price", value=defaults.get("purchase_price", 18.0)) if inc_c else 0.0
                 coc_pct = st.number_input("Cost of Capital %", value=defaults.get("capital_cost_pct", 5.0)) if inc_c else 0.0
@@ -216,8 +212,6 @@ def run():
                 salvage = st.number_input("Salvage", value=defaults.get("salvage_value", 3.0)) if inc_d else 0.0
                 
                 tier = st.selectbox("Tier", tier_opts, index=t_idx)
-                
-                # CALCULATE MULTIPLIER HERE
                 active_mul = 0.7 if "Pres" in tier else 0.75 if "Exec" in tier else 1.0
                 
                 cap_rate = cap_price * (coc_pct/100.0)
@@ -230,11 +224,9 @@ def run():
                     "maintenance_rate": maint, "purchase_price": cap_price, "capital_cost_pct": coc_pct,
                     "include_capital": inc_c, "include_depreciation": inc_d, "discount_tier": tier
                 }
-            else: # RENTER
+            else:
                 rate_to_use = st.number_input("Rent Rate", value=defaults.get("renter_rate", 0.50), step=0.05)
                 tier = st.selectbox("Discount", tier_opts, index=t_idx)
-                
-                # CALCULATE MULTIPLIER HERE
                 active_mul = 0.7 if "Pres" in tier else 0.75 if "Exec" in tier else 1.0
                 
                 owner_cfg = None
@@ -244,7 +236,6 @@ def run():
 
     render_page_header("Calculator", mode.value, "🧮", "#059669" if mode == UserMode.OWNER else "#2563eb")
     
-    # Resort Logic
     if "current_resort_id" not in st.session_state:
         pref = defaults.get("preferred_resort_id")
         if pref and any(r['id'] == pref for r in resorts): st.session_state.current_resort_id = pref
@@ -273,7 +264,6 @@ def run():
 
     room = st.selectbox("Room Type", rooms)
 
-    # --- CALCULATE WITH EXPLICIT MULTIPLIER ---
     res = calc.calculate(r_obj["display_name"], room, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
     
     st.divider()
@@ -296,11 +286,33 @@ def run():
             if comp_rooms:
                 comp_data = [{"Room": room, "Total": res.financial_total}]
                 for cr in comp_rooms:
-                    # Pass the SAME active_mul to comparisons
                     c_res = calc.calculate(r_obj["display_name"], cr, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
                     if c_res: comp_data.append({"Room": cr, "Total": c_res.financial_total})
                 
-                st.bar_chart(pd.DataFrame(comp_data).set_index("Room"), use_container_width=True)
+                # --- NEW CHART LOGIC WITH VALUES ---
+                df_chart = pd.DataFrame(comp_data)
+                
+                # Create Plotly Bar chart with text labels
+                fig = px.bar(
+                    df_chart, 
+                    x="Room", 
+                    y="Total", 
+                    text="Total", # This puts the value on the bar
+                    title=None
+                )
+                
+                # Format the text to currency
+                fig.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+                
+                # Mobile friendly layout
+                fig.update_layout(
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    yaxis_title=None,
+                    xaxis_title=None,
+                    height=300
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
 
     if r_obj and str(checkin.year) in r_obj.get("years", {}):
         with st.expander("📅 Season Calendar", expanded=False):
