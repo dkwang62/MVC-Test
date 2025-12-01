@@ -85,4 +85,4 @@ def render_resort_card(name: str, timezone: str, address: str):
     """Minimal info card showing Address."""
     st.markdown(f"**{name}**")
     if address:
-        st.caption(f"🏠 {address
+        st.caption(f"🏠 {address}")
