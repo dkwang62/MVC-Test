@@ -31,7 +31,7 @@ def get_resort_sort_key(resort):
     return (tz_idx, resort.get("display_name", ""))
 
 def render_page_header(title: str, sub: str, icon: str, badge_color: str):
-    """Minimal header."""
+    """Minimal header optimized for mobile."""
     st.markdown(
         f"""
         <div style="padding-bottom: 10px; border-bottom: 1px solid #e5e7eb; margin-bottom: 15px;">
@@ -82,7 +82,7 @@ def render_resort_selector(resorts: list, current_id: str):
         st.rerun()
 
 def render_resort_card(name: str, timezone: str, address: str):
-    """Minimal info card showing Address instead of Timezone."""
+    """Minimal info card showing Address."""
     st.markdown(f"**{name}**")
     if address:
-        st.caption(f"🏠 {address}")
+        st.caption(f"🏠 {address
