@@ -10,13 +10,14 @@ st.set_page_config(
     menu_items={"About": "MVC Tools Mobile"}
 )
 
-# --- CSS FIX: INCREASED TOP PADDING ---
+# --- CSS FIXES ---
 st.markdown("""
     <style>
         /* Increased padding-top to 3.5rem to clear iPhone Notch/Status Bar */
         .block-container { 
             padding-top: 3.5rem !important; 
             padding-bottom: 2rem !important; 
+            max-width: 100% !important; /* Ensure full width on mobile */
         }
         [data-testid="stSidebar"] { min-width: 200px; max-width: 300px; }
     </style>
