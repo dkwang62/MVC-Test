@@ -92,12 +92,17 @@ class MVCCalculator:
 
     def calculate(self, resort_name, room, checkin, nights, mode, rate, discount_multiplier, owner_cfg):
         r_data = self.repo.get_resort_data(resort_name)
-        if not r_data: return None
+        if not r_data: 
+            return None
         
+        # NEW: snap renter rate to 2dp so internal value matches what the user sees
+        if mode == UserMode.RENTER:
+            rate = round(float(rate), 2)
+
         rows = []
-        total_pts = 0
-        total_money = 0.0
-        tot_m = tot_c = tot_d = 0.0
+        total_pts = 0                # effective points after discount
+        total_money = 0.0            # will be overridden at the end based on total_pts
+        tot_m = tot_c = tot_d = 0.0  # will also be overridden for owners
         disc_hit = False
         processed_holidays = set()
         
@@ -115,8 +120,10 @@ class MVCCalculator:
                     
                     raw = int(pts_map.get(room, 0))
                     eff = math.floor(raw * mul) if mul < 1.0 else raw
-                    if eff < raw: disc_hit = True
+                    if eff < raw: 
+                        disc_hit = True
                     
+                    # per-block costs for display only (daily values still ceil)
                     m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                     
                     rows.append({
@@ -138,8 +145,10 @@ class MVCCalculator:
                 # --- REGULAR DAY ---
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * mul) if mul < 1.0 else raw
-                if eff < raw: disc_hit = True
+                if eff < raw: 
+                    disc_hit = True
                 
+                # per-day costs for display only (ceil)
                 m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                 
                 rows.append({
@@ -153,15 +162,39 @@ class MVCCalculator:
                 tot_m += m; tot_c += c; tot_d += dp
                 i += 1
 
+        # =========================================================
+        # OVERRIDE TOTALS:
+        #  - RENTER: Total = total effective points × renter rate
+        #  - OWNER: Total = points × (maint + cap + dep per pt)
+        #    using owner_cfg rates, not sum of ceiled daily costs.
+        # =========================================================
+        if mode == UserMode.RENTER:
+            total_money = total_pts * rate
+            # m_cost/c_cost/d_cost stay 0 for renters
+            tot_m = tot_c = tot_d = 0.0
+        elif mode == UserMode.OWNER and owner_cfg:
+            maint_total = total_pts * rate
+            cap_total = total_pts * owner_cfg.get("cap_rate", 0.0) if owner_cfg.get("inc_c") else 0.0
+            dep_total = total_pts * owner_cfg.get("dep_rate", 0.0) if owner_cfg.get("inc_d") else 0.0
+
+            tot_m = maint_total
+            tot_c = cap_total
+            tot_d = dep_total
+            total_money = maint_total + cap_total + dep_total
+        # =========================================================
+
         return CalculationResult(pd.DataFrame(rows), total_pts, total_money, disc_hit, tot_m, tot_c, tot_d)
 
     def _calc_costs(self, eff, mode, rate, owner_cfg):
+        """Per-day / per-block cost for display; uses ceil as before."""
         cost = 0.0
         m = c = dp = 0.0
         if mode == UserMode.OWNER and owner_cfg:
             m = math.ceil(eff * rate)
-            if owner_cfg.get("inc_c"): c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
-            if owner_cfg.get("inc_d"): dp = math.ceil(eff * owner_cfg.get("dep_rate", 0))
+            if owner_cfg.get("inc_c"): 
+                c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
+            if owner_cfg.get("inc_d"): 
+                dp = math.ceil(eff * owner_cfg.get("dep_rate", 0))
             cost = m + c + dp
         else:
             cost = math.ceil(eff * rate)
@@ -185,7 +218,8 @@ def run():
                 try:
                     st.session_state["cfg_loaded"] = json.load(cfg_file)
                     st.success("Loaded!")
-                except: st.error("Invalid File")
+                except: 
+                    st.error("Invalid File")
 
     # --- MAIN CONTENT ---
     defaults = st.session_state.get("cfg_loaded", {})
@@ -201,8 +235,10 @@ def run():
         tier_key = "discount_tier" if mode == UserMode.OWNER else "renter_discount_tier"
         saved_tier = defaults.get(tier_key, "No Discount")
         tier_opts = ["No Discount", "Executive", "Presidential"]
-        try: t_idx = next(i for i, v in enumerate(tier_opts) if v in saved_tier)
-        except: t_idx = 0
+        try: 
+            t_idx = next(i for i, v in enumerate(tier_opts) if v in saved_tier)
+        except: 
+            t_idx = 0
         
         if mode == UserMode.OWNER:
             c1, c2 = st.columns(2)
@@ -227,7 +263,13 @@ def run():
             dep_rate = (cap_price - salvage) / life if life > 0 else 0
             
             rate_to_use = maint
-            owner_cfg = {"inc_c": inc_c, "cap_rate": cap_rate, "inc_d": inc_d, "dep_rate": dep_rate, "disc_mul": active_mul}
+            owner_cfg = {
+                "inc_c": inc_c, 
+                "cap_rate": cap_rate, 
+                "inc_d": inc_d, 
+                "dep_rate": dep_rate, 
+                "disc_mul": active_mul
+            }
             save_data = {
                 "maintenance_rate": maint, "purchase_price": cap_price, "capital_cost_pct": coc_pct,
                 "include_capital": inc_c, "include_depreciation": inc_d, "discount_tier": tier,
@@ -236,6 +278,9 @@ def run():
         else:
             c1, c2 = st.columns(2)
             rate_to_use = c1.number_input("Rent Rate", value=defaults.get("renter_rate", 0.50), step=0.05)
+            # NEW: snap renter rate to 2dp at UI level as well
+            rate_to_use = round(float(rate_to_use), 2)
+
             tier = c2.selectbox("Discount", tier_opts, index=t_idx)
             
             active_mul = 0.7 if "Pres" in tier else 0.75 if "Exec" in tier else 1.0
@@ -250,19 +295,24 @@ def run():
     # 3. Resort Selector
     if "current_resort_id" not in st.session_state:
         pref = defaults.get("preferred_resort_id")
-        if pref and any(r['id'] == pref for r in resorts): st.session_state.current_resort_id = pref
-        else: st.session_state.current_resort_id = resorts[0]["id"]
+        if pref and any(r['id'] == pref for r in resorts): 
+            st.session_state.current_resort_id = pref
+        else: 
+            st.session_state.current_resort_id = resorts[0]["id"]
         
     render_resort_selector(resorts, st.session_state.current_resort_id)
     r_obj = next((r for r in resorts if r["id"] == st.session_state.current_resort_id), None)
-    if not r_obj: return
+    if not r_obj: 
+        return
     
     # 4. Inputs
     render_resort_card(r_obj.get("resort_name", ""), r_obj.get("timezone", ""), r_obj.get("address", ""))
 
     c1, c2 = st.columns(2)
-    with c1: checkin = st.date_input("Check-in", value=date.today() + timedelta(days=1))
-    with c2: nights = st.number_input("Nights", 1, 60, 7)
+    with c1: 
+        checkin = st.date_input("Check-in", value=date.today() + timedelta(days=1))
+    with c2: 
+        nights = st.number_input("Nights", 1, 60, 7)
 
     rooms = []
     years = r_obj.get("years", {})
@@ -270,7 +320,8 @@ def run():
     if y_str in years and years[y_str].get("seasons"):
         s = years[y_str]["seasons"][0]
         cat = next(iter(s.get("day_categories", {}).values()), None)
-        if cat: rooms = sorted(list(cat.get("room_points", {}).keys()))
+        if cat: 
+            rooms = sorted(list(cat.get("room_points", {}).keys()))
     
     if not rooms:
         st.error(f"No pricing data found for {y_str}")
@@ -288,23 +339,26 @@ def run():
     
     if mode == UserMode.OWNER:
         st.caption(f"Maint: ${res.m_cost:,.0f} | Cap: ${res.c_cost:,.0f} | Dep: ${res.d_cost:,.0f}")
-    if res.discount_applied: st.success("Discount Applied!")
+    if res.discount_applied: 
+        st.success("Discount Applied!")
 
     st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
 
-    # 6. Comparison Table (REPLACED CHART)
+    # 6. Comparison Table
     other_rooms = [r for r in rooms if r != room]
     if other_rooms:
         with st.expander("📊 Compare Rooms", expanded=True):
             comp_rooms = st.multiselect("Select rooms:", other_rooms)
             if comp_rooms:
                 comp_data = []
+                # Primary room
                 comp_data.append({
                     "Room": room, 
                     "Points": f"{res.total_points:,}",
                     "Total Cost": f"${res.financial_total:,.0f}"
                 })
                 
+                # Other rooms, using the same calculator logic (so totals follow the same rule)
                 for cr in comp_rooms:
                     c_res = calc.calculate(r_obj["display_name"], cr, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
                     if c_res:
@@ -327,7 +381,8 @@ def run():
             for h in yd.get("holidays", []):
                 ref = h.get("global_reference")
                 gh = repo._gh.get(str(checkin.year), {}).get(ref)
-                if gh: g_rows.append({"Task": h.get("name"), "Start": gh[0], "Finish": gh[1], "Type": "Holiday"})
+                if gh: 
+                    g_rows.append({"Task": h.get("name"), "Start": gh[0], "Finish": gh[1], "Type": "Holiday"})
             
             fig = render_gantt(g_rows, f"{checkin.year} Calendar")
             st.pyplot(fig, use_container_width=True)
