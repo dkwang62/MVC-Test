@@ -148,10 +148,21 @@ def run():
         sel_year = st.selectbox("Year", years, key="date_year_select") if years else None
         if sel_year:
             y_data = working["years"][sel_year]
+            global_holidays = st.session_state.data.get("global_holidays", {})
             g_rows = []
             for s in y_data.get("seasons", []):
                 for p in s.get("periods", []):
                     g_rows.append({"Task": s["name"], "Start": p["start"], "Finish": p["end"], "Type": get_season_bucket(s["name"])})
+            
+            # Add holidays
+            for h in y_data.get("holidays", []):
+                h_name = h.get("name", "(Unnamed Holiday)")
+                global_ref = h.get("global_reference") or h_name
+                gh_data = global_holidays.get(sel_year, {}).get(global_ref, {})
+                start = gh_data.get("start_date")
+                end = gh_data.get("end_date")
+                if start and end:
+                    g_rows.append({"Task": h_name, "Start": start, "Finish": end, "Type": "Holiday"})
             
             fig = render_gantt(g_rows)
             st.pyplot(fig, use_container_width=True)
