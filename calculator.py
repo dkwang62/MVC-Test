@@ -2,6 +2,7 @@ import math
 import pandas as pd
 import json
 import streamlit as st
+import matplotlib.pyplot as plt # Required for converting table to image
 from datetime import datetime, timedelta, date
 from dataclasses import dataclass
 from enum import Enum
@@ -32,6 +33,39 @@ class CalculationResult:
 @dataclass
 class HolidayObj:
     name: str; start: date; end: date
+
+# --- NEW HELPER: Render Dataframe as Static Image ---
+def render_static_table(df):
+    """
+    Converts a pandas DataFrame into a matplotlib figure to render as a static image.
+    This prevents accidental interaction/editing on mobile devices.
+    """
+    # Dynamic height based on number of rows
+    num_rows = len(df)
+    height = max(2, num_rows * 0.5 + 1) # Base height + row scaling
+    
+    fig, ax = plt.subplots(figsize=(8, height)) 
+    ax.axis('off')
+    ax.axis('tight')
+    
+    # Create the table
+    table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
+    
+    # Styling
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 1.5) # Add some padding to cells
+    
+    # Header styling
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(weight='bold', color='white')
+            cell.set_facecolor('#4b5563') # Dark gray header
+            cell.set_edgecolor('white')
+        else:
+            cell.set_edgecolor('#e5e7eb') # Light gray borders
+            
+    return fig
 
 class MVCRepository:
     def __init__(self, raw_data: dict):
@@ -95,14 +129,13 @@ class MVCCalculator:
         if not r_data: 
             return None
         
-        # NEW: snap renter rate to 2dp so internal value matches what the user sees
         if mode == UserMode.RENTER:
             rate = round(float(rate), 2)
 
         rows = []
-        total_pts = 0                # effective points after discount
-        total_money = 0.0            # will be overridden at the end
-        tot_m = tot_c = tot_d = 0.0  # will be overridden at the end
+        total_pts = 0 
+        total_money = 0.0
+        tot_m = tot_c = tot_d = 0.0
         disc_hit = False
         processed_holidays = set()
         
@@ -113,7 +146,6 @@ class MVCCalculator:
             d = checkin + timedelta(days=i)
             pts_map, holiday_obj = self.get_points(r_data, d)
             
-            # --- HOLIDAY BUNDLE LOGIC ---
             if holiday_obj:
                 if holiday_obj.name not in processed_holidays:
                     processed_holidays.add(holiday_obj.name)
@@ -123,31 +155,25 @@ class MVCCalculator:
                     if eff < raw: 
                         disc_hit = True
                     
-                    # per-block costs for display only (daily values still ceil)
                     m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                     
                     rows.append({
-                        "Date": f"{holiday_obj.name} ({holiday_obj.start.strftime('%b %d')} - {holiday_obj.end.strftime('%b %d')})",
+                        "Date": f"{holiday_obj.name}", # Shortened for mobile table width
                         "Pts": eff,
                         "Cost": f"${cost:,.0f}"
                     })
                     
                     total_pts += eff
-                    # We accumulate total_money here for the display loop, but override it below
-                    
-                    # Jump duration
                     duration = (holiday_obj.end - holiday_obj.start).days + 1
                     i += duration
                 else:
                     i += 1
             else:
-                # --- REGULAR DAY ---
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * mul) if mul < 1.0 else raw
                 if eff < raw: 
                     disc_hit = True
                 
-                # per-day costs for display only (ceil)
                 m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
                 
                 rows.append({
@@ -159,18 +185,12 @@ class MVCCalculator:
                 total_pts += eff
                 i += 1
 
-        # =========================================================
-        # OVERRIDE TOTALS: Strict "Round of Sums" Logic
-        # =========================================================
         if mode == UserMode.RENTER:
-            # Renter: Total = ceil(total points * rate)
             total_money = math.ceil(total_pts * rate)
             tot_m = tot_c = tot_d = 0.0
 
         elif mode == UserMode.OWNER and owner_cfg:
-            # Owner: Calculate components based on TOTAL points, then ceil
             maint_total = math.ceil(total_pts * rate)
-            
             cap_rate = owner_cfg.get("cap_rate", 0.0)
             dep_rate = owner_cfg.get("dep_rate", 0.0)
             
@@ -181,12 +201,10 @@ class MVCCalculator:
             tot_c = cap_total
             tot_d = dep_total
             total_money = maint_total + cap_total + dep_total
-        # =========================================================
 
         return CalculationResult(pd.DataFrame(rows), total_pts, total_money, disc_hit, tot_m, tot_c, tot_d)
 
     def _calc_costs(self, eff, mode, rate, owner_cfg):
-        """Per-day / per-block cost for display; uses ceil as before."""
         cost = 0.0
         m = c = dp = 0.0
         if mode == UserMode.OWNER and owner_cfg:
@@ -201,6 +219,22 @@ class MVCCalculator:
         return m, c, dp, cost
 
 def run():
+    # --- CSS FORCE: Prevent Stacking on Mobile ---
+    st.markdown("""
+        <style>
+        /* Force flex containers (columns) to stay in a row and not wrap */
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important; /* Allow scroll if content is too wide */
+        }
+        /* Ensure columns shrink to fit */
+        div[data-testid="column"] {
+            flex: 1 0 auto !important;
+            min-width: 0px !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
     ensure_data_in_session()
     if not st.session_state.data:
         st.warning("Please go to Editor and load data_v2.json first.")
@@ -210,7 +244,6 @@ def run():
     calc = MVCCalculator(repo)
     resorts = repo.get_resort_list()
 
-    # --- SIDEBAR: ONLY FILES ---
     with st.sidebar:
         with st.expander("📂 Load Profile", expanded=False):
             cfg_file = st.file_uploader("Upload Settings", type="json", key="cfg_up")
@@ -221,17 +254,13 @@ def run():
                 except: 
                     st.error("Invalid File")
 
-    # --- MAIN CONTENT ---
     defaults = st.session_state.get("cfg_loaded", {})
     
-    # 1. Header & Mode
     mode_sel = st.radio("Mode", [m.value for m in UserMode], horizontal=True, label_visibility="collapsed")
     mode = UserMode(mode_sel)
     
     render_page_header("Calculator", mode.value, "🧮", "#059669" if mode == UserMode.OWNER else "#2563eb")
 
-    # 2. Configuration (Reduced: Only Advanced/Tier logic)
-    # NOTE: Rates are moved out of here for usability
     with st.expander("⚙️ Advanced Configuration", expanded=False):
         tier_key = "discount_tier" if mode == UserMode.OWNER else "renter_discount_tier"
         saved_tier = defaults.get(tier_key, "No Discount")
@@ -264,11 +293,9 @@ def run():
                 life = st.number_input("Life (yrs)", value=defaults.get("useful_life", 10))
                 salvage = st.number_input("Salvage", value=defaults.get("salvage_value", 3.0))
 
-    # Pre-calculate owner params (but rate is still missing)
     cap_rate = cap_price * (coc_pct/100.0)
     dep_rate = (cap_price - salvage) / life if life > 0 else 0
 
-    # 3. Resort Selector
     if "current_resort_id" not in st.session_state:
         pref = defaults.get("preferred_resort_id")
         if pref and any(r['id'] == pref for r in resorts): 
@@ -283,14 +310,14 @@ def run():
     
     render_resort_card(r_obj.get("resort_name", ""), r_obj.get("timezone", ""), r_obj.get("address", ""))
 
-    # 4. Inputs: Consolidated Row (Date, Nights, Room)
-    c1, c2, c3 = st.columns([1, 1, 2]) # Adjusted widths for better fit
+    # --- FORCED SINGLE ROW INPUTS ---
+    # The CSS injected at the top ensures these columns do not stack
+    c1, c2, c3 = st.columns([1, 1, 2]) 
     with c1: 
         checkin = st.date_input("Check-in", value=date.today() + timedelta(days=1))
     with c2: 
         nights = st.number_input("Nights", 1, 60, 7)
 
-    # Room Logic (dependent on checkin year)
     rooms = []
     years = r_obj.get("years", {})
     y_str = str(checkin.year)
@@ -309,18 +336,13 @@ def run():
 
     if not room: return
 
-    # 5. Rate Input & Results (Just above table)
     st.divider()
-    
-    # Requirement: Rate visible above tables for instant feedback
-    # Requirement: Results in one row
     
     rc1, rc2, rc3 = st.columns([1, 1, 1])
     
     with rc1:
         if mode == UserMode.OWNER:
-            rate_to_use = st.number_input("Maintenance Rate ($/pt)", value=defaults.get("maintenance_rate", 0.55), step=0.01)
-            # Build owner config now that we have the rate
+            rate_to_use = st.number_input("Maint Rate", value=defaults.get("maintenance_rate", 0.55), step=0.01)
             owner_cfg = {
                 "inc_c": inc_c, 
                 "cap_rate": cap_rate, 
@@ -334,8 +356,7 @@ def run():
                 "preferred_resort_id": st.session_state.get("current_resort_id", "")
             }
         else:
-            rate_to_use = st.number_input("Renter Rate ($/pt)", value=defaults.get("renter_rate", 0.50), step=0.05)
-            # NEW: snap renter rate to 2dp at UI level as well
+            rate_to_use = st.number_input("Rent Rate", value=defaults.get("renter_rate", 0.50), step=0.05)
             rate_to_use = round(float(rate_to_use), 2)
             owner_cfg = None
             save_data = {
@@ -343,55 +364,51 @@ def run():
                 "preferred_resort_id": st.session_state.get("current_resort_id", "")
             }
 
-    # Calculation
     res = calc.calculate(r_obj["display_name"], room, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
 
     with rc2:
-        st.metric("Points Needed", f"{res.total_points:,}")
-        if res.discount_applied: 
-            st.caption("✅ Discount Applied")
+        st.metric("Points", f"{res.total_points:,}")
 
     with rc3:
-        st.metric("Total Cost", f"${res.financial_total:,.0f}")
-        if mode == UserMode.OWNER:
-            st.caption(f"Maint: ${res.m_cost:,.0f} | Cap: ${res.c_cost:,.0f} | Dep: ${res.d_cost:,.0f}")
+        st.metric("Total", f"${res.financial_total:,.0f}")
 
-    # 6. Breakdown Table
-    st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
+    if mode == UserMode.OWNER:
+        st.caption(f"Details: Maint ${res.m_cost:,.0f} | Cap ${res.c_cost:,.0f} | Dep ${res.d_cost:,.0f}")
 
-    # Save button (logic kept, placement moved to sidebar or below advanced config usually, 
-    # but strictly speaking user didn't ask to move it. 
-    # Providing it in sidebar for cleanliness as Rates are now split from Expander)
+    # --- RENDER TABLE AS IMAGE ---
+    # Used st.pyplot instead of st.dataframe to render the static Matplotlib figure
+    fig = render_static_table(res.breakdown_df)
+    st.pyplot(fig, use_container_width=True)
+
     with st.sidebar:
          st.download_button("💾 Save Profile", json.dumps(save_data, indent=2), "mvc_owner_settings.json", "application/json")
 
-    # 7. Comparison Table
     other_rooms = [r for r in rooms if r != room]
     if other_rooms:
         with st.expander("📊 Compare Rooms", expanded=True):
             comp_rooms = st.multiselect("Select rooms:", other_rooms)
             if comp_rooms:
                 comp_data = []
-                # Primary room
                 comp_data.append({
                     "Room": room, 
-                    "Points": f"{res.total_points:,}",
-                    "Total Cost": f"${res.financial_total:,.0f}"
+                    "Pts": f"{res.total_points:,}",
+                    "Cost": f"${res.financial_total:,.0f}"
                 })
                 
-                # Other rooms
                 for cr in comp_rooms:
                     c_res = calc.calculate(r_obj["display_name"], cr, checkin, nights, mode, rate_to_use, active_mul, owner_cfg)
                     if c_res:
                         comp_data.append({
                             "Room": cr, 
-                            "Points": f"{c_res.total_points:,}",
-                            "Total Cost": f"${c_res.financial_total:,.0f}"
+                            "Pts": f"{c_res.total_points:,}",
+                            "Cost": f"${c_res.financial_total:,.0f}"
                         })
                 
-                st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+                # Render Comparison Table as Image as well
+                comp_df = pd.DataFrame(comp_data)
+                fig_comp = render_static_table(comp_df)
+                st.pyplot(fig_comp, use_container_width=True)
 
-    # 8. Static Gantt
     if r_obj and str(checkin.year) in r_obj.get("years", {}):
         with st.expander("📅 Season Calendar", expanded=False):
             yd = r_obj["years"][str(checkin.year)]
