@@ -1,14 +1,3 @@
-Here is the modified code. I have rearranged the UI elements to meet your three specific usability requirements while preserving the calculation logic exactly as it was.
-
-### Key Changes Made:
-
-1.  **Rate Input:** Moved `renter_rate` (Renter Mode) and `maintenance_rate` (Owner Mode) out of the expander. They are now located **just above the results/table** for quick adjustment.
-2.  **Input Row:** `Check-in`, `Nights`, and `Room Type` are now grouped into a **single row** (3 columns) to save vertical space.
-3.  **Results Row:** The `Points` and `Total Cost` metrics are strictly aligned in **one row**.
-
-<!-- end list -->
-
-```python
 import math
 import pandas as pd
 import json
@@ -418,4 +407,3 @@ def run():
             
             fig = render_gantt(g_rows, f"{checkin.year} Calendar")
             st.pyplot(fig, use_container_width=True)
-```
