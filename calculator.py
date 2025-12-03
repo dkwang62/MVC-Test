@@ -101,8 +101,8 @@ class MVCCalculator:
 
         rows = []
         total_pts = 0                # effective points after discount
-        total_money = 0.0            # will be overridden at the end based on total_pts
-        tot_m = tot_c = tot_d = 0.0  # will also be overridden for owners
+        total_money = 0.0            # will be overridden at the end
+        tot_m = tot_c = tot_d = 0.0  # will be overridden at the end
         disc_hit = False
         processed_holidays = set()
         
@@ -133,8 +133,7 @@ class MVCCalculator:
                     })
                     
                     total_pts += eff
-                    total_money += cost
-                    tot_m += m; tot_c += c; tot_d += dp
+                    # We accumulate total_money here for the display loop, but override it below
                     
                     # Jump duration
                     duration = (holiday_obj.end - holiday_obj.start).days + 1
@@ -158,24 +157,25 @@ class MVCCalculator:
                 })
                 
                 total_pts += eff
-                total_money += cost
-                tot_m += m; tot_c += c; tot_d += dp
                 i += 1
 
         # =========================================================
-        # OVERRIDE TOTALS:
-        #  - RENTER: Total = total effective points × renter rate
-        #  - OWNER: Total = points × (maint + cap + dep per pt)
-        #    using owner_cfg rates, not sum of ceiled daily costs.
+        # OVERRIDE TOTALS: Strict "Round of Sums" Logic
         # =========================================================
         if mode == UserMode.RENTER:
-            total_money = total_pts * rate
-            # m_cost/c_cost/d_cost stay 0 for renters
+            # Renter: Total = ceil(total points * rate)
+            total_money = math.ceil(total_pts * rate)
             tot_m = tot_c = tot_d = 0.0
+
         elif mode == UserMode.OWNER and owner_cfg:
-            maint_total = total_pts * rate
-            cap_total = total_pts * owner_cfg.get("cap_rate", 0.0) if owner_cfg.get("inc_c") else 0.0
-            dep_total = total_pts * owner_cfg.get("dep_rate", 0.0) if owner_cfg.get("inc_d") else 0.0
+            # Owner: Calculate components based on TOTAL points, then ceil
+            maint_total = math.ceil(total_pts * rate)
+            
+            cap_rate = owner_cfg.get("cap_rate", 0.0)
+            dep_rate = owner_cfg.get("dep_rate", 0.0)
+            
+            cap_total = math.ceil(total_pts * cap_rate) if owner_cfg.get("inc_c") else 0.0
+            dep_total = math.ceil(total_pts * dep_rate) if owner_cfg.get("inc_d") else 0.0
 
             tot_m = maint_total
             tot_c = cap_total
