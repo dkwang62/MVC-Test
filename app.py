@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-05 20:30 UTC
+# Last modified: 2025-04-05 21:45 UTC
 
 import streamlit as st
 import json
@@ -150,11 +150,13 @@ def render_gantt_image(resort_data, year_str):
     return Image.open(buf)
 
 # =============================================
-# 5. Calculator Core
+# 5. Calculator Core – HOLIDAY LOGIC FIXED
 # =============================================
 @dataclass
 class HolidayObj:
-    name: str; start: date; end: date
+    name: str
+    start: date
+    end: date
 
 class MVCRepository:
     def __init__(self, raw):
@@ -177,12 +179,16 @@ class MVCCalculator:
         y = str(day.year)
         if y not in rdata.get("years", {}): return {}, None
         yd = rdata["years"][y]
+
+        # Check holidays first
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
             if ref and ref in self.repo._gh.get(y, {}):
-                s,e = self.repo._gh[y][ref]
+                s, e = self.repo._gh[y][ref]
                 if s <= day <= e:
                     return h.get("room_points", {}), HolidayObj(h.get("name"), s, e)
+
+        # Regular season
         dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][day.weekday()]
         for s in yd.get("seasons", []):
             for p in s.get("periods", []):
@@ -196,30 +202,6 @@ class MVCCalculator:
                 except: continue
         return {}, None
 
-    def calculate_total_only(self, resort_name, room, checkin, nights, rate, discount_mul):
-        r = self.repo.get_resort_data(resort_name)
-        if not r: return 0, 0.0
-        rate = round(float(rate), 2)
-        total_pts = 0
-        seen = set()
-        i = 0
-        while i < nights:
-            d = checkin + timedelta(days=i)
-            pts_map, holiday = self.get_points(r, d)
-            if holiday and holiday.name not in seen:
-                seen.add(holiday.name)
-                raw = int(pts_map.get(room, 0))
-                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                total_pts += eff
-                i += (holiday.end - holiday.start).days + 1
-            else:
-                raw = int(pts_map.get(room, 0))
-                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                total_pts += eff
-                i += 1
-        total_cost = round(total_pts * rate, 2)
-        return total_pts, total_cost
-
     def calculate(self, resort_name, room, checkin, nights, rate, discount_mul):
         r = self.repo.get_resort_data(resort_name)
         if not r: return None
@@ -227,36 +209,49 @@ class MVCCalculator:
         rows = []
         total_pts = 0
         disc_applied = False
-        seen = set()
-        i = 0
-        while i < nights:
-            d = checkin + timedelta(days=i)
-            pts_map, holiday = self.get_points(r, d)
-            if holiday and holiday.name not in seen:
-                seen.add(holiday.name)
+        processed_holidays = set()
+
+        current_date = checkin
+        end_date = checkin + timedelta(days=nights - 1)
+
+        while current_date <= end_date:
+            pts_map, holiday = self.get_points(r, current_date)
+
+            if holiday and holiday.name not in processed_holidays:
+                # Start of a new holiday block
+                holiday_start = max(current_date, holiday.start)
+                holiday_end = min(end_date, holiday.end)
+
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
                 if eff < raw: disc_applied = True
                 cost = math.ceil(eff * rate)
+
                 rows.append({
-                    "Date": f"{holiday.name} ({holiday.start.strftime('%b %d')}–{holiday.end.strftime('%b %d')})",
+                    "Date": f"{holiday.name} ({holiday_start.strftime('%b %d')}–{holiday_end.strftime('%b %d')})",
                     "Pts": eff,
                     "Cost": f"${cost:,}"
                 })
                 total_pts += eff
-                i += (holiday.end - holiday.start).days + 1
+                processed_holidays.add(holiday.name)
+
+                # Jump to day after holiday block
+                current_date = holiday_end + timedelta(days=1)
             else:
+                # Regular day
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
                 if eff < raw: disc_applied = True
                 cost = math.ceil(eff * rate)
+
                 rows.append({
-                    "Date": d.strftime("%a %b %d"),
+                    "Date": current_date.strftime("%a %b %d"),
                     "Pts": eff,
                     "Cost": f"${cost:,}"
                 })
                 total_pts += eff
-                i += 1
+                current_date += timedelta(days=1)
+
         total_cost = round(total_pts * rate, 2)
         return type('Res', (), {
             'df': pd.DataFrame(rows),
@@ -264,6 +259,30 @@ class MVCCalculator:
             'cost': total_cost,
             'disc': disc_applied
         })()
+
+    def calculate_total_only(self, resort_name, room, checkin, nights, rate, discount_mul):
+        r = self.repo.get_resort_data(resort_name)
+        if not r: return 0, 0.0
+        rate = round(float(rate), 2)
+        total_pts = 0
+        processed_holidays = set()
+        current_date = checkin
+        end_date = checkin + timedelta(days=nights - 1)
+
+        while current_date <= end_date:
+            pts_map, holiday = self.get_points(r, current_date)
+            raw = int(pts_map.get(room, 0))
+            eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+            total_pts += eff
+
+            if holiday and holiday.name not in processed_holidays:
+                processed_holidays.add(holiday.name)
+                current_date = min(end_date, holiday.end) + timedelta(days=1)
+            else:
+                current_date += timedelta(days=1)
+
+        total_cost = round(total_pts * rate, 2)
+        return total_pts, total_cost
 
 # =============================================
 # 6. Init
@@ -281,7 +300,6 @@ if preferred_id:
             default_resort_index = i
             break
 
-# Default discount tier index (fixed!)
 saved_lower = saved_tier.lower()
 default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
                    1 if "executive" in saved_lower else 0
@@ -291,15 +309,13 @@ default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_low
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • Full resort name • Mobile perfect")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed")
 
 resort_display = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
 rdata = repo.get_resort_data(resort_display)
 
-# Resort Card – Only full name
 render_resort_card(rdata)
 
-# All rooms
 all_rooms = set()
 for y in rdata.get("years", {}).values():
     for s in y.get("seasons", []):
@@ -333,7 +349,6 @@ discount_display = st.selectbox(
 mul = 0.70 if "presidential" in discount_display.lower() else \
       0.75 if "executive" in discount_display.lower() else 1.0
 
-# Main result
 result = calc.calculate(resort_display, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
@@ -343,7 +358,6 @@ if result:
         st.success("Discount Applied!")
     st.dataframe(result.df, use_container_width=True, hide_index=True)
 
-# All Room Types
 with st.expander("All Room Types – This Stay", expanded=False):
     comp_data = []
     for rm in all_rooms:
@@ -351,12 +365,10 @@ with st.expander("All Room Types – This Stay", expanded=False):
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
     st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
 
-# Gantt
 with st.expander("Season Calendar", expanded=False):
     img = render_gantt_image(rdata, str(checkin.year))
     if img:
         st.image(img, use_column_width=True)
 
-# Footer with date stamp
 st.markdown("---")
-st.caption("MVC Rent Calculator • Last updated: April 5, 2025")
+st.caption("MVC Rent Calculator • Last updated: April 5, 2025 @ 21:45 UTC")
