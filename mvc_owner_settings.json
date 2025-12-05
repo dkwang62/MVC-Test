@@ -1,5 +1,5 @@
 {
-  "maintenance_rate": 0.52,
+  "maintenance_rate": 0.83,
   "purchase_price": 3.5,
   "capital_cost_pct": 5.0,
   "salvage_value": 3.0,
@@ -9,6 +9,6 @@
   "include_capital": true,
   "include_depreciation": false,
   "renter_rate": 0.817,
-  "renter_discount_tier": "Presidential / Chairman (30% off within 60 days)",
-  "preferred_resort_id": "surfers-paradise"
+  "renter_discount_tier": "No Discount",
+  "preferred_resort_id": "ko-olina-beach"
 }
