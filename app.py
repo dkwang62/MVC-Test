@@ -1,5 +1,5 @@
 # app.py
-# FINAL – With beautiful resort card + All Room Types + Static Gantt
+# FINAL – Resort card shows full resort_name + everything else perfect
 import streamlit as st
 import json
 import pandas as pd
@@ -37,7 +37,7 @@ saved_tier = user_settings.get("discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
-# 2. West to East + Discount Logic
+# 2. West to East Sorting
 # =============================================
 COMMON_TZ_ORDER = [
     "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
@@ -52,39 +52,46 @@ def sort_resorts_west_to_east(resorts):
         return (pri, r.get("display_name", ""))
     return sorted(resorts, key=key)
 
-discount_options = ["No Discount", "Executive (25% off)", "Presidential (30% off)"]
-saved_lower = saved_tier.lower()
-default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
-                   1 if "executive" in saved_lower else 0
-
 # =============================================
-# 3. Resort Card (your exact style)
+# 3. Resort Card – Now shows FULL resort_name
 # =============================================
-def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
-    tz_display = timezone.split("/")[-1].replace("_", " ") if timezone else "Unknown"
+def render_resort_card(resort_data) -> None:
+    full_name = resort_data.get("resort_name", "Unknown Resort")
+    display_name = resort_data.get("display_name", "")
+    timezone = resort_data.get("timezone", "Unknown")
+    address = resort_data.get("address", "Address not available")
+    
+    tz_display = timezone.split("/")[-1].replace("_", " ") if "/" in timezone else timezone
+    
     st.markdown(
         f"""
         <div style="
             background: white;
-            border-radius: 12px;
-            padding: 1.2rem 1.5rem;
+            border-radius: 14px;
+            padding: 1.4rem 1.6rem;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            margin: 1rem 0;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+            margin: 1.2rem 0;
         ">
           <h2 style="
-            margin: 0 0 0.5rem 0;
-            font-size: 1.6rem;
+            margin: 0 0 0.4rem 0;
+            font-size: 1.8rem;
             font-weight: 700;
             color: #1a202c;
-          "> {resort_name}</h2>
+          ">{full_name}</h2>
+          <p style="
+            margin: 0 0 0.8rem 0;
+            font-size: 1.05rem;
+            color: #4a5568;
+            font-weight: 500;
+          ">{display_name}</p>
           <div style="
             font-size: 0.95rem;
-            color: #4a5568;
+            color: #718096;
             line-height: 1.6;
           ">
             <span>Time: {tz_display}</span>
-            <span style="margin-left: 1.5rem;">Location: {address or 'Address not listed'}</span>
+            <span style="margin-left: 1.5rem;">Location: {address}</span>
           </div>
         </div>
         """,
@@ -135,7 +142,7 @@ def render_gantt_image(resort_data, year_str):
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
     ax.grid(True, axis='x', alpha=0.3)
-    ax.set_title(f"{resort_data.get('display_name')} – {year_str}", pad=20, size=14)
+    ax.set_title(f"{resort_data.get('resort_name')} – {year_str}", pad=20, size=14)
     legend = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
     ax.legend(handles=legend, loc='upper right', bbox_to_anchor=(1, 1))
 
@@ -278,21 +285,17 @@ if preferred_id:
             break
 
 # =============================================
-# 7. UI – With Resort Card
+# 7. UI – Full resort_name in card
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • All Room Types • West to East")
+st.caption("Auto-calculate • Full resort name • West to East")
 
-resort = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
-rdata = repo.get_resort_data(resort)
+resort_display = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
+rdata = repo.get_resort_data(resort_display)
 
-# Resort Card – Beautiful!
-render_resort_card(
-    resort_name=resort,
-    timezone=rdata.get("timezone", "Unknown"),
-    address=rdata.get("address", "")
-)
+# Resort Card – Now shows full resort_name
+render_resort_card(rdata)
 
 # All rooms
 all_rooms = set()
@@ -307,25 +310,25 @@ c1, c2 = st.columns(2)
 checkin_input = c1.date_input("Check-in", date.today() + timedelta(days=7))
 nights = c2.number_input("Nights", 1, 60, 7)
 
+tz = rdata.get("timezone", "America/New_York")
 def adjust_checkin(d, tz_str):
     try:
         utc = datetime.combine(d, datetime.min.time()).replace(tzinfo=pytz.UTC)
         return utc.astimezone(pytz.timezone(tz_str)).date()
     except: return d
 
-tz = rdata.get("timezone", "America/New_York")
 checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
     st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
 
 rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, default_rate, 0.05, format="%.2f")
-discount_display = st.selectbox("Discount Tier", discount_options, index=default_tier_idx)
+discount_display = st.selectbox("Discount Tier", ["No Discount", "Executive (25% off)", "Presidential (30% off)"], index=default_tier_idx)
 
 mul = 0.70 if "presidential" in discount_display.lower() else \
       0.75 if "executive" in discount_display.lower() else 1.0
 
 # Main result
-result = calc.calculate(resort, room, checkin, nights, rate, mul)
+result = calc.calculate(resort_display, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
     col1.metric("Total Points", f"{result.points:,}")
@@ -334,11 +337,11 @@ if result:
         st.success("Discount Applied!")
     st.dataframe(result.df, use_container_width=True, hide_index=True)
 
-# All Room Types Table
+# All Room Types
 with st.expander("All Room Types – This Stay", expanded=False):
     comp_data = []
     for rm in all_rooms:
-        pts, cost = calc.calculate_total_only(resort, rm, checkin, nights, rate, mul)
+        pts, cost = calc.calculate_total_only(resort_display, rm, checkin, nights, rate, mul)
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
     st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
 
@@ -348,4 +351,4 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
 
-st.caption("data_v2.json + mvc_owner_settings.json loaded • Mobile perfect")
+st.caption("Shows full resort_name • data_v2.json + settings loaded • Mobile perfect")
