@@ -327,7 +327,7 @@ if checkin != checkin_input:
 rate = st.number_input(
     "Rent Rate ($/pt)",
     0.30, 1.50, default_rate, 0.05, format="%.2f",
-    help="Currently showing your saved renter rate"
+    help="Default: MVC Abound maintenance rate"
 )
 st.caption("Currently showing your saved renter rate")
 
