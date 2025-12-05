@@ -1,5 +1,6 @@
 import streamlit as st
-from common.ui import render_resort_card, render_resort_grid, render_page_header
+# FIX: Using the correct function name found in your ui.py
+from common.ui import render_resort_card, render_resort_selector, render_page_header
 from functools import lru_cache
 import json
 import pandas as pd
@@ -13,6 +14,7 @@ from typing import Dict, List, Any, Optional, Tuple, Set
 # ----------------------------------------------------------------------
 DEFAULT_YEARS = ["2025", "2026"]
 BASE_YEAR_FOR_POINTS = "2025"
+WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 # ----------------------------------------------------------------------
 # WIDGET KEY HELPER (RESORT-SCOPED)
@@ -36,7 +38,7 @@ def initialize_session_state():
         "working_resorts": {},
         "last_save_time": None,
         "delete_confirm": False,
-        "download_verified": False, # State for the verify button
+        "download_verified": False, 
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -64,23 +66,15 @@ def reset_state_for_new_file():
 # BASIC RESORT NAME / TIMEZONE HELPERS
 # ----------------------------------------------------------------------
 def detect_timezone_from_name(name: str) -> str:
-    """Simple placeholder timezone detector; keep as UTC or customise later."""
     return "UTC"
 
 def get_resort_full_name(resort_id: str, display_name: str) -> str:
-    """For new resorts, treat display_name as full resort name."""
     return display_name
 
 # ----------------------------------------------------------------------
 # OPTIMIZED HELPER FUNCTIONS
 # ----------------------------------------------------------------------
-@lru_cache(maxsize=128)
-def get_years_from_data_cached(data_hash: int) -> Tuple[str, ...]:
-    """Cached version of get_years_from_data"""
-    return tuple(sorted(get_years_from_data(st.session_state.data)))
-
 def get_years_from_data(data: Dict[str, Any]) -> List[str]:
-    """Derive list of years from global_holidays or resort years."""
     years: Set[str] = set()
     gh = data.get("global_holidays", {})
     years.update(gh.keys())
@@ -125,7 +119,40 @@ def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
     return f"{base_id}-{i}"
 
 # ----------------------------------------------------------------------
-# FILE OPERATIONS WITH ENHANCED UI
+# SANITIZATION (Prevents crashes on old files)
+# ----------------------------------------------------------------------
+def sanitize_loaded_data(data: Dict[str, Any]) -> Dict[str, Any]:
+    # Fix Day Patterns & Global Holidays
+    for r in data.get("resorts", []):
+        for y_obj in r.get("years", {}).values():
+            for s in y_obj.get("seasons", []):
+                dc = s.get("day_categories", {})
+                if not dc:
+                    s["day_categories"] = {
+                        "sun_thu": {"day_pattern": ["Sun", "Mon", "Tue", "Wed", "Thu"], "room_points": {}},
+                        "fri_sat": {"day_pattern": ["Fri", "Sat"], "room_points": {}}
+                    }
+                else:
+                    for cat_key, cat_val in dc.items():
+                        if "day_pattern" not in cat_val or not cat_val["day_pattern"]:
+                            if "fri" in cat_key.lower() or "sat" in cat_key.lower():
+                                cat_val["day_pattern"] = ["Fri", "Sat"]
+                            else:
+                                cat_val["day_pattern"] = ["Sun", "Mon", "Tue", "Wed", "Thu"]
+    
+    gh = data.get("global_holidays", {})
+    if isinstance(gh, dict):
+        for year, holidays in gh.items():
+            if isinstance(holidays, list):
+                new_list = []
+                for h in holidays:
+                    if isinstance(h, str): new_list.append({"name": h, "date": "2025-01-01"})
+                    elif isinstance(h, dict): new_list.append(h)
+                gh[year] = new_list
+    return data
+
+# ----------------------------------------------------------------------
+# FILE OPERATIONS
 # ----------------------------------------------------------------------
 def handle_file_upload():
     st.sidebar.markdown("### 📤 File to Memory")
@@ -142,13 +169,13 @@ def handle_file_upload():
             if current_sig != st.session_state.last_upload_sig:
                 try:
                     raw_data = json.load(uploaded)
-                    if "schema_version" not in raw_data or not raw_data.get("resorts"):
-                        st.error("❌ Invalid file format")
-                        return
+                    # Use sanitization to prevent errors
+                    clean_data = sanitize_loaded_data(raw_data)
+                    
                     reset_state_for_new_file()
-                    st.session_state.data = raw_data
+                    st.session_state.data = clean_data
                     st.session_state.last_upload_sig = current_sig
-                    resorts_list = get_resort_list(raw_data)
+                    resorts_list = get_resort_list(clean_data)
                     st.success(f"✅ Loaded {len(resorts_list)} resorts")
                     st.rerun()
                 except Exception as e:
@@ -156,54 +183,33 @@ def handle_file_upload():
 
 def create_download_button_v2(data: Dict[str, Any]):
     st.sidebar.markdown("### 📥 Memory to File")
-    # Ensure state exists (for safety if hot-reloading)
     if "download_verified" not in st.session_state:
         st.session_state.download_verified = False
     with st.sidebar.expander("💾 Save & Download", expanded=False):
-       
-        # --- 1. DETECT UNSAVED CHANGES ---
         current_id = st.session_state.get("current_resort_id")
         working_resorts = st.session_state.get("working_resorts", {})
         has_unsaved_changes = False
-       
         if current_id and current_id in working_resorts:
             working_copy = working_resorts[current_id]
             committed_copy = find_resort_by_id(data, current_id)
             if committed_copy != working_copy:
                 has_unsaved_changes = True
-        # --- 2. STATE MACHINE ---
+        
         if has_unsaved_changes:
-            # STATE: DIRTY
-            # Action: Must Commit to Memory
-            # Effect: Resets verification status
             st.session_state.download_verified = False
-           
             st.warning("⚠️ Unsaved changes pending.")
-           
             if st.button("🧠 COMMIT TO MEMORY", type="primary", use_container_width=True):
                 commit_working_to_data_v2(data, working_resorts[current_id], current_id)
-                st.toast("Committed to memory.", icon="✅")
+                st.toast("Committed.", icon="✅")
                 st.rerun()
-           
             st.caption("You must commit changes to memory before proceeding.")
         elif not st.session_state.download_verified:
-            # STATE: CLEAN BUT UNVERIFIED
-            # Action: Must Verify
-            # Effect: Shows Download button next
             st.info("ℹ️ Memory updated.")
-           
-            if st.button("🔍 Verify that memory is up to date", use_container_width=True):
-                # This button 'actively checks' status (logic is implicit since we are in the else block)
+            if st.button("🔍 Verify memory", use_container_width=True):
                 st.session_state.download_verified = True
                 st.rerun()
-               
-            st.caption("Please confirm the current memory state is correct to unlock the download.")
         else:
-            # STATE: VERIFIED
-            # Action: Allow Download
-            st.success("✅ Verified & Ready.")
-           
-            # This is the ONLY place this widget is rendered
+            st.success("✅ Ready.")
             filename = st.text_input(
                 "File name",
                 value="data_v2.json",
@@ -232,10 +238,8 @@ def handle_file_verification():
         if verify_upload:
             try:
                 uploaded_data = json.load(verify_upload)
-                # Normalize strings for comparison
                 current_json = json.dumps(st.session_state.data, sort_keys=True)
-                uploaded_json = json.dumps(uploaded_data, sort_keys=True)
-               
+                uploaded_json = json.dumps(sanitize_loaded_data(uploaded_data), sort_keys=True)
                 if current_json == uploaded_json:
                     st.success("✅ File matches memory exactly.")
                 else:
@@ -253,15 +257,13 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
         if merge_upload:
             try:
                 merge_data = json.load(merge_upload)
-                if "resorts" not in merge_data:
-                    st.error("❌ Invalid V2 schema")
-                    return
+                # Sanitize incoming data
+                merge_data = sanitize_loaded_data(merge_data)
+                
                 target_resorts = data.setdefault("resorts", [])
                 existing_ids = {r.get("id") for r in target_resorts}
                 merge_resorts = merge_data.get("resorts", [])
-                if not merge_resorts:
-                    st.warning("No resorts found")
-                    return
+                
                 display_map = {
                     f"{r.get('display_name', r.get('id'))} ({r.get('id')})": r
                     for r in merge_resorts
@@ -295,7 +297,7 @@ def handle_merge_from_another_file_v2(data: Dict[str, Any]):
                 st.error(f"❌ Error: {str(e)}")
 
 # ----------------------------------------------------------------------
-# RESORT MANAGEMENT (creation / deletion)
+# RESORT MANAGEMENT
 # ----------------------------------------------------------------------
 def is_duplicate_resort_name(name: str, resorts: List[Dict[str, Any]]) -> bool:
     target = name.strip().lower()
@@ -309,13 +311,11 @@ def handle_resort_creation_v2(
     resorts = data.setdefault("resorts", [])
    
     with st.expander("➕ Create or Clone Resort", expanded=False):
-        # Use tabs to separate the two distinct actions
         tab_new, tab_clone = st.tabs(["✨ New Blank", "📋 Clone Current"])
         # --- TAB 1: CREATE BLANK ---
         with tab_new:
             new_name_input = st.text_input(
                 "New Resort Name",
-                placeholder="e.g., Pulse San Francisco",
                 key="new_resort_name_blank",
             )
            
@@ -356,27 +356,20 @@ def handle_resort_creation_v2(
                     st.markdown(f"**Source:** {src.get('display_name', 'Unknown')}")
                    
                     if st.button("📋 Clone This Resort", use_container_width=True):
-                        # 1. Generate unique name
                         original_name = src.get("display_name", "Resort")
                         new_name = f"{original_name} (Copy)"
-                       
-                        # Ensure uniqueness if (Copy) already exists
                         counter = 1
                         while is_duplicate_resort_name(new_name, resorts):
                             counter += 1
                             new_name = f"{original_name} (Copy {counter})"
-                        # 2. Generate IDs
+                        
                         base_id = generate_resort_id(new_name)
                         rid = make_unique_resort_id(base_id, resorts)
                         code = generate_resort_code(new_name)
-                        # 3. Deep Copy everything (Policies, Seasons, Holidays)
                         cloned = copy.deepcopy(src)
-                        # 4. Update Identity Fields
                         cloned["id"] = rid
                         cloned["display_name"] = new_name
                         cloned["code"] = code
-                        # We intentionally keep 'timezone' and 'address' from src
-                        # cloned["resort_name"] we update to match the new ID/Display
                         cloned["resort_name"] = get_resort_full_name(rid, new_name)
                         resorts.append(cloned)
                         st.session_state.current_resort_id = rid
@@ -502,19 +495,13 @@ def commit_working_to_data_v2(
 def render_save_button_v2(
     data: Dict[str, Any], working: Dict[str, Any], resort_id: str
 ):
-    """
-    Now only shows a passive status. We rely on the exit prompt in
-    handle_resort_switch_v2 for actual save/discard decisions.
-    """
     committed = find_resort_by_id(data, resort_id)
     if committed is not None and committed != working:
-        # There ARE unsaved changes, but we don't nag; just inform quietly.
         st.caption(
             "Changes in this resort are currently kept in memory. "
             "You’ll be asked to **Save or Discard** only when you leave this resort."
         )
     else:
-        # Everything matches the committed data.
         st.caption("All changes for this resort are in sync with the saved data.")
 
 # ----------------------------------------------------------------------
@@ -657,10 +644,8 @@ def render_single_season_v2(
 ):
     sname = season.get("name", f"Season {idx+1}")
     st.markdown(f"**🎯 {sname}**")
-    # --- Use Data Editor for efficient date management ---
+    
     periods = season.get("periods", [])
-   
-    # Create DataFrame for editing
     df_data = []
     for p in periods:
         df_data.append({
@@ -691,8 +676,7 @@ def render_single_season_v2(
         season["periods"] = new_periods
         st.success("Dates saved!")
         st.rerun()
-    # -------------------------------------------------------------
-    # Keep the Delete Season button outside the editor
+
     col_spacer, col_del = st.columns([4, 1])
     with col_del:
         if st.button(
