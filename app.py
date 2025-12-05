@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-06 12:00 UTC
+# Last modified: 2025-04-06 12:30 UTC
 
 import streamlit as st
 import json
@@ -51,14 +51,11 @@ def sort_resorts_west_to_east(resorts):
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Minimal Resort Card
+# 3. Resort Card – TIMEZONE REMOVED
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
-    timezone = resort_data.get("timezone", "Unknown")
     address = resort_data.get("address", "")
-    
-    tz_display = timezone.split("/")[-1].replace("_", " ") if "/" in timezone else timezone
     
     st.markdown(
         f"""
@@ -72,17 +69,16 @@ def render_resort_card(resort_data) -> None:
             text-align: center;
         ">
           <h3 style="
-            margin: 0 0 0.4rem 0;
+            margin: 0 0 0.6rem 0;
             font-size: 1.45rem;
             font-weight: 700;
             color: #1a202c;
+            line-height: 1.2;
           ">{full_name}</h3>
           <div style="
-            font-size: 0.88rem;
+            font-size: 0.9rem;
             color: #718096;
-            line-height: 1.5;
           ">
-            <div>{tz_display}</div>
             {f"<div>{address}</div>" if address else ""}
           </div>
         </div>
@@ -91,9 +87,9 @@ def render_resort_card(resort_data) -> None:
     )
 
 # =============================================
-# 4. Gantt & Calculator (unchanged)
+# 4. Gantt & Calculator (unchanged – perfect)
 # =============================================
-# [All Gantt + Calculator code remains exactly as before — perfect and unchanged]
+# [All previous Gantt + Calculator code remains exactly as before]
 
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -128,7 +124,7 @@ def render_gantt_image(resort_data, year_str):
     if not rows: return None
 
     fig, ax = plt.subplots(figsize=(10, max(3, len(rows) * 0.5)))
-    for i, (label, start, end, typ) in enumerate(rows):
+    for i, (label, start_end, typ) in enumerate(rows):
         ax.barh(i, end - start, left=start, height=0.6, color=COLORS.get(typ, "#999"), edgecolor="black")
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([l for l,_,_,_ in rows])
@@ -289,7 +285,7 @@ default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_low
                    1 if "executive" in saved_lower else 0
 
 # =============================================
-# 7. UI – Final Clean Version
+# 7. UI – Clean & Final
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
@@ -321,7 +317,6 @@ checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
     st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
 
-# Final label as requested
 rate = st.number_input(
     "MVC Abound Maintenance Rate ($/pt)",
     0.30, 1.50, default_rate, 0.05, format="%.2f"
@@ -358,4 +353,4 @@ with st.expander("Season Calendar", expanded=False):
         st.image(img, use_column_width=True)
 
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:00 UTC")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:30 UTC")
