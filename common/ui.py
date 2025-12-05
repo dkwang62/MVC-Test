@@ -86,3 +86,40 @@ def render_resort_card(name: str, timezone: str, address: str):
     st.markdown(f"**{name}**")
     if address:
         st.caption(f"🏠 {address}")
+
+def render_resort_grid(resorts: list, current_resort_id: str):
+    """
+    Renders a responsive grid of buttons for selecting a resort.
+    Updates st.session_state.current_resort_id.
+    """
+    if not resorts:
+        st.warning("No resorts loaded.")
+        return
+
+    # Sort resorts using the helper defined above
+    sorted_resorts = sorted(resorts, key=get_resort_sort_key)
+    
+    st.markdown("### 🏨 Select Resort")
+    
+    # Create a 3-column grid for the buttons
+    cols = st.columns(3)
+    
+    for idx, resort in enumerate(sorted_resorts):
+        col = cols[idx % 3]
+        
+        rid = resort.get("id")
+        label = resort.get("display_name", rid)
+        is_active = (rid == current_resort_id)
+        
+        # Highlight the selected resort button
+        btn_type = "primary" if is_active else "secondary"
+        
+        if col.button(
+            label, 
+            key=f"resort_grid_btn_{rid}", 
+            type=btn_type, 
+            use_container_width=True
+        ):
+            if current_resort_id != rid:
+                st.session_state.current_resort_id = rid
+                st.rerun()
