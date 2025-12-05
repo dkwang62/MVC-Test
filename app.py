@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-06 10:15 UTC
+# Last modified: 2025-04-06 11:30 UTC
 
 import streamlit as st
 import json
@@ -16,7 +16,7 @@ import io
 from PIL import Image
 
 # =============================================
-# 1. Load JSON files – Now uses renter_rate & renter_discount_tier
+# 1. Load JSON files – renter_rate & renter_discount_tier
 # =============================================
 @st.cache_data
 def load_json(file_path, default=None):
@@ -30,7 +30,6 @@ def load_json(file_path, default=None):
 raw_data = load_json("data_v2.json")
 user_settings = load_json("mvc_owner_settings.json", {})
 
-# Use renter-specific fields only
 default_rate = round(float(user_settings.get("renter_rate", 0.55)), 2)
 saved_tier = user_settings.get("renter_discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
@@ -92,9 +91,9 @@ def render_resort_card(resort_data) -> None:
     )
 
 # =============================================
-# 4. Gantt & Calculator (unchanged – holiday logic already fixed)
+# 4. Gantt & Calculator (unchanged)
 # =============================================
-# [All previous Gantt + Calculator code remains exactly as before – perfect and unchanged]
+# [All previous Gantt + Calculator code – unchanged and perfect]
 
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -285,15 +284,19 @@ if preferred_id:
             default_resort_index = i
             break
 
+# Map saved tier to display tier (keeps logic intact)
 saved_lower = saved_tier.lower()
-default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
-                   1 if "executive" in saved_lower else 0
+if "presidential" in saved_lower or "chairman" in saved_lower:
+    default_tier_idx = 2
+elif "executive" in saved_lower:
+    default_tier_idx = 1
+else:
+    default_tier_idx = 0
 
 # =============================================
-# 7. UI – Clean & Minimal
+# 7. UI – "Discount" word completely hidden
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
-
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
 
 resort_display = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
@@ -323,7 +326,6 @@ checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
     st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
 
-# Rent rate with hint
 rate = st.number_input(
     "Rent Rate ($/pt)",
     0.30, 1.50, default_rate, 0.05, format="%.2f",
@@ -331,14 +333,16 @@ rate = st.number_input(
 )
 st.caption("Currently showing your saved renter rate")
 
-discount_display = st.selectbox(
-    "Discount Tier",
-    ["No Discount", "Executive (25% off)", "Presidential (30% off)"],
+# MASKED: No "discount" word anywhere
+membership_display = st.selectbox(
+    "MVC Membership Tier",
+    ["Ordinary Level", "Executive Level", "Presidential Level"],
     index=default_tier_idx
 )
 
-mul = 0.70 if "presidential" in discount_display.lower() else \
-      0.75 if "executive" in discount_display.lower() else 1.0
+# Logic unchanged – maps back to correct multiplier
+mul = 0.70 if "Presidential" in membership_display else \
+      0.75 if "Executive" in membership_display else 1.0
 
 result = calc.calculate(resort_display, room, checkin, nights, rate, mul)
 if result:
@@ -346,7 +350,7 @@ if result:
     col1.metric("Total Points", f"{result.points:,}")
     col2.metric("Total Rent", f"${result.cost:,.2f}")
     if result.disc:
-        st.success("Discount Applied!")
+        st.success("Membership benefits applied")
     st.dataframe(result.df, use_container_width=True, hide_index=True)
 
 with st.expander("All Room Types – This Stay", expanded=False):
@@ -362,4 +366,4 @@ with st.expander("Season Calendar", expanded=False):
         st.image(img, use_column_width=True)
 
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 10:15 UTC")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 11:30 UTC")
