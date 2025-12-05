@@ -1,5 +1,6 @@
 import streamlit as st
 from common.ui import render_resort_card, render_resort_selector, render_page_header
+# FIX: Use the actual functions available in common.charts
 from common.charts import render_gantt, get_season_bucket
 from functools import lru_cache
 import json
@@ -107,11 +108,9 @@ def generate_resort_code(name: str) -> str:
 
 def make_unique_resort_id(base_id: str, resorts: List[Dict[str, Any]]) -> str:
     existing = {r.get("id") for r in resorts}
-    if base_id not in existing:
-        return base_id
+    if base_id not in existing: return base_id
     i = 2
-    while f"{base_id}-{i}" in existing:
-        i += 1
+    while f"{base_id}-{i}" in existing: i += 1
     return f"{base_id}-{i}"
 
 # ----------------------------------------------------------------------
@@ -140,6 +139,7 @@ def sanitize_loaded_data(data: Dict[str, Any]) -> Dict[str, Any]:
     gh = data.get("global_holidays", {})
     if isinstance(gh, dict):
         for year, holidays in gh.items():
+            # If it comes in as a List (old format), convert to Dict
             if isinstance(holidays, list):
                 new_dict = {}
                 for h in holidays:
@@ -443,7 +443,7 @@ def render_single_season_v2(working: Dict[str, Any], year: str, season: Dict[str
     
     periods = season.get("periods", [])
     df_data = []
-    # Safe date conversion with Fallback
+    # Safe date conversion
     for p in periods:
         s_date = safe_date(p.get("start"))
         e_date = safe_date(p.get("end"))
@@ -461,10 +461,9 @@ def render_single_season_v2(working: Dict[str, Any], year: str, season: Dict[str
         },
         hide_index=True
     )
-    if st.button("Save Dates", key=rk(resort_id, "save_se_btn", year, idx)):
+    if st.button("Save Dates", key=rk(resort_id, "save_se_btn", year, idx), use_container_width=True):
         new_periods = []
         for _, row in edited_df.iterrows():
-            # Robust check for NaT/None
             if pd.notnull(row["start"]) and pd.notnull(row["end"]):
                 s_str = row["start"].isoformat() if hasattr(row["start"], 'isoformat') else str(row["start"])
                 e_str = row["end"].isoformat() if hasattr(row["end"], 'isoformat') else str(row["end"])
@@ -632,12 +631,7 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
     if holidays_map:
         for k, h in holidays_map.items():
             c1, c2 = st.columns([3, 1])
-            with c1: 
-                new_display = st.text_input("Name", value=h.get("name"), key=rk(resort_id, "hn", k))
-                # Update Name Immediately in Buffer
-                if new_display != h.get("name"):
-                    rename_holiday_across_years(working, k, new_display, h.get("global_reference"))
-                    st.rerun()
+            with c1: st.text_input("Name", value=h.get("name"), disabled=True, key=rk(resort_id, "hn", k))
             with c2: 
                  if st.button("🗑️", key=rk(resort_id, "hd", k)):
                      delete_holiday_from_all_years(working, k)
@@ -670,13 +664,51 @@ def render_holiday_management_v2(working: Dict[str, Any], years: List[str], reso
                     "Points": st.column_config.NumberColumn(min_value=0, step=25)
                 }
             )
-            # EXPLICIT SAVE BUTTON
             if st.button("Save Changes", key=rk(resort_id, "save_h_pts", base_year, idx), use_container_width=True):
                 new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
                 h["room_points"] = new_rp
                 sync_holiday_room_points_across_years(working, base_year)
                 st.toast("Holiday points saved to working memory.", icon="💾")
                 st.rerun()
+
+# ----------------------------------------------------------------------
+# GANTT CHART
+# ----------------------------------------------------------------------
+def render_gantt_charts_v2(working: Dict[str, Any], years: List[str], data: Dict[str, Any]):
+    from common.charts import render_gantt, get_season_bucket
+    st.markdown("<div class='section-header'>📊 Visual Timeline</div>", unsafe_allow_html=True)
+    tabs = st.tabs([f"📅 {year}" for year in years])
+    for tab, year in zip(tabs, years):
+        with tab:
+            y_data = working.get("years", {}).get(year, {})
+            global_holidays = data.get("global_holidays", {})
+            g_rows = []
+            for s in y_data.get("seasons", []):
+                for p in s.get("periods", []):
+                    g_rows.append({
+                        "Task": s["name"],
+                        "Start": p["start"],
+                        "Finish": p["end"],
+                        "Type": get_season_bucket(s["name"])
+                    })
+            
+            # Sanitized holiday logic
+            gh_list = global_holidays.get(year, {})
+            for h in y_data.get("holidays", []):
+                h_name = h.get("name", "(Unnamed Holiday)")
+                global_ref = h.get("global_reference") or h_name
+                gh_data = gh_list.get(global_ref)
+                if gh_data:
+                    start = gh_data.get("start_date")
+                    end = gh_data.get("end_date")
+                    if start and end:
+                        g_rows.append({"Task": h_name, "Start": start, "Finish": end, "Type": "Holiday"})
+
+            if g_rows:
+                fig = render_gantt(g_rows)
+                st.pyplot(fig, use_container_width=True)
+            else:
+                st.info("No dates set.")
 
 # ----------------------------------------------------------------------
 # SUMMARY
@@ -851,14 +883,6 @@ def run():
 
     st.markdown("---")
     render_global_settings_v2(data, years)
-
-def render_gantt_charts_v2(working, years, data):
-    from common.charts import create_gantt_chart_from_working
-    tabs = st.tabs(years)
-    for t, y in zip(tabs, years):
-        with t:
-            fig = create_gantt_chart_from_working(working, y, data, height=400)
-            st.plotly_chart(fig, use_container_width=True)
 
 if __name__ == "__main__":
     run()
