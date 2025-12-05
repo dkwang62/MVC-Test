@@ -1,5 +1,5 @@
 # app.py
-# Mobile MVC Rent Calculator – Auto-calculate + West to East sorted dropdown
+# Mobile MVC Rent Calculator + Static Gantt Chart Image
 import streamlit as st
 import json
 import pandas as pd
@@ -7,6 +7,10 @@ import math
 from datetime import date, timedelta, datetime
 from dataclasses import dataclass
 import pytz
+import plotly.graph_objects as go
+import plotly.express as px
+from PIL import Image
+import io
 
 # =============================================
 # 1. Load data_v2.json
@@ -23,199 +27,232 @@ def load_data():
 raw_data = load_data()
 
 # =============================================
-# 2. West → East sorting (from your utils.py)
+# 2. West to East Sorting
 # =============================================
 COMMON_TZ_ORDER = [
     "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
-    "America/Chicago", "America/New_York", "America/Vancouver", "America/Toronto",
-    "America/Aruba", "America/St_Thomas", "Asia/Denpasar", "Europe/Paris", "Asia/Bangkok"
+    "America/Chicago", "America/New_York", "America/Aruba", "America/St_Thomas",
+    "Asia/Denpasar", "Europe/Paris", "Asia/Bangkok"
 ]
-
-def get_timezone_offset(tz_name: str) -> float:
-    try:
-        tz = pytz.timezone(tz_name)
-        dt = datetime(2025, 1, 1)
-        offset = tz.utcoffset(dt)
-        return offset.total_seconds() / 3600 if offset else 0
-    except:
-        return 0
 
 def sort_resorts_west_to_east(resorts):
     def key(r):
         tz = r.get("timezone", "UTC")
         priority = COMMON_TZ_ORDER.index(tz) if tz in COMMON_TZ_ORDER else 999
-        return (priority, get_timezone_offset(tz), r.get("display_name", ""))
+        return (priority, r.get("display_name", ""))
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Core Calculator Classes (your original logic)
+# 3. Gantt Chart to Static Image
+# =============================================
+COLOR_MAP = {
+    "Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B",
+    "Low": "#1F78B4", "Holiday": "#9C27B0", "No Data": "#CCCCCC"
+}
+
+def _season_bucket(name: str) -> str:
+    n = (name or "").lower()
+    if "peak" in n: return "Peak"
+    if "high" in n: return "High"
+    if "mid" in n or "shoulder" in n: return "Mid"
+    if "low" in n: return "Low"
+    return "No Data"
+
+@st.cache_data(ttl=3600)
+def render_gantt_image(resort_data, year_str: str):
+    rows = []
+    year_data = resort_data.get("years", {}).get(year_str)
+    
+    if not year_data:
+        return None
+
+    # Seasons
+    for season in year_data.get("seasons", []):
+        sname = season.get("name", "Season")
+        bucket = _season_bucket(sname)
+        for p in season.get("periods", []):
+            try:
+                start = datetime.strptime(p["start"], "%Y-%m-%d").date()
+                end = datetime.strptime(p["end"], "%Y-%m-%d").date()
+                rows.append({"Task": sname, "Start": start, "Finish": end, "Type": bucket})
+            except: continue
+
+    # Holidays
+    for h in year_data.get("holidays", []):
+        ref = h.get("global_reference")
+        if ref and ref in raw_data.get("global_holidays", {}).get(year_str, {}):
+            info = raw_data["global_holidays"][year_str][ref]
+            start = datetime.strptime(info["start_date"], "%Y-%m-%d").date()
+            end = datetime.strptime(info["end_date"], "%Y-%m-%d").date()
+            rows.append({"Task": h.get("name", "Holiday"), "Start": start, "Finish": end, "Type": "Holiday"})
+
+    if not rows:
+        today = date.today()
+        rows.append({"Task": "No Data", "Start": today, "Finish": today + timedelta(days=30), "Type": "No Data"})
+
+    df = pd.DataFrame(rows)
+    df["Start"] = pd.to_datetime(df["Start"])
+    df["Finish"] = pd.to_datetime(df["Finish"])
+
+    fig = px.timeline(
+        df, x_start="Start", x_end="Finish", y="Task", color="Type",
+        color_discrete_map=COLOR_MAP,
+        height=max(300, len(df) * 30),
+        title=f"{resort_data.get('display_name', 'Resort')} – {year_str}"
+    )
+    fig.update_yaxes(autorange="reversed")
+    fig.update_xaxes(tickformat="%b %d")
+    fig.update_layout(
+        showlegend=True,
+        margin=dict(l=10, r=10, t=50, b=10),
+        font=dict(size=11),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+    )
+
+    # Convert to PNG image
+    img_bytes = fig.to_image(format="png", width=800, height=fig.layout.height)
+    return Image.open(io.BytesIO(img_bytes))
+
+# =============================================
+# 4. Calculator Core
 # =============================================
 @dataclass
 class HolidayObj:
-    name: str
-    start: date
-    end: date
+    name: str; start: date; end: date
 
 class MVCRepository:
-    def __init__(self, raw_data: dict):
-        self._raw = raw_data
-        self._gh = self._parse_global_holidays()
-
-    def get_resort_list(self):
-        return self._raw.get("resorts", [])
-
-    def _parse_global_holidays(self):
-        parsed = {}
-        for y, holidays in self._raw.get("global_holidays", {}).items():
-            parsed[y] = {}
-            for name, info in holidays.items():
-                parsed[y][name] = (
-                    datetime.strptime(info["start_date"], "%Y-%m-%d").date(),
-                    datetime.strptime(info["end_date"], "%Y-%m-%d").date(),
-                )
-        return parsed
-
-    def get_resort_data(self, display_name: str):
-        for r in self._raw.get("resorts", []):
-            if r.get("display_name") == display_name:
-                return r
-        return None
+    def __init__(self, raw): self._raw = raw; self._gh = self._parse_gh()
+    def _parse_gh(self):
+        p = {}
+        for y, hols in self._raw.get("global_holidays", {}).items():
+            p[y] = {}
+            for n, d in hols.items():
+                p[y][n] = (datetime.strptime(d["start_date"], "%Y-%m-%d").date(),
+                          datetime.strptime(d["end_date"], "%Y-%m-%d").date())
+        return p
+    def get_resort_data(self, name): 
+        return next((r for r in self._raw.get("resorts", []) if r["display_name"] == name), None)
 
 class MVCCalculator:
-    def __init__(self, repo):
-        self.repo = repo
-
-    def get_points(self, resort_data, day):
+    def __init__(self, repo): self.repo = repo
+    def get_points(self, rdata, day):
         y = str(day.year)
-        if y not in resort_data.get("years", {}): return {}, None
-        yd = resort_data["years"][y]
-
+        if y not in rdata.get("years", {}): return {}, None
+        yd = rdata["years"][y]
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
             if ref and ref in self.repo._gh.get(y, {}):
-                start, end = self.repo._gh[y][ref]
-                if start <= day <= end:
-                    return h.get("room_points", {}), HolidayObj(h.get("name"), start, end)
-
+                s,e = self.repo._gh[y][ref]
+                if s <= day <= e:
+                    return h.get("room_points", {}), HolidayObj(h.get("name"), s, e)
         dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][day.weekday()]
-        for season in yd.get("seasons", []):
-            for period in season.get("periods", []):
+        for s in yd.get("seasons", []):
+            for p in s.get("periods", []):
                 try:
-                    ps = datetime.strptime(period["start"], "%Y-%m-%d").date()
-                    pe = datetime.strptime(period["end"], "%Y-%m-%d").date()
+                    ps = datetime.strptime(p["start"], "%Y-%m-%d").date()
+                    pe = datetime.strptime(p["end"], "%Y-%m-%d").date()
                     if ps <= day <= pe:
-                        for cat in season.get("day_categories", {}).values():
+                        for cat in s.get("day_categories", {}).values():
                             if dow in cat.get("day_pattern", []):
                                 return cat.get("room_points", {}), None
                 except: continue
         return {}, None
 
-    def calculate(self, resort_name, room, checkin, nights, rate, discount_mul):
-        r_data = self.repo.get_resort_data(resort_name)
-        if not r_data: return None
-
-        rate = round(float(rate), 2)
-        rows = []
-        total_pts = 0
-        disc_applied = False
-        processed = set()
-
+    def calculate(self, resort_name, room, checkin, nights, rate, mul):
+        r = self.repo.get_resort_data(resort_name)
+        if not r: return None
+        rate = round(rate, 2)
+        rows = []; total = 0; disc = False; seen = set()
         i = 0
         while i < nights:
             d = checkin + timedelta(days=i)
-            pts_map, holiday = self.get_points(r_data, d)
-
-            if holiday and holiday.name not in processed:
-                processed.add(holiday.name)
-                raw = int(pts_map.get(room, 0))
-                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw: disc_applied = True
-                rows.append({"Date": f"{holiday.name} ({holiday.start.strftime('%b %d')}–{holiday.end.strftime('%b %d')})", "Pts": eff})
-                total_pts += eff
-                i += (holiday.end - holiday.start).days + 1
+            pts, hol = self.get_points(r, d)
+            if hol and hol.name not in seen:
+                seen.add(hol.name)
+                raw = int(pts.get(room, 0))
+                eff = math.floor(raw * mul) if mul < 1 else raw
+                if eff < raw: disc = True
+                rows.append({"Date": f"{hol.name} ({hol.start.strftime('%b %d')}–{hol.end.strftime('%b %d')})", "Pts": eff})
+                total += eff
+                i += (hol.end - hol.start).days + 1
             else:
-                raw = int(pts_map.get(room, 0))
-                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw: disc_applied = True
+                raw = int(pts.get(room, 0))
+                eff = math.floor(raw * mul) if mul < 1 else raw
+                if eff < raw: disc = True
                 rows.append({"Date": d.strftime("%a %b %d"), "Pts": eff})
-                total_pts += eff
+                total += eff
                 i += 1
-
-        total_cost = round(total_pts * rate, 2)
-        return type('Result', (), {
-            'breakdown_df': pd.DataFrame(rows),
-            'total_points': total_pts,
-            'financial_total': total_cost,
-            'discount_applied': disc_applied
+        return type('Res', (), {
+            'df': pd.DataFrame(rows),
+            'points': total,
+            'cost': round(total * rate, 2),
+            'disc': disc
         })()
 
 # =============================================
-# 4. Initialize
+# 5. Init
 # =============================================
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
-all_resorts = repo.get_resort_list()
-sorted_resorts = sort_resorts_west_to_east(all_resorts)
-resort_options = [r["display_name"] for r in sorted_resorts]
+sorted_resorts = sort_resorts_west_to_east(repo._raw.get("resorts", []))
+options = [r["display_name"] for r in sorted_resorts]
 
 # =============================================
-# 5. Mobile UI – Auto Calculate
+# 6. UI
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • West to East • Mobile friendly")
+st.caption("Auto-calculate • Static Gantt • Mobile")
 
-# Resort dropdown (West to East)
-resort = st.selectbox("Resort (West to East)", resort_options)
+resort = st.selectbox("Resort (West to East)", options)
+rdata = repo.get_resort_data(resort)
+tz = rdata.get("timezone", "America/New_York") if rdata else "America/New_York"
 
-# Get resort data
-resort_data = repo.get_resort_data(resort)
-timezone = resort_data.get("timezone", "America/New_York") if resort_data else "America/New_York"
-
-# Room types
+# Rooms
 rooms = set()
-for y in resort_data.get("years", {}).values():
+for y in rdata.get("years", {}).values():
     for s in y.get("seasons", []):
         for c in s.get("day_categories", {}).values():
             rooms.update(c.get("room_points", {}).keys())
-room = st.selectbox("Room Type", sorted(rooms))
+room = st.selectbox("Room", sorted(rooms))
 
-col1, col2 = st.columns(2)
-checkin_input = col1.date_input("Check-in (your time)", date.today() + timedelta(days=7))
-nights = col2.number_input("Nights", 1, 60, 7, step=1)
+c1, c2 = st.columns(2)
+checkin_in = c1.date_input("Check-in (your time)", date.today() + timedelta(days=7))
+nights = c2.number_input("Nights", 1, 60, 7)
 
 # West to East adjustment
-def adjust_to_resort_time(user_date: date, tz_str: str) -> date:
+def to_resort_date(d, tz_str):
     try:
-        utc_dt = datetime.combine(user_date, datetime.min.time()).replace(tzinfo=pytz.UTC)
-        local_dt = utc_dt.astimezone(pytz.timezone(tz_str))
-        return local_dt.date()
-    except:
-        return user_date
+        utc = datetime.combine(d, datetime.min.time()).replace(tzinfo=pytz.UTC)
+        return utc.astimezone(pytz.timezone(tz_str)).date()
+    except: return d
+checkin = to_resort_date(checkin_in, tz)
+if checkin != checkin_in:
+    st.info(f"Adjusted: **{checkin.strftime('%a %b %d')}**")
 
-checkin = adjust_to_resort_time(checkin_input, timezone)
+rate = st.number_input("Rate $/pt", 0.30, 1.50, 0.55, 0.05, format="%.2f")
+disc = st.selectbox("Discount", ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
+mul = 1.0 if "No" in disc else 0.75 if "Exec" in disc else 0.70
 
-if checkin != checkin_input:
-    st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
-
-rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, 0.55, 0.05, format="%.2f")
-
-discount = st.selectbox("Discount", 
-    ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
-mul = 1.0 if "No" in discount else 0.75 if "Exec" in discount else 0.70
-
-# Auto-calculate on any change
-if resort and room and nights >= 1:
+# Auto calculate
+if resort and room:
     result = calc.calculate(resort, room, checkin, nights, rate, mul)
     if result:
-        c1, c2 = st.columns(2)
-        c1.metric("Total Points", f"{result.total_points:,}")
-        c2.metric("Total Cost", f"${result.financial_total:,.2f}")
+        col1, col2 = st.columns(2)
+        col1.metric("Points", f"{result.points:,}")
+        col2.metric("Cost", f"${result.cost:,.2f}")
+        if result.disc: st.success("Discount Applied!")
+        st.dataframe(result.df, use_container_width=True, hide_index=True)
 
-        if result.discount_applied:
-            st.success("Discount Applied!")
-
-        st.dataframe(result.breakdown_df, use_container_width=True, hide_index=True)
+# Gantt Chart (static image)
+with st.expander("Season Calendar (Tap to view)", expanded=False):
+    year = str(checkin.year)
+    img = render_gantt_image(rdata, year)
+    if img:
+        st.image(img, use_column_width=True)
+    else:
+        st.info("No calendar data for this year.")
 
 st.markdown("---")
-st.caption("data_v2.json auto-loaded • Real-time calculation • West to East")
+st.caption("data_v2.json loaded • Static Gantt • West to East")
