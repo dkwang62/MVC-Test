@@ -1,5 +1,5 @@
 # app.py
-# FINAL – With "All Room Types" comparison table in expander
+# FINAL – With beautiful resort card + All Room Types + Static Gantt
 import streamlit as st
 import json
 import pandas as pd
@@ -58,7 +58,41 @@ default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_low
                    1 if "executive" in saved_lower else 0
 
 # =============================================
-# 3. Gantt (matplotlib)
+# 3. Resort Card (your exact style)
+# =============================================
+def render_resort_card(resort_name: str, timezone: str, address: str) -> None:
+    tz_display = timezone.split("/")[-1].replace("_", " ") if timezone else "Unknown"
+    st.markdown(
+        f"""
+        <div style="
+            background: white;
+            border-radius: 12px;
+            padding: 1.2rem 1.5rem;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            margin: 1rem 0;
+        ">
+          <h2 style="
+            margin: 0 0 0.5rem 0;
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #1a202c;
+          "> {resort_name}</h2>
+          <div style="
+            font-size: 0.95rem;
+            color: #4a5568;
+            line-height: 1.6;
+          ">
+            <span>Time: {tz_display}</span>
+            <span style="margin-left: 1.5rem;">Location: {address or 'Address not listed'}</span>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+# =============================================
+# 4. Gantt (matplotlib)
 # =============================================
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -101,7 +135,7 @@ def render_gantt_image(resort_data, year_str):
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
     ax.grid(True, axis='x', alpha=0.3)
-    ax.set_title(f"{resort_data.get('display_name')} – {year_str}", pad=20)
+    ax.set_title(f"{resort_data.get('display_name')} – {year_str}", pad=20, size=14)
     legend = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
     ax.legend(handles=legend, loc='upper right', bbox_to_anchor=(1, 1))
 
@@ -112,7 +146,7 @@ def render_gantt_image(resort_data, year_str):
     return Image.open(buf)
 
 # =============================================
-# 4. Calculator Core
+# 5. Calculator Core
 # =============================================
 @dataclass
 class HolidayObj:
@@ -160,10 +194,9 @@ class MVCCalculator:
 
     def calculate_total_only(self, resort_name, room, checkin, nights, rate, discount_mul):
         r = self.repo.get_resort_data(resort_name)
-        if not r: return None
+        if not r: return 0, 0.0
         rate = round(float(rate), 2)
         total_pts = 0
-        disc_applied = False
         seen = set()
         i = 0
         while i < nights:
@@ -173,13 +206,11 @@ class MVCCalculator:
                 seen.add(holiday.name)
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw: disc_applied = True
                 total_pts += eff
                 i += (holiday.end - holiday.start).days + 1
             else:
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw: disc_applied = True
                 total_pts += eff
                 i += 1
         total_cost = round(total_pts * rate, 2)
@@ -231,7 +262,7 @@ class MVCCalculator:
         })()
 
 # =============================================
-# 5. Init
+# 6. Init
 # =============================================
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
@@ -247,7 +278,7 @@ if preferred_id:
             break
 
 # =============================================
-# 6. UI
+# 7. UI – With Resort Card
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
@@ -255,16 +286,21 @@ st.caption("Auto-calculate • All Room Types • West to East")
 
 resort = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
 rdata = repo.get_resort_data(resort)
-tz = rdata.get("timezone", "America/New_York") if rdata else "America/New_York"
 
-# All available rooms
+# Resort Card – Beautiful!
+render_resort_card(
+    resort_name=resort,
+    timezone=rdata.get("timezone", "Unknown"),
+    address=rdata.get("address", "")
+)
+
+# All rooms
 all_rooms = set()
 for y in rdata.get("years", {}).values():
     for s in y.get("seasons", []):
         for c in s.get("day_categories", {}).values():
             all_rooms.update(c.get("room_points", {}).keys())
 all_rooms = sorted(all_rooms)
-
 room = st.selectbox("Room Type", all_rooms)
 
 c1, c2 = st.columns(2)
@@ -277,6 +313,7 @@ def adjust_checkin(d, tz_str):
         return utc.astimezone(pytz.timezone(tz_str)).date()
     except: return d
 
+tz = rdata.get("timezone", "America/New_York")
 checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
     st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
@@ -284,10 +321,10 @@ if checkin != checkin_input:
 rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, default_rate, 0.05, format="%.2f")
 discount_display = st.selectbox("Discount Tier", discount_options, index=default_tier_idx)
 
-selected_lower = discount_display.lower()
-mul = 0.70 if "presidential" in selected_lower else 0.75 if "executive" in selected_lower else 1.0
+mul = 0.70 if "presidential" in discount_display.lower() else \
+      0.75 if "executive" in discount_display.lower() else 1.0
 
-# Main calculation
+# Main result
 result = calc.calculate(resort, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
@@ -299,12 +336,11 @@ if result:
 
 # All Room Types Table
 with st.expander("All Room Types – This Stay", expanded=False):
-    comparison_data = []
+    comp_data = []
     for rm in all_rooms:
-        pts, cost = calc.calculate_total_only(resort, rm, checkin, nights, rate, mul) or (0, 0)
-        comparison_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
-    comp_df = pd.DataFrame(comparison_data)
-    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        pts, cost = calc.calculate_total_only(resort, rm, checkin, nights, rate, mul)
+        comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
+    st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
 
 # Gantt
 with st.expander("Season Calendar", expanded=False):
@@ -312,4 +348,4 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
 
-st.caption("data_v2.json + mvc_owner_settings.json loaded • Mobile ready")
+st.caption("data_v2.json + mvc_owner_settings.json loaded • Mobile perfect")
