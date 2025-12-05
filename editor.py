@@ -2,11 +2,15 @@ import streamlit as st
 import json
 import pandas as pd
 from copy import deepcopy
+from datetime import datetime
 
 from common.ui import render_page_header, render_resort_selector, render_resort_card
 from common.charts import render_gantt, get_season_bucket
 from common.data import ensure_data_in_session, save_data
 
+# ----------------------------------------------------------------------
+# HELPER FUNCTIONS
+# ----------------------------------------------------------------------
 def sync_room_points(working: dict, base_year: str):
     years = working.get("years", {})
     if base_year not in years: return
@@ -22,10 +26,15 @@ def get_all_room_types_for_resort(working: dict):
     for year_data in working.get("years", {}).values():
         for season in year_data.get("seasons", []):
             for cat in season.get("day_categories", {}).values():
-                rooms.update(cat.get("room_points", {}).keys())
+                # FIX: Ensure keys are strings to prevent sorting errors
+                for r in cat.get("room_points", {}).keys():
+                    if r is not None:
+                        rooms.add(str(r))
         for holiday in year_data.get("holidays", []):
-            rooms.update(holiday.get("room_points", {}).keys())
-    return sorted(rooms)
+            for r in holiday.get("room_points", {}).keys():
+                if r is not None:
+                    rooms.add(str(r))
+    return sorted(list(rooms))
 
 def render_points_summary(working: dict):
     years = sorted(working.get("years", {}).keys())
@@ -47,14 +56,20 @@ def render_points_summary(working: dict):
             for cat in season.get("day_categories", {}).values():
                 days_in_cat = len(cat.get("day_pattern", []))
                 for room, points in cat.get("room_points", {}).items():
-                    weekly_totals[room] = weekly_totals.get(room, 0) + days_in_cat * points
+                    # Handle string/int conversion safely
+                    try:
+                        pts = int(points)
+                    except:
+                        pts = 0
+                    weekly_totals[str(room)] = weekly_totals.get(str(room), 0) + days_in_cat * pts
+            
             row = {"Season": season["name"]}
             for room in room_types:
                 total = weekly_totals.get(room)
                 row[room] = (total if total else "—")
             rows.append(row)
 
-    # For holidays (use the most recent year with holidays)
+    # For holidays
     last_holiday_year = None
     for y in reversed(years):
         if resort_years.get(y, {}).get("holidays"):
@@ -73,24 +88,23 @@ def render_points_summary(working: dict):
 
     if rows:
         df = pd.DataFrame(rows, columns=["Season"] + room_types)
-        st.caption(
-            "Season rows show 7-night totals computed from nightly rates. "
-            "Holiday rows show weekly totals directly from holiday points (no extra calculations)."
-        )
+        st.caption("Season rows show 7-night totals. Holiday rows show weekly totals.")
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("💡 No rate or holiday data available")
 
+# ----------------------------------------------------------------------
+# MAIN RUN
+# ----------------------------------------------------------------------
 def run():
     ensure_data_in_session()
     
-    # --- SIDEBAR: ONLY FILES ---
+    # --- SIDEBAR ---
     with st.sidebar:
         with st.expander("📂 Load Data File (data_v2.json)", expanded=True):
             uploaded = st.file_uploader("Upload Master Data", type="json", key="data_uploader")
             if uploaded:
                 file_sig = f"{uploaded.name}_{uploaded.size}"
-                # Read only if new signature or data is missing
                 if st.session_state.get("last_loaded_data_sig") != file_sig or not st.session_state.data:
                     try:
                         uploaded.seek(0)
@@ -134,149 +148,155 @@ def run():
 
     t_ov, t_date, t_pts, t_hol, t_sum = st.tabs(["Overview", "Season Dates", "Room Points", "Holidays", "Points Summary"])
 
+    # --- TAB: OVERVIEW ---
     with t_ov:
         c1, c2 = st.columns(2)
-        # Use simple inputs, saving is handled by the button below
-        display_name = c1.text_input("Display Name", working.get("display_name", ""))
-        code = c1.text_input("Code", working.get("code", ""))
-        timezone = c2.text_input("Timezone", working.get("timezone", ""))
-        address = st.text_area("Address", working.get("address", ""), height=70)
+        working["display_name"] = c1.text_input("Display Name", working.get("display_name", ""))
+        working["code"] = c1.text_input("Code", working.get("code", ""))
+        working["timezone"] = c2.text_input("Timezone", working.get("timezone", ""))
+        working["address"] = st.text_area("Address", working.get("address", ""), height=70)
         
         if st.button("Save Overview Changes"):
-            working["display_name"] = display_name
-            working["code"] = code
-            working["timezone"] = timezone
-            working["address"] = address
             save_data(st.session_state.data)
             st.toast("Overview Saved!")
 
+    # --- TAB: SEASON DATES ---
     with t_date:
         sel_year = st.selectbox("Year", years, key="date_year_select") if years else None
         if sel_year:
             y_data = working["years"][sel_year]
-            global_holidays = st.session_state.data.get("global_holidays", {})
+            
+            # GANTT Chart
             g_rows = []
             for s in y_data.get("seasons", []):
                 for p in s.get("periods", []):
                     g_rows.append({"Task": s["name"], "Start": p["start"], "Finish": p["end"], "Type": get_season_bucket(s["name"])})
-            
-            # Add holidays
-            for h in y_data.get("holidays", []):
-                h_name = h.get("name", "(Unnamed Holiday)")
-                global_ref = h.get("global_reference") or h_name
-                gh_data = global_holidays.get(sel_year, {}).get(global_ref, {})
-                start = gh_data.get("start_date")
-                end = gh_data.get("end_date")
-                if start and end:
-                    g_rows.append({"Task": h_name, "Start": start, "Finish": end, "Type": "Holiday"})
-            
             fig = render_gantt(g_rows)
             st.pyplot(fig, use_container_width=True)
 
+            # Editors
             seasons = y_data.get("seasons", [])
-            
-            # Dictionary to hold the editors for later retrieval
-            editors = {}
-            
             for s in seasons:
                 with st.expander(f"{s['name']}", expanded=False):
                     p_df = pd.DataFrame(s.get("periods", []))
+                    
+                    # TABLE VISUAL
                     if not p_df.empty:
-                        # Display editor but don't auto-update 's' yet
-                        editor_key = f"p_{working['id']}_{sel_year}_{s['name']}"
-                        edited_p = st.data_editor(p_df, num_rows="dynamic", key=editor_key, use_container_width=True)
-                        editors[s['name']] = edited_p
+                        edited_p = st.data_editor(
+                            p_df, 
+                            num_rows="dynamic", 
+                            key=f"p_{working['id']}_{sel_year}_{s['name']}", 
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    else:
+                        edited_p = pd.DataFrame(columns=["start", "end"])
+                        st.info("No dates set.")
 
-            if st.button("Save Season Dates"):
-                # Iterate through seasons and apply changes from editors
-                for s in seasons:
-                    if s['name'] in editors:
-                        s["periods"] = editors[s['name']].to_dict("records")
-                save_data(st.session_state.data)
-                st.toast("Season Dates Saved!")
+                    # EXPLICIT SAVE BUTTON PER SEASON
+                    if st.button(f"Save Dates for {s['name']}", key=f"save_dates_{s['name']}"):
+                        s["periods"] = edited_p.to_dict("records")
+                        save_data(st.session_state.data)
+                        st.toast(f"Dates saved for {s['name']}")
+                        st.rerun()
 
+    # --- TAB: ROOM POINTS ---
     with t_pts:
         sel_year = st.selectbox("Year", years, key="pts_year_select") if years else None
         if sel_year:
-            st.info("Edit points below. 'Save & Sync' will update other years.")
+            st.info("Edit points below. Remember to click 'Save Changes' after editing each table.")
             y_data = working["years"][sel_year]
             seasons = y_data.get("seasons", [])
             
-            pts_editors = {} # Store editor data
-            
             for s_idx, season in enumerate(seasons):
-                st.markdown(f"**{season['name']}**")
+                st.markdown(f"### {season['name']}")
                 day_cats = season.get("day_categories", {})
+                
                 for dc_key, dc_val in day_cats.items():
+                    st.markdown(f"**{dc_key}** (Days: {', '.join(dc_val.get('day_pattern', []))})")
+                    
                     rp = dc_val.get("room_points", {})
+                    # Convert to DataFrame for Table Visual
                     pts_data = [{"Room Type": k, "Points": v} for k, v in rp.items()]
                     df_pts = pd.DataFrame(pts_data)
                     
-                    editor_key = f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}"
-                    edited_df = st.data_editor(df_pts, key=editor_key, use_container_width=True, num_rows="dynamic", hide_index=True)
+                    # TABLE VISUAL
+                    edited_df = st.data_editor(
+                        df_pts, 
+                        key=f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}", 
+                        use_container_width=True, 
+                        num_rows="dynamic", 
+                        hide_index=True,
+                        column_config={
+                            "Room Type": st.column_config.TextColumn(disabled=True),
+                            "Points": st.column_config.NumberColumn(min_value=0, step=25)
+                        }
+                    )
                     
-                    # Store reference to updated dataframe
-                    pts_editors[(s_idx, dc_key)] = edited_df
-            
-            if st.button("Save & Sync Points"):
-                # Apply changes from all editors
-                for (s_idx, dc_key), edited_df in pts_editors.items():
-                    if not edited_df.empty:
-                        new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
-                        seasons[s_idx]["day_categories"][dc_key]["room_points"] = new_rp
-                
-                sync_room_points(working, sel_year)
-                save_data(st.session_state.data)
-                st.toast("Points Saved & Synced!")
+                    # EXPLICIT SAVE BUTTON PER CATEGORY
+                    if st.button("Save Changes", key=f"save_pts_{s_idx}_{dc_key}"):
+                        if not edited_df.empty:
+                            new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
+                            dc_val["room_points"] = new_rp
+                            sync_room_points(working, sel_year) # Logic from Grok
+                            save_data(st.session_state.data)
+                            st.toast("Points Saved & Synced!")
+                            st.rerun()
+                st.divider()
 
+    # --- TAB: HOLIDAYS ---
     with t_hol:
         sel_year = st.selectbox("Year", years, key="hol_year_select") if years else None
         if sel_year:
             y_data = working["years"][sel_year]
             holidays = y_data.get("holidays", [])
             
-            # Temporary storage for inputs to grab on Save
-            hol_updates = {} 
-            
             for h_idx, h in enumerate(holidays):
                 with st.expander(f"{h['name']}", expanded=False):
-                    # Capture text inputs in temp vars, committed on button press
-                    new_name = st.text_input("Name", h["name"], key=f"h_name_{working['id']}_{sel_year}_{h_idx}")
-                    new_ref = st.text_input("Global Reference", h.get("global_reference", ""), key=f"h_ref_{working['id']}_{sel_year}_{h_idx}")
+                    c1, c2 = st.columns(2)
+                    new_name = c1.text_input("Name", h["name"], key=f"h_name_{working['id']}_{sel_year}_{h_idx}")
+                    new_ref = c2.text_input("Global Ref", h.get("global_reference", ""), key=f"h_ref_{working['id']}_{sel_year}_{h_idx}")
                     
                     rp = h.get("room_points", {})
+                    
+                    # TABLE VISUAL
                     pts_data = [{"Room Type": k, "Points": v} for k, v in rp.items()]
                     df_pts = pd.DataFrame(pts_data)
                     
-                    edited_df = st.data_editor(df_pts, key=f"h_de_{working['id']}_{sel_year}_{h_idx}", use_container_width=True, num_rows="dynamic", hide_index=True)
+                    edited_df = st.data_editor(
+                        df_pts, 
+                        key=f"h_de_{working['id']}_{sel_year}_{h_idx}", 
+                        use_container_width=True, 
+                        num_rows="dynamic", 
+                        hide_index=True,
+                        column_config={
+                            "Room Type": st.column_config.TextColumn(disabled=True),
+                            "Points": st.column_config.NumberColumn(min_value=0, step=25)
+                        }
+                    )
                     
-                    # Store updates for this index
-                    hol_updates[h_idx] = {
-                        "name": new_name,
-                        "global_reference": new_ref,
-                        "df": edited_df
-                    }
-
-                    if st.button("Delete Holiday", key=f"h_del_{working['id']}_{sel_year}_{h_idx}"):
-                        del holidays[h_idx]
-                        save_data(st.session_state.data)
-                        st.rerun()
-            
-            if st.button("Save Holiday Changes"):
-                for h_idx, updates in hol_updates.items():
-                    # Update name/ref
-                    holidays[h_idx]["name"] = updates["name"]
-                    holidays[h_idx]["global_reference"] = updates["global_reference"]
+                    col_save, col_del = st.columns([1, 1])
                     
-                    # Update points from DF
-                    if not updates["df"].empty:
-                        new_rp = dict(zip(updates["df"]["Room Type"], updates["df"]["Points"]))
-                        holidays[h_idx]["room_points"] = new_rp
-                
-                save_data(st.session_state.data)
-                st.toast("Holidays Saved!")
+                    # EXPLICIT SAVE BUTTON
+                    with col_save:
+                        if st.button("Save Changes", key=f"save_h_{h_idx}"):
+                            h["name"] = new_name
+                            h["global_reference"] = new_ref
+                            if not edited_df.empty:
+                                new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
+                                h["room_points"] = new_rp
+                            save_data(st.session_state.data)
+                            st.toast("Holiday Saved!")
+                            st.rerun()
+                            
+                    with col_del:
+                        if st.button("Delete Holiday", key=f"h_del_{working['id']}_{sel_year}_{h_idx}"):
+                            del holidays[h_idx]
+                            save_data(st.session_state.data)
+                            st.rerun()
 
             st.divider()
+            st.markdown("**Add New Holiday**")
             new_name = st.text_input("New Holiday Name", key=f"new_h_name_{working['id']}_{sel_year}")
             new_ref = st.text_input("Global Reference", key=f"new_h_ref_{working['id']}_{sel_year}")
             if st.button("Add Holiday") and new_name:
@@ -284,5 +304,9 @@ def run():
                 save_data(st.session_state.data)
                 st.rerun()
 
+    # --- TAB: SUMMARY ---
     with t_sum:
         render_points_summary(working)
+
+if __name__ == "__main__":
+    run()
