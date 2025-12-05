@@ -325,11 +325,11 @@ if checkin != checkin_input:
 
 # Rent rate with hint
 rate = st.number_input(
-    "Rent Rate ($/pt)",
+    "Custom Rent Rate (US$/pt); Defaults to MVC Abound maintenance rate",
     0.30, 1.50, default_rate, 0.05, format="%.2f",
     help="Default: MVC Abound maintenance rate"
 )
-st.caption("Currently showing your saved renter rate")
+st.caption("Default: MVC Abound maintenance rate")
 
 discount_display = st.selectbox(
     "Membership Tier",
