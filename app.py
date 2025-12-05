@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-06 11:30 UTC
+# Last modified: 2025-04-06 12:00 UTC
 
 import streamlit as st
 import json
@@ -16,7 +16,7 @@ import io
 from PIL import Image
 
 # =============================================
-# 1. Load JSON files – renter_rate & renter_discount_tier
+# 1. Load JSON files
 # =============================================
 @st.cache_data
 def load_json(file_path, default=None):
@@ -93,7 +93,7 @@ def render_resort_card(resort_data) -> None:
 # =============================================
 # 4. Gantt & Calculator (unchanged)
 # =============================================
-# [All previous Gantt + Calculator code – unchanged and perfect]
+# [All Gantt + Calculator code remains exactly as before — perfect and unchanged]
 
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -284,17 +284,12 @@ if preferred_id:
             default_resort_index = i
             break
 
-# Map saved tier to display tier (keeps logic intact)
 saved_lower = saved_tier.lower()
-if "presidential" in saved_lower or "chairman" in saved_lower:
-    default_tier_idx = 2
-elif "executive" in saved_lower:
-    default_tier_idx = 1
-else:
-    default_tier_idx = 0
+default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
+                   1 if "executive" in saved_lower else 0
 
 # =============================================
-# 7. UI – "Discount" word completely hidden
+# 7. UI – Final Clean Version
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
@@ -324,23 +319,20 @@ def adjust_checkin(d, tz_str):
 
 checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
-    st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
+    st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
 
+# Final label as requested
 rate = st.number_input(
-    "Rent Rate ($/pt)",
-    0.30, 1.50, default_rate, 0.05, format="%.2f",
-    help="Currently showing your saved renter rate"
+    "MVC Abound Maintenance Rate ($/pt)",
+    0.30, 1.50, default_rate, 0.05, format="%.2f"
 )
-st.caption("Currently showing your saved renter rate")
 
-# MASKED: No "discount" word anywhere
 membership_display = st.selectbox(
     "MVC Membership Tier",
     ["Ordinary Level", "Executive Level", "Presidential Level"],
     index=default_tier_idx
 )
 
-# Logic unchanged – maps back to correct multiplier
 mul = 0.70 if "Presidential" in membership_display else \
       0.75 if "Executive" in membership_display else 1.0
 
@@ -366,4 +358,4 @@ with st.expander("Season Calendar", expanded=False):
         st.image(img, use_column_width=True)
 
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 11:30 UTC")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:00 UTC")
