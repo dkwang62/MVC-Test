@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-06 12:30 UTC
+# Last modified: 2025-04-06 12:45 UTC
 
 import streamlit as st
 import json
@@ -51,7 +51,7 @@ def sort_resorts_west_to_east(resorts):
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Resort Card – TIMEZONE REMOVED
+# 3. Resort Card – No timezone
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
@@ -87,10 +87,8 @@ def render_resort_card(resort_data) -> None:
     )
 
 # =============================================
-# 4. Gantt & Calculator (unchanged – perfect)
+# 4. Gantt – Fixed unpacking + Streamlit 1.40+ compatible
 # =============================================
-# [All previous Gantt + Calculator code remains exactly as before]
-
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
 def season_bucket(name):
@@ -124,10 +122,10 @@ def render_gantt_image(resort_data, year_str):
     if not rows: return None
 
     fig, ax = plt.subplots(figsize=(10, max(3, len(rows) * 0.5)))
-    for i, (label, start_end, typ) in enumerate(rows):
+    for i, (label, start, end, typ) in enumerate(rows):
         ax.barh(i, end - start, left=start, height=0.6, color=COLORS.get(typ, "#999"), edgecolor="black")
     ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([l for l,_,_,_ in rows])
+    ax.set_yticklabels([label for label, _, _, _ in rows])
     ax.invert_yaxis()
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
@@ -142,6 +140,9 @@ def render_gantt_image(resort_data, year_str):
     buf.seek(0)
     return Image.open(buf)
 
+# =============================================
+# 5. Calculator Core – Perfect Holiday Logic
+# =============================================
 @dataclass
 class HolidayObj:
     name: str; start: date; end: date
@@ -218,6 +219,7 @@ class MVCCalculator:
                 total_pts += eff
                 processed_holidays.add(holiday.name)
                 current_date = holiday_end + timedelta(days=1)
+             # skip to after holiday
             else:
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
@@ -285,7 +287,7 @@ default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_low
                    1 if "executive" in saved_lower else 0
 
 # =============================================
-# 7. UI – Clean & Final
+# 7. UI – Streamlit 1.40+ Ready
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
@@ -338,14 +340,14 @@ if result:
     col2.metric("Total Rent", f"${result.cost:,.2f}")
     if result.disc:
         st.success("Membership benefits applied")
-    st.dataframe(result.df, use_container_width=True, hide_index=True)
+    st.dataframe(result.df, width='stretch', hide_index=True)
 
 with st.expander("All Room Types – This Stay", expanded=False):
     comp_data = []
     for rm in all_rooms:
         pts, cost = calc.calculate_total_only(resort_display, rm, checkin, nights, rate, mul)
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
-    st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(comp_data), width='stretch', hide_index=True)
 
 with st.expander("Season Calendar", expanded=False):
     img = render_gantt_image(rdata, str(checkin.year))
@@ -353,4 +355,4 @@ with st.expander("Season Calendar", expanded=False):
         st.image(img, use_column_width=True)
 
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:30 UTC")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:45 UTC")
