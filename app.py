@@ -31,7 +31,7 @@ raw_data = load_json("data_v2.json")
 user_settings = load_json("mvc_owner_settings.json", {})
 
 # Use renter-specific fields only
-default_rate = round(float(user_settings.get("renter_rate", 0.55)), 2)
+default_rate = round(float(user_settings.get("renter_rate", 0.83)), 2)
 saved_tier = user_settings.get("renter_discount_tier", "Ordinary")
 preferred_id = user_settings.get("preferred_resort_id")
 
