@@ -1,5 +1,5 @@
 # app.py
-# FINAL – Works with any discount name in mvc_owner_settings.json
+# FINAL – With "All Room Types" comparison table in expander
 import streamlit as st
 import json
 import pandas as pd
@@ -14,7 +14,7 @@ import io
 from PIL import Image
 
 # =============================================
-# 1. Load both JSON files
+# 1. Load JSON files
 # =============================================
 @st.cache_data
 def load_json(file_path, default=None):
@@ -37,7 +37,7 @@ saved_tier = user_settings.get("discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
-# 2. West to East Sorting
+# 2. West to East + Discount Logic
 # =============================================
 COMMON_TZ_ORDER = [
     "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
@@ -52,8 +52,13 @@ def sort_resorts_west_to_east(resorts):
         return (pri, r.get("display_name", ""))
     return sorted(resorts, key=key)
 
+discount_options = ["No Discount", "Executive (25% off)", "Presidential (30% off)"]
+saved_lower = saved_tier.lower()
+default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
+                   1 if "executive" in saved_lower else 0
+
 # =============================================
-# 3. Static Gantt (matplotlib)
+# 3. Gantt (matplotlib)
 # =============================================
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -107,7 +112,7 @@ def render_gantt_image(resort_data, year_str):
     return Image.open(buf)
 
 # =============================================
-# 4. Calculator – Original Logic
+# 4. Calculator Core
 # =============================================
 @dataclass
 class HolidayObj:
@@ -129,6 +134,7 @@ class MVCRepository:
 
 class MVCCalculator:
     def __init__(self, repo): self.repo = repo
+
     def get_points(self, rdata, day):
         y = str(day.year)
         if y not in rdata.get("years", {}): return {}, None
@@ -152,6 +158,33 @@ class MVCCalculator:
                 except: continue
         return {}, None
 
+    def calculate_total_only(self, resort_name, room, checkin, nights, rate, discount_mul):
+        r = self.repo.get_resort_data(resort_name)
+        if not r: return None
+        rate = round(float(rate), 2)
+        total_pts = 0
+        disc_applied = False
+        seen = set()
+        i = 0
+        while i < nights:
+            d = checkin + timedelta(days=i)
+            pts_map, holiday = self.get_points(r, d)
+            if holiday and holiday.name not in seen:
+                seen.add(holiday.name)
+                raw = int(pts_map.get(room, 0))
+                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+                if eff < raw: disc_applied = True
+                total_pts += eff
+                i += (holiday.end - holiday.start).days + 1
+            else:
+                raw = int(pts_map.get(room, 0))
+                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+                if eff < raw: disc_applied = True
+                total_pts += eff
+                i += 1
+        total_cost = round(total_pts * rate, 2)
+        return total_pts, total_cost
+
     def calculate(self, resort_name, room, checkin, nights, rate, discount_mul):
         r = self.repo.get_resort_data(resort_name)
         if not r: return None
@@ -160,12 +193,10 @@ class MVCCalculator:
         total_pts = 0
         disc_applied = False
         seen = set()
-
         i = 0
         while i < nights:
             d = checkin + timedelta(days=i)
             pts_map, holiday = self.get_points(r, d)
-
             if holiday and holiday.name not in seen:
                 seen.add(holiday.name)
                 raw = int(pts_map.get(room, 0))
@@ -191,7 +222,6 @@ class MVCCalculator:
                 })
                 total_pts += eff
                 i += 1
-
         total_cost = round(total_pts * rate, 2)
         return type('Res', (), {
             'df': pd.DataFrame(rows),
@@ -217,47 +247,25 @@ if preferred_id:
             break
 
 # =============================================
-# 6. UI – SAFE discount tier selection
+# 6. UI
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • Loads your settings • West to East")
-
-# Discount options (exact text shown to user)
-discount_options = [
-    "No Discount",
-    "Executive (25% off)",
-    "Presidential (30% off)"
-]
-
-# Map saved tier → correct multiplier safely
-tier_to_mul = {
-    "No Discount": 1.0,
-    "Executive": 0.75,
-    "Presidential": 0.70,
-    "Chairman": 0.70  # Handles Chairman too
-}
-
-# Find best matching saved tier
-saved_lower = saved_tier.lower()
-if "presidential" in saved_lower or "chairman" in saved_lower:
-    default_tier_index = 2
-elif "executive" in saved_lower:
-    default_tier_index = 1
-else:
-    default_tier_index = 0
+st.caption("Auto-calculate • All Room Types • West to East")
 
 resort = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
 rdata = repo.get_resort_data(resort)
 tz = rdata.get("timezone", "America/New_York") if rdata else "America/New_York"
 
-# Rooms
-rooms = set()
+# All available rooms
+all_rooms = set()
 for y in rdata.get("years", {}).values():
     for s in y.get("seasons", []):
         for c in s.get("day_categories", {}).values():
-            rooms.update(c.get("room_points", {}).keys())
-room = st.selectbox("Room Type", sorted(rooms)) if rooms else "1BR"
+            all_rooms.update(c.get("room_points", {}).keys())
+all_rooms = sorted(all_rooms)
+
+room = st.selectbox("Room Type", all_rooms)
 
 c1, c2 = st.columns(2)
 checkin_input = c1.date_input("Check-in", date.today() + timedelta(days=7))
@@ -274,19 +282,12 @@ if checkin != checkin_input:
     st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
 
 rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, default_rate, 0.05, format="%.2f")
+discount_display = st.selectbox("Discount Tier", discount_options, index=default_tier_idx)
 
-discount_display = st.selectbox("Discount Tier", discount_options, index=default_tier_index)
-
-# Determine multiplier from selected display text
 selected_lower = discount_display.lower()
-if "presidential" in selected_lower:
-    mul = 0.70
-elif "executive" in selected_lower:
-    mul = 0.75
-else:
-    mul = 1.0
+mul = 0.70 if "presidential" in selected_lower else 0.75 if "executive" in selected_lower else 1.0
 
-# Auto calculate
+# Main calculation
 result = calc.calculate(resort, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
@@ -296,10 +297,19 @@ if result:
         st.success("Discount Applied!")
     st.dataframe(result.df, use_container_width=True, hide_index=True)
 
+# All Room Types Table
+with st.expander("All Room Types – This Stay", expanded=False):
+    comparison_data = []
+    for rm in all_rooms:
+        pts, cost = calc.calculate_total_only(resort, rm, checkin, nights, rate, mul) or (0, 0)
+        comparison_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
+    comp_df = pd.DataFrame(comparison_data)
+    st.dataframe(comp_df, use_container_width=True, hide_index=True)
+
 # Gantt
 with st.expander("Season Calendar", expanded=False):
     img = render_gantt_image(rdata, str(checkin.year))
     if img:
         st.image(img, use_column_width=True)
 
-st.caption("Works with any discount name • mvc_owner_settings.json loaded")
+st.caption("data_v2.json + mvc_owner_settings.json loaded • Mobile ready")
