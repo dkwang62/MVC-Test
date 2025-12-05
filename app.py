@@ -32,7 +32,7 @@ user_settings = load_json("mvc_owner_settings.json", {})
 
 # Use renter-specific fields only
 default_rate = round(float(user_settings.get("renter_rate", 0.55)), 2)
-saved_tier = user_settings.get("renter_discount_tier", "No Discount")
+saved_tier = user_settings.get("renter_discount_tier", "Ordinary")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
@@ -332,8 +332,8 @@ rate = st.number_input(
 st.caption("Currently showing your saved renter rate")
 
 discount_display = st.selectbox(
-    "Discount Tier",
-    ["No Discount", "Executive (25% off)", "Presidential (30% off)"],
+    "Membership Tier",
+    ["Ordinary", "Executive (25% off)", "Presidential (30% off)"],
     index=default_tier_idx
 )
 
