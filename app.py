@@ -1,5 +1,5 @@
 # app.py
-# Mobile MVC Rent Calculator + Static Gantt Chart Image
+# Mobile MVC Rent Calculator + Reliable Static Gantt (matplotlib)
 import streamlit as st
 import json
 import pandas as pd
@@ -7,13 +7,14 @@ import math
 from datetime import date, timedelta, datetime
 from dataclasses import dataclass
 import pytz
-import plotly.graph_objects as go
-import plotly.express as px
-from PIL import Image
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.patches import Patch
 import io
+from PIL import Image
 
 # =============================================
-# 1. Load data_v2.json
+# 1. Load data
 # =============================================
 @st.cache_data
 def load_data():
@@ -21,13 +22,13 @@ def load_data():
         with open("data_v2.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        st.error("data_v2.json not found! Place it next to this app.")
+        st.error("data_v2.json not found!")
         st.stop()
 
 raw_data = load_data()
 
 # =============================================
-# 2. West to East Sorting
+# 2. West to East
 # =============================================
 COMMON_TZ_ORDER = [
     "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
@@ -37,20 +38,20 @@ COMMON_TZ_ORDER = [
 
 def sort_resorts_west_to_east(resorts):
     def key(r):
-        tz = r.get("timezone", "UTC")
-        priority = COMMON_TZ_ORDER.index(tz) if tz in COMMON_TZ_ORDER else 999
-        return (priority, r.get("display_name", ""))
+        tz = r.get("timezone", "")
+        pri = COMMON_TZ_ORDER.index(tz) if tz in COMMON_TZ_ORDER else 999
+        return (pri, r.get("display_name", ""))
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Gantt Chart to Static Image
+# 3. Static Gantt with Matplotlib (100% reliable)
 # =============================================
-COLOR_MAP = {
+COLORS = {
     "Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B",
-    "Low": "#1F78B4", "Holiday": "#9C27B0", "No Data": "#CCCCCC"
+    "Low": "#91BFDB", "Holiday": "#9C27B0", "No Data": "#DDDDDD"
 }
 
-def _season_bucket(name: str) -> str:
+def season_bucket(name):
     n = (name or "").lower()
     if "peak" in n: return "Peak"
     if "high" in n: return "High"
@@ -59,63 +60,62 @@ def _season_bucket(name: str) -> str:
     return "No Data"
 
 @st.cache_data(ttl=3600)
-def render_gantt_image(resort_data, year_str: str):
+def render_gantt_matplotlib(resort_data, year_str):
     rows = []
-    year_data = resort_data.get("years", {}).get(year_str)
-    
-    if not year_data:
-        return None
+    yd = resort_data.get("years", {}).get(year_str, {})
 
     # Seasons
-    for season in year_data.get("seasons", []):
-        sname = season.get("name", "Season")
-        bucket = _season_bucket(sname)
-        for p in season.get("periods", []):
+    for s in yd.get("seasons", []):
+        name = s.get("name", "Season")
+        color = season_bucket(name)
+        for p in s.get("periods", []):
             try:
-                start = datetime.strptime(p["start"], "%Y-%m-%d").date()
-                end = datetime.strptime(p["end"], "%Y-%m-%d").date()
-                rows.append({"Task": sname, "Start": start, "Finish": end, "Type": bucket})
+                start = datetime.strptime(p["start"], "%Y-%m-%d")
+                end = datetime.strptime(p["end"], "%Y-%m-%d")
+                rows.append((name, start, end, color))
             except: continue
 
     # Holidays
-    for h in year_data.get("holidays", []):
+    for h in yd.get("holidays", []):
         ref = h.get("global_reference")
         if ref and ref in raw_data.get("global_holidays", {}).get(year_str, {}):
             info = raw_data["global_holidays"][year_str][ref]
-            start = datetime.strptime(info["start_date"], "%Y-%m-%d").date()
-            end = datetime.strptime(info["end_date"], "%Y-%m-%d").date()
-            rows.append({"Task": h.get("name", "Holiday"), "Start": start, "Finish": end, "Type": "Holiday"})
+            start = datetime.strptime(info["start_date"], "%Y-%m-%d")
+            end = datetime.strptime(info["end_date"], "%Y-%m-%d")
+            rows.append((h.get("name", "Holiday"), start, end, "Holiday"))
 
     if not rows:
-        today = date.today()
-        rows.append({"Task": "No Data", "Start": today, "Finish": today + timedelta(days=30), "Type": "No Data"})
+        return None
 
-    df = pd.DataFrame(rows)
-    df["Start"] = pd.to_datetime(df["Start"])
-    df["Finish"] = pd.to_datetime(df["Finish"])
+    fig, ax = plt.subplots(figsize=(10, max(2, len(rows) * 0.4)))
+    for i, (label, start, end, typ) in enumerate(rows):
+        ax.barh(i, end - start, left=start, height=0.6,
+                color=COLORS.get(typ, "#999999"), edgecolor="black", linewidth=0.8)
 
-    fig = px.timeline(
-        df, x_start="Start", x_end="Finish", y="Task", color="Type",
-        color_discrete_map=COLOR_MAP,
-        height=max(300, len(df) * 30),
-        title=f"{resort_data.get('display_name', 'Resort')} – {year_str}"
-    )
-    fig.update_yaxes(autorange="reversed")
-    fig.update_xaxes(tickformat="%b %d")
-    fig.update_layout(
-        showlegend=True,
-        margin=dict(l=10, r=10, t=50, b=10),
-        font=dict(size=11),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-    )
+    ax.set_yticks(range(len(rows)))
+    ax.set_yticklabels([label for label, _, _, _ in rows])
+    ax.invert_yaxis()
+    ax.xaxis.set_major_locator(mdates.MonthLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
+    ax.xaxis.set_minor_locator(mdates.DayLocator(interval=7))
+    plt.xticks(rotation=0)
+    ax.grid(True, axis='x', alpha=0.3)
+    ax.set_title(f"{resort_data.get('display_name')} – {year_str} Season Calendar", pad=20, size=14)
 
-    # Convert to PNG image
-    img_bytes = fig.to_image(format="png", width=800, height=fig.layout.height)
-    return Image.open(io.BytesIO(img_bytes))
+    legend_elements = [
+        Patch(facecolor=COLORS.get(k), label=k) for k in ["Peak","High","Mid","Low","Holiday"]
+        if any(typ == k for _,_,_,typ in rows)
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1, 1))
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
+    plt.close(fig)
+    buf.seek(0)
+    return Image.open(buf)
 
 # =============================================
-# 4. Calculator Core
+# 4. Calculator
 # =============================================
 @dataclass
 class HolidayObj:
@@ -131,7 +131,7 @@ class MVCRepository:
                 p[y][n] = (datetime.strptime(d["start_date"], "%Y-%m-%d").date(),
                           datetime.strptime(d["end_date"], "%Y-%m-%d").date())
         return p
-    def get_resort_data(self, name): 
+    def get_resort_data(self, name):
         return next((r for r in self._raw.get("resorts", []) if r["display_name"] == name), None)
 
 class MVCCalculator:
@@ -173,7 +173,7 @@ class MVCCalculator:
                 raw = int(pts.get(room, 0))
                 eff = math.floor(raw * mul) if mul < 1 else raw
                 if eff < raw: disc = True
-                rows.append({"Date": f"{hol.name} ({hol.start.strftime('%b %d')}–{hol.end.strftime('%b %d')})", "Pts": eff})
+                rows.append({"Date": f"{hol.name}", "Pts": eff})
                 total += eff
                 i += (hol.end - hol.start).days + 1
             else:
@@ -195,15 +195,15 @@ class MVCCalculator:
 # =============================================
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
-sorted_resorts = sort_resorts_west_to_east(repo._raw.get("resorts", []))
-options = [r["display_name"] for r in sorted_resorts]
+resorts_sorted = sort_resorts_west_to_east(repo._raw.get("resorts", []))
+options = [r["display_name"] for r in resorts_sorted]
 
 # =============================================
 # 6. UI
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • Static Gantt • Mobile")
+st.caption("Auto-calculate • Static Gantt • West to East")
 
 resort = st.selectbox("Resort (West to East)", options)
 rdata = repo.get_resort_data(resort)
@@ -215,10 +215,10 @@ for y in rdata.get("years", {}).values():
     for s in y.get("seasons", []):
         for c in s.get("day_categories", {}).values():
             rooms.update(c.get("room_points", {}).keys())
-room = st.selectbox("Room", sorted(rooms))
+room = st.selectbox("Room Type", sorted(rooms)) if rooms else "1BR"
 
 c1, c2 = st.columns(2)
-checkin_in = c1.date_input("Check-in (your time)", date.today() + timedelta(days=7))
+checkin_in = c1.date_input("Check-in", date.today() + timedelta(days=7))
 nights = c2.number_input("Nights", 1, 60, 7)
 
 # West to East adjustment
@@ -229,30 +229,27 @@ def to_resort_date(d, tz_str):
     except: return d
 checkin = to_resort_date(checkin_in, tz)
 if checkin != checkin_in:
-    st.info(f"Adjusted: **{checkin.strftime('%a %b %d')}**")
+    st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
 
 rate = st.number_input("Rate $/pt", 0.30, 1.50, 0.55, 0.05, format="%.2f")
 disc = st.selectbox("Discount", ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
 mul = 1.0 if "No" in disc else 0.75 if "Exec" in disc else 0.70
 
 # Auto calculate
-if resort and room:
-    result = calc.calculate(resort, room, checkin, nights, rate, mul)
-    if result:
-        col1, col2 = st.columns(2)
-        col1.metric("Points", f"{result.points:,}")
-        col2.metric("Cost", f"${result.cost:,.2f}")
-        if result.disc: st.success("Discount Applied!")
-        st.dataframe(result.df, use_container_width=True, hide_index=True)
+result = calc.calculate(resort, room, checkin, nights, rate, mul)
+if result:
+    col1, col2 = st.columns(2)
+    col1.metric("Points", f"{result.points:,}")
+    col2.metric("Cost", f"${result.cost:,.2f}")
+    if result.disc: st.success("Discount Applied!")
+    st.dataframe(result.df, use_container_width=True, hide_index=True)
 
-# Gantt Chart (static image)
-with st.expander("Season Calendar (Tap to view)", expanded=False):
-    year = str(checkin.year)
-    img = render_gantt_image(rdata, year)
+# Static Gantt
+with st.expander("Season Calendar", expanded=False):
+    img = render_gantt_matplotlib(rdata, str(checkin.year))
     if img:
         st.image(img, use_column_width=True)
     else:
-        st.info("No calendar data for this year.")
+        st.info("No calendar data")
 
-st.markdown("---")
-st.caption("data_v2.json loaded • Static Gantt • West to East")
+st.caption("data_v2.json loaded • Works on Streamlit Cloud • Mobile ready")
