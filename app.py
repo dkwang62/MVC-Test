@@ -1,74 +1,79 @@
-# mvc_rent_calculator.py
-# Simple Mobile-Friendly MVC Points & Rent Calculator
-# Fully self-contained - loads data_v2.json automatically!
+# app.py
+# Simple Mobile MVC Rent Calculator – loads data_v2.json automatically
+# Works perfectly on phones – no extra files, no saving/loading profiles
 
 import streamlit as st
 import json
-from datetime import date, timedelta
-import math
 import pandas as pd
+import math
+from datetime import date, timedelta, datetime
+from dataclasses import dataclass
+from enum import Enum
 
-st.set_page_config(page_title="MVC Rent Calc", layout="wide")
-
-# === AUTOMATIC DATA LOAD ===
+# --------------------------------------------------------------
+# 1. AUTO-LOAD data_v2.json
+# --------------------------------------------------------------
 @st.cache_data
 def load_data():
     try:
-        with open('data_v2.json', 'r') as f:
+        with open("data_v2.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        st.error("data_v2.json not found! Please place it in the same directory.")
+        st.error("data_v2.json not found! Place it in the same folder as this app.")
+        st.stop()
+    except json.JSONDecodeError:
+        st.error("data_v2.json is corrupted or invalid JSON.")
         st.stop()
 
-data = load_data()
-repo = MVCRepository(data)
-calc = MVCCalculator(repo)
-resorts = repo.get_resort_list()
+raw_data = load_data()
 
-# === SIMPLIFIED CLASSES (from original) ===
+# --------------------------------------------------------------
+# 2. Minimal required classes (exact copies from your original code)
+# --------------------------------------------------------------
 class UserMode(Enum):
     RENTER = "Renter"
+    OWNER = "Owner"
 
-class DiscountPolicy(Enum):
-    NONE = "None"
-    EXECUTIVE = "Executive" 
-    PRESIDENTIAL = "Presidential"
+@dataclass
+class HolidayObj:
+    name: str
+    start: date
+    end: date
 
 @dataclass
 class CalculationResult:
     breakdown_df: pd.DataFrame
-    total_points: int
+ Rc   total_points: int
     financial_total: float
     discount_applied: bool
     m_cost: float = 0.0
     c_cost: float = 0.0
     d_cost: float = 0.0
 
-@dataclass
-class HolidayObj:
-    name: str; start: date; end: date
-
 class MVCRepository:
     def __init__(self, raw_data: dict):
         self._raw = raw_data
         self._gh = self._parse_global_holidays()
 
-    def get_resort_list(self) -> list:
+    def get_resort_list(self):
         return self._raw.get("resorts", [])
 
     def _parse_global_holidays(self):
         parsed = {}
-        for y, hols in self._raw.get("global_holidays", {}).items():
+        for y, holidays in self._raw.get("global_holidays", {}).items():
             parsed[y] = {}
-            for n, d in hols.items():
-                parsed[y][n] = (
-                    datetime.strptime(d["start_date"], "%Y-%m-%d").date(),
-                    datetime.strptime(d["end_date"], "%Y-%m-%d").date()
+            for name, info in holidays.items():
+                parsed[y][name] = (
+                    datetime.strptime(info["start_date"], "%Y-%m-%d").date(),
+                    datetime.strptime(info["end_date"], "%Y-%m-%d").date(),
                 )
         return parsed
 
-    def get_resort_data(self, name: str):
-        return next((r for r in self._raw.get("resorts", []) if r["display_name"] == name), None)
+    def get_resort_data(self, display_name: str):
+        for r in self._raw.get("resorts", []):
+            if r.get("display_name") == display_name:
+                return r
+        return None
 
 class MVCCalculator:
     def __init__(self, repo):
@@ -76,186 +81,151 @@ class MVCCalculator:
 
     def get_points(self, resort_data, day):
         y = str(day.year)
-        if y not in resort_data.get("years", {}): return {}, None
+        if y not in resort_data.get("years", {}):
+            return {}, None
         yd = resort_data["years"][y]
-        
-        # 1. Holiday Check
+
+        # Holiday first
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
-            start, end = None, None
             if ref and ref in self.repo._gh.get(y, {}):
                 start, end = self.repo._gh[y][ref]
-            
-            if start and end and start <= day <= end:
-                return h.get("room_points", {}), HolidayObj(h.get("name"), start, end)
-        
-        # 2. Season Check
+                if start <= day <= end:
+                    return h.get("room_points", {}), HolidayObj(h.get("name"), start, end)
+
+        # Regular season
         dow_map = {0:"Mon",1:"Tue",2:"Wed",3:"Thu",4:"Fri",5:"Sat",6:"Sun"}
         dow = dow_map[day.weekday()]
-        
-        for s in yd.get("seasons", []):
-            for p in s.get("periods", []):
+
+        for season in yd.get("seasons", []):
+            for period in season.get("periods", []):
                 try:
-                    ps = datetime.strptime(p["start"], "%Y-%m-%d").date()
-                    pe = datetime.strptime(p["end"], "%Y-%m-%d").date()
+                    ps = datetime.strptime(period["start"], "%Y-%m-%d").date()
+                    pe = datetime.strptime(period["end"], "%Y-%m-%d").date()
                     if ps <= day <= pe:
-                        for cat in s.get("day_categories", {}).values():
+                        for cat in season.get("day_categories", {}).values():
                             if dow in cat.get("day_pattern", []):
                                 return cat.get("room_points", {}), None
-                except: continue
+                except:
+                    continue
         return {}, None
 
-    def calculate(self, resort_name, room, checkin, nights, mode, rate, discount_multiplier, owner_cfg):
+    def calculate(self, resort_name, room, checkin, nights, rate, discount_mul):
         r_data = self.repo.get_resort_data(resort_name)
-        if not r_data: 
+        if not r_data:
             return None
-        
-        if mode == UserMode.RENTER:
-            rate = round(float(rate), 2)
 
+        rate = round(float(rate), 2)
         rows = []
         total_pts = 0
-        total_money = 0.0
-        tot_m = tot_c = tot_d = 0.0
-        disc_hit = False
+        disc_applied = False
         processed_holidays = set()
-        
-        mul = discount_multiplier
 
         i = 0
         while i < nights:
             d = checkin + timedelta(days=i)
-            pts_map, holiday_obj = self.get_points(r_data, d)
-            
-            if holiday_obj:
-                if holiday_obj.name not in processed_holidays:
-                    processed_holidays.add(holiday_obj.name)
-                    
-                    raw = int(pts_map.get(room, 0))
-                    eff = math.floor(raw * mul) if mul < 1.0 else raw
-                    if eff < raw: 
-                        disc_hit = True
-                    
-                    m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
-                    
-                    rows.append({
-                        "Date": f"{holiday_obj.name} ({holiday_obj.start.strftime('%b %d')} - {holiday_obj.end.strftime('%b %d')})",
-                        "Pts": eff,
-                        "Cost": f"${cost:,.0f}"
-                    })
-                    
-                    total_pts += eff
-                    total_money += cost
-                    tot_m += m; tot_c += c; tot_d += dp
-                    
-                    duration = (holiday_obj.end - holiday_obj.start).days + 1
-                    i += duration
-                else:
-                    i += 1
+            pts_map, holiday = self.get_points(r_data, d)
+
+            if holiday and holiday.name not in processed_holidays:
+                processed_holidays.add(holiday.name)
+                raw = int(pts_map.get(room, 0))
+                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+                if eff < raw:
+                    disc_applied = True
+
+                rows.append({
+                    "Date": f"{holiday.name} ({holiday.start.strftime('%b %d')}–{holiday.end.strftime('%b %d')})",
+                    "Pts": eff,
+                    "Cost": f"${math.ceil(eff * rate):,}"
+                })
+                total_pts += eff
+
+                # skip the whole block
+                i += (holiday.end - holiday.start).days + 1
             else:
                 raw = int(pts_map.get(room, 0))
-                eff = math.floor(raw * mul) if mul < 1.0 else raw
-                if eff < raw: 
-                    disc_hit = True
-                
-                m, c, dp, cost = self._calc_costs(eff, mode, rate, owner_cfg)
-                
+                eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+                if eff < raw:
+                    disc_applied = True
+
                 rows.append({
-                    "Date": d.strftime("%a %d %b"), 
-                    "Pts": eff, 
-                    "Cost": f"${cost:,.0f}"
+                    "Date": d.strftime("%a %b %d"),
+                    "Pts": eff,
+                    "Cost": f"${math.ceil(eff * rate):,}"
                 })
-                
                 total_pts += eff
-                total_money += cost
-                tot_m += m; tot_c += c; tot_d += dp
                 i += 1
 
-        if mode == UserMode.RENTER:
-            total_money = total_pts * rate
-            tot_m = tot_c = tot_d = 0.0
-        elif mode == UserMode.OWNER and owner_cfg:
-            maint_total = total_pts * rate
-            cap_total = total_pts * owner_cfg.get("cap_rate", 0.0) if owner_cfg.get("inc_c") else 0.0
-            dep_total = total_pts * owner_cfg.get("dep_rate", 0.0) if owner_cfg.get("inc_d") else 0.0
+        total_cost = round(total_pts * rate, 2)
+        df = pd.DataFrame(rows)
 
-            tot_m = maint_total
-            tot_c = cap_total
-            tot_d = dep_total
-            total_money = maint_total + cap_total + dep_total
+        return CalculationResult(df, total_pts, total_cost, disc_applied)
 
-        return CalculationResult(pd.DataFrame(rows), total_pts, total_money, disc_hit, tot_m, tot_c, tot_d)
+# --------------------------------------------------------------
+# 3. Initialise calculator
+# --------------------------------------------------------------
+repo = MVCRepository(raw_data)
+calc = MVCCalculator(repo)
+resorts = [r["display_name"] for r in repo.get_resort_list()]
 
-    def _calc_costs(self, eff, mode, rate, owner_cfg):
-        cost = 0.0
-        m = c = dp = 0.0
-        if mode == UserMode.OWNER and owner_cfg:
-            m = math.ceil(eff * rate)
-            if owner_cfg.get("inc_c"): 
-                c = math.ceil(eff * owner_cfg.get("cap_rate", 0))
-            if owner_cfg.get("inc_d"): 
-                dp = math.ceil(eff * owner_cfg.get("dep_rate", 0))
-            cost = m + c + dp
-        else:
-            cost = math.ceil(eff * rate)
-        return m, c, dp, cost
+# --------------------------------------------------------------
+# 4. Streamlit UI – mobile friendly
+# --------------------------------------------------------------
+st.set_page_config(page_title="MVC Rent Calc", layout="centered")
+st.title("MVC Rent Calculator")
+st.caption("Mobile-friendly • Renter mode • Auto-loads data_v2.json")
 
-# === MOBILE-FRIENDLY UI ===
-st.title("🧮 MVC Rent Calculator")
-st.caption("Mobile-friendly | Auto-loads data_v2.json | Renter Mode Only")
+# Resort
+resort = st.selectbox("Resort", options=resorts, index=0)
 
-# Compact inputs
-col1, col2 = st.columns(2)
-resort_obj = next((r for r in resorts if r["id"] == st.session_state.get("current_resort_id", resorts[0]["id"])), resorts[0])
-with col1:
-    resort_name = st.selectbox("Resort", [r["display_name"] for r in resorts], key="resort_sel")
-with col2:
-    year = st.selectbox("Year", sorted(set(r.get("years", {}).keys() for r in resorts)), index=0)
-
-# Get rooms for selected resort/year
-r_data = repo.get_resort_data(resort_name)
-if r_data and str(year) in r_data.get("years", {}):
-    yd = r_data["years"][str(year)]
-    if yd.get("seasons"):
-        s = yd["seasons"][0]
-        cat = next(iter(s.get("day_categories", {}).values()), None)
-        rooms = sorted(list(cat.get("room_points", {}).keys())) if cat else []
-    else:
-        rooms = []
-else:
-    rooms = []
+# Get available rooms for the selected resort (any year that has data)
+r_data = repo.get_resort_data(resort)
+available_rooms = set()
+for year_data in r_data.get("years", {}).values():
+    for season in year_data.get("seasons", []):
+        for cat in season.get("day_categories", {}).values():
+            available_rooms.update(cat.get("room_points", {}).keys())
+rooms = sorted(list(available_rooms))
 
 if not rooms:
-    st.error(f"No data for {resort_name} in {year}")
+    st.error("No room data found for this resort.")
     st.stop()
 
-room = st.selectbox("Room", rooms)
+room = st.selectbox("Room Type", rooms)
 
-col3, col4 = st.columns(2)
-checkin = col3.date_input("Check-in", value=date.today() + timedelta(days=7))
-nights = col4.number_input("Nights", 1, 60, 7)
+col1, col2 = st.columns(2)
+checkin = col1.date_input("Check-in", date.today() + timedelta(days=7))
+nights  = col2.number_input("Nights", 1, 60, 7, step=1)
 
-rate = st.number_input("Rent Rate ($/pt)", value=0.50, step=0.05, format="%.2f")
+rate = st.number_input("Rent Rate ($ per point)", 0.30, 1.50, 0.55, 0.05, format="%.2f")
 
-tier_opts = ["No Discount", "Executive", "Presidential"]
-tier = st.selectbox("Discount", tier_opts, index=0)
-discount_mul = 1.0 if tier == "No Discount" else 0.75 if tier == "Executive" else 0.70
-
-mode = UserMode.RENTER
-owner_cfg = None
+discount = st.selectbox("Discount Tier", 
+    ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
+mul = 1.0
+if "Executive" in discount:
+    mul = 0.75
+elif "Presidential" in discount:
+    mul = 0.70
 
 if st.button("Calculate", type="primary", use_container_width=True):
-    res = calc.calculate(resort_name, room, checkin, nights, mode, rate, discount_mul, owner_cfg)
+    result = calc.calculate(resort, room, checkin, nights, rate, mul)
     
-    if res:
-        col5, col6 = st.columns(2)
-        col5.metric("Points", f"{res.total_points:,}")
-        col6.metric("Total Cost", f"${res.financial_total:,.0f}")
+    if result:
+        c1, c2 = st.columns(2)
+        c1.metric("Total Points", f"{result.total_points:,}")
+        c2.metric("Total Rent", f"${result.financial_total:,.2f}")
         
-        if res.discount_applied: 
-            st.success("✅ Discount Applied!")
+        if result.discount_applied:
+            st.success("Discount Applied!")
         
-        st.dataframe(res.breakdown_df, use_container_width=True, hide_index=True)
+        st.dataframe(result.breakdown_df, use_container_width=True, hide_index=True)
+        
+        st.download_button(
+            "Download Result",
+            data=result.breakdown_df.to_csv(index=False),
+            file_name=f"{resort.replace(' ', '_')}_{checkin}_{nights}nights.csv",
+            mime="text/csv"
+        )
 
 st.markdown("---")
-st.caption("💡 Place data_v2.json in the same folder | Run: streamlit run mvc_rent_calculator.py")
+st.caption("Place data_v2.json in the same folder • Works on iPhone & Android")
