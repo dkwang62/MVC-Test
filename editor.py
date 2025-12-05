@@ -136,13 +136,19 @@ def run():
 
     with t_ov:
         c1, c2 = st.columns(2)
-        working["display_name"] = c1.text_input("Display Name", working.get("display_name", ""))
-        working["code"] = c1.text_input("Code", working.get("code", ""))
-        working["timezone"] = c2.text_input("Timezone", working.get("timezone", ""))
-        working["address"] = st.text_area("Address", working.get("address", ""), height=70)
-        if st.button("Save Overview"):
+        # Use simple inputs, saving is handled by the button below
+        display_name = c1.text_input("Display Name", working.get("display_name", ""))
+        code = c1.text_input("Code", working.get("code", ""))
+        timezone = c2.text_input("Timezone", working.get("timezone", ""))
+        address = st.text_area("Address", working.get("address", ""), height=70)
+        
+        if st.button("Save Overview Changes"):
+            working["display_name"] = display_name
+            working["code"] = code
+            working["timezone"] = timezone
+            working["address"] = address
             save_data(st.session_state.data)
-            st.toast("Saved!")
+            st.toast("Overview Saved!")
 
     with t_date:
         sel_year = st.selectbox("Year", years, key="date_year_select") if years else None
@@ -168,12 +174,26 @@ def run():
             st.pyplot(fig, use_container_width=True)
 
             seasons = y_data.get("seasons", [])
+            
+            # Dictionary to hold the editors for later retrieval
+            editors = {}
+            
             for s in seasons:
                 with st.expander(f"{s['name']}", expanded=False):
                     p_df = pd.DataFrame(s.get("periods", []))
                     if not p_df.empty:
-                        edited_p = st.data_editor(p_df, num_rows="dynamic", key=f"p_{working['id']}_{sel_year}_{s['name']}", use_container_width=True)
-                        s["periods"] = edited_p.to_dict("records")
+                        # Display editor but don't auto-update 's' yet
+                        editor_key = f"p_{working['id']}_{sel_year}_{s['name']}"
+                        edited_p = st.data_editor(p_df, num_rows="dynamic", key=editor_key, use_container_width=True)
+                        editors[s['name']] = edited_p
+
+            if st.button("Save Season Dates"):
+                # Iterate through seasons and apply changes from editors
+                for s in seasons:
+                    if s['name'] in editors:
+                        s["periods"] = editors[s['name']].to_dict("records")
+                save_data(st.session_state.data)
+                st.toast("Season Dates Saved!")
 
     with t_pts:
         sel_year = st.selectbox("Year", years, key="pts_year_select") if years else None
@@ -181,6 +201,9 @@ def run():
             st.info("Edit points below. 'Save & Sync' will update other years.")
             y_data = working["years"][sel_year]
             seasons = y_data.get("seasons", [])
+            
+            pts_editors = {} # Store editor data
+            
             for s_idx, season in enumerate(seasons):
                 st.markdown(f"**{season['name']}**")
                 day_cats = season.get("day_categories", {})
@@ -188,12 +211,20 @@ def run():
                     rp = dc_val.get("room_points", {})
                     pts_data = [{"Room Type": k, "Points": v} for k, v in rp.items()]
                     df_pts = pd.DataFrame(pts_data)
-                    edited_df = st.data_editor(df_pts, key=f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}", use_container_width=True, num_rows="dynamic", hide_index=True)
-                    if not edited_df.empty:
-                        new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
-                        dc_val["room_points"] = new_rp
+                    
+                    editor_key = f"de_{working['id']}_{sel_year}_{s_idx}_{dc_key}"
+                    edited_df = st.data_editor(df_pts, key=editor_key, use_container_width=True, num_rows="dynamic", hide_index=True)
+                    
+                    # Store reference to updated dataframe
+                    pts_editors[(s_idx, dc_key)] = edited_df
             
             if st.button("Save & Sync Points"):
+                # Apply changes from all editors
+                for (s_idx, dc_key), edited_df in pts_editors.items():
+                    if not edited_df.empty:
+                        new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
+                        seasons[s_idx]["day_categories"][dc_key]["room_points"] = new_rp
+                
                 sync_room_points(working, sel_year)
                 save_data(st.session_state.data)
                 st.toast("Points Saved & Synced!")
@@ -203,21 +234,49 @@ def run():
         if sel_year:
             y_data = working["years"][sel_year]
             holidays = y_data.get("holidays", [])
+            
+            # Temporary storage for inputs to grab on Save
+            hol_updates = {} 
+            
             for h_idx, h in enumerate(holidays):
                 with st.expander(f"{h['name']}", expanded=False):
-                    h["name"] = st.text_input("Name", h["name"], key=f"h_name_{working['id']}_{sel_year}_{h_idx}")
-                    h["global_reference"] = st.text_input("Global Reference", h.get("global_reference", ""), key=f"h_ref_{working['id']}_{sel_year}_{h_idx}")
+                    # Capture text inputs in temp vars, committed on button press
+                    new_name = st.text_input("Name", h["name"], key=f"h_name_{working['id']}_{sel_year}_{h_idx}")
+                    new_ref = st.text_input("Global Reference", h.get("global_reference", ""), key=f"h_ref_{working['id']}_{sel_year}_{h_idx}")
+                    
                     rp = h.get("room_points", {})
                     pts_data = [{"Room Type": k, "Points": v} for k, v in rp.items()]
                     df_pts = pd.DataFrame(pts_data)
+                    
                     edited_df = st.data_editor(df_pts, key=f"h_de_{working['id']}_{sel_year}_{h_idx}", use_container_width=True, num_rows="dynamic", hide_index=True)
-                    if not edited_df.empty:
-                        new_rp = dict(zip(edited_df["Room Type"], edited_df["Points"]))
-                        h["room_points"] = new_rp
+                    
+                    # Store updates for this index
+                    hol_updates[h_idx] = {
+                        "name": new_name,
+                        "global_reference": new_ref,
+                        "df": edited_df
+                    }
+
                     if st.button("Delete Holiday", key=f"h_del_{working['id']}_{sel_year}_{h_idx}"):
                         del holidays[h_idx]
                         save_data(st.session_state.data)
                         st.rerun()
+            
+            if st.button("Save Holiday Changes"):
+                for h_idx, updates in hol_updates.items():
+                    # Update name/ref
+                    holidays[h_idx]["name"] = updates["name"]
+                    holidays[h_idx]["global_reference"] = updates["global_reference"]
+                    
+                    # Update points from DF
+                    if not updates["df"].empty:
+                        new_rp = dict(zip(updates["df"]["Room Type"], updates["df"]["Points"]))
+                        holidays[h_idx]["room_points"] = new_rp
+                
+                save_data(st.session_state.data)
+                st.toast("Holidays Saved!")
+
+            st.divider()
             new_name = st.text_input("New Holiday Name", key=f"new_h_name_{working['id']}_{sel_year}")
             new_ref = st.text_input("Global Reference", key=f"new_h_ref_{working['id']}_{sel_year}")
             if st.button("Add Holiday") and new_name:
