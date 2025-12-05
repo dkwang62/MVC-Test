@@ -328,7 +328,6 @@ rate = st.number_input(
     "Custom Rent Rate (US$/pt); ***Note:Defaults to MVC Abound maintenance rate",
     0.30, 1.50, default_rate, 0.05, format="%.2f"
 )
-st.caption("Default: MVC Abound maintenance rate")
 
 discount_display = st.selectbox(
     "Membership Tier",
