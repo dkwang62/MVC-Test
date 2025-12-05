@@ -1,5 +1,5 @@
 # app.py
-# FINAL VERSION – Exactly like your original calculator + mobile + static Gantt
+# FINAL MOBILE MVC RENT CALCULATOR – Loads mvc_owner_settings.json
 import streamlit as st
 import json
 import pandas as pd
@@ -14,18 +14,28 @@ import io
 from PIL import Image
 
 # =============================================
-# 1. Load data_v2.json
+# 1. Load data_v2.json + mvc_owner_settings.json
 # =============================================
 @st.cache_data
-def load_data():
+def load_json(file_path, default=None):
     try:
-        with open("data_v2.json", "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        st.error("data_v2.json not found!")
-        st.stop()
+        st.warning(f"{file_path} not found – using defaults")
+        return default or {}
 
-raw_data = load_data()
+raw_data = load_json("data_v2.json")
+user_settings = load_json("mvc_owner_settings.json", {
+    "maintenance_rate": 0.55,
+    "discount_tier": "No Discount",
+    "preferred_resort_id": None
+})
+
+# Extract user preferences
+default_rate = round(float(user_settings.get("maintenance_rate", 0.55)), 2)
+default_tier = user_settings.get("discount_tier", "No Discount")
+preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
 # 2. West to East Sorting
@@ -44,7 +54,7 @@ def sort_resorts_west_to_east(resorts):
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Static Gantt (matplotlib – 100% reliable)
+# 3. Static Gantt (matplotlib)
 # =============================================
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
@@ -60,7 +70,6 @@ def season_bucket(name):
 def render_gantt_image(resort_data, year_str):
     rows = []
     yd = resort_data.get("years", {}).get(year_str, {})
-
     for s in yd.get("seasons", []):
         name = s.get("name", "Season")
         bucket = season_bucket(name)
@@ -70,7 +79,6 @@ def render_gantt_image(resort_data, year_str):
                 end = datetime.strptime(p["end"], "%Y-%m-%d")
                 rows.append((name, start, end, bucket))
             except: continue
-
     for h in yd.get("holidays", []):
         ref = h.get("global_reference")
         if ref and ref in raw_data.get("global_holidays", {}).get(year_str, {}):
@@ -78,22 +86,18 @@ def render_gantt_image(resort_data, year_str):
             start = datetime.strptime(info["start_date"], "%Y-%m-%d")
             end = datetime.strptime(info["end_date"], "%Y-%m-%d")
             rows.append((h.get("name", "Holiday"), start, end, "Holiday"))
-
-    if not rows:
-        return None
+    if not rows: return None
 
     fig, ax = plt.subplots(figsize=(10, max(3, len(rows) * 0.5)))
     for i, (label, start, end, typ) in enumerate(rows):
         ax.barh(i, end - start, left=start, height=0.6, color=COLORS.get(typ, "#999"), edgecolor="black")
-
     ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([label for label,_,_,_ in rows])
+    ax.set_yticklabels([l for l,_,_,_ in rows])
     ax.invert_yaxis()
     ax.xaxis.set_major_locator(mdates.MonthLocator())
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
     ax.grid(True, axis='x', alpha=0.3)
     ax.set_title(f"{resort_data.get('display_name')} – {year_str}", pad=20)
-
     legend = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
     ax.legend(handles=legend, loc='upper right', bbox_to_anchor=(1, 1))
 
@@ -104,7 +108,7 @@ def render_gantt_image(resort_data, year_str):
     return Image.open(buf)
 
 # =============================================
-# 4. Calculator – EXACTLY like your original
+# 4. Calculator – 100% Original Logic
 # =============================================
 @dataclass
 class HolidayObj:
@@ -131,14 +135,12 @@ class MVCCalculator:
         y = str(day.year)
         if y not in rdata.get("years", {}): return {}, None
         yd = rdata["years"][y]
-
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
             if ref and ref in self.repo._gh.get(y, {}):
                 s,e = self.repo._gh[y][ref]
                 if s <= day <= e:
                     return h.get("room_points", {}), HolidayObj(h.get("name"), s, e)
-
         dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][day.weekday()]
         for s in yd.get("seasons", []):
             for p in s.get("periods", []):
@@ -160,24 +162,23 @@ class MVCCalculator:
         rows = []
         total_pts = 0
         disc_applied = False
-        seen_holidays = set()
+        seen = set()
 
         i = 0
         while i < nights:
             d = checkin + timedelta(days=i)
             pts_map, holiday = self.get_points(r, d)
 
-            if holiday and holiday.name not in seen_holidays:
-                seen_holidays.add(holiday.name)
+            if holiday and holiday.name not in seen:
+                seen.add(holiday.name)
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
                 if eff < raw: disc_applied = True
-
-                daily_cost = math.ceil(eff * rate)
+                cost = math.ceil(eff * rate)
                 rows.append({
                     "Date": f"{holiday.name} ({holiday.start.strftime('%b %d')}–{holiday.end.strftime('%b %d')})",
                     "Pts": eff,
-                    "Cost": f"${daily_cost:,}"
+                    "Cost": f"${cost:,}"
                 })
                 total_pts += eff
                 i += (holiday.end - holiday.start).days + 1
@@ -185,20 +186,17 @@ class MVCCalculator:
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
                 if eff < raw: disc_applied = True
-
-                daily_cost = math.ceil(eff * rate)
+                cost = math.ceil(eff * rate)
                 rows.append({
                     "Date": d.strftime("%a %b %d"),
                     "Pts": eff,
-                    "Cost": f"${daily_cost:,}"
+                    "Cost": f"${cost:,}"
                 })
                 total_pts += eff
                 i += 1
 
-        # FINAL TOTAL: total points × rate (not sum of daily costs!)
         total_cost = round(total_pts * rate, 2)
-
-        return type('Result', (), {
+        return type('Res', (), {
             'df': pd.DataFrame(rows),
             'points': total_pts,
             'cost': total_cost,
@@ -210,17 +208,32 @@ class MVCCalculator:
 # =============================================
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
-sorted_resorts = sort_resorts_west_to_east(repo._raw.get("resorts", []))
-resort_names = [r["display_name"] for r in sorted_resorts]
+all_resorts = repo._raw.get("resorts", [])
+sorted_resorts = sort_resorts_west_to_east(all_resorts)
+resort_options = [r["display_name"] for r in sorted_resorts]
+
+# Find preferred resort index
+default_resort_index = 0
+if preferred_id:
+    for i, r in enumerate(sorted_resorts):
+        if r.get("id") == preferred_id:
+            default_resort_index = i
+            break
 
 # =============================================
-# 6. Mobile UI
+# 6. UI – Mobile First
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • Static Gantt • West to East")
+st.caption("Auto-calculate • Loads your settings • West to East")
 
-resort = st.selectbox("Resort (West to East)", resort_names)
+# Resort (with preferred default)
+resort = st.selectbox(
+    "Resort (West to East)",
+    options=resort_options,
+    index=default_resort_index
+)
+
 rdata = repo.get_resort_data(resort)
 tz = rdata.get("timezone", "America/New_York") if rdata else "America/New_York"
 
@@ -247,11 +260,20 @@ checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
     st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
 
-rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, 0.55, 0.05, format="%.2f")
-discount = st.selectbox("Discount", ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
-mul = 1.0 if "No" in discount else 0.75 if "Exec"" in discount else 0.70
+# Rate & Discount (from saved settings)
+rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, default_rate, 0.05, format="%.2f")
 
-# Auto calculate
+discount_tier = st.selectbox(
+    "Discount Tier",
+    ["No Discount", "Executive (25% off)", "Presidential (30% off)"],
+    index=["No Discount", "Executive (25% off)", "Presidential (30% off)"].index(default_tier)
+)
+
+mul = 1.0
+if "Executive" in discount_tier: mul = 0.75
+elif "Presidential" in discount_tier: mul = 0.70
+
+# Auto-calculate
 result = calc.calculate(resort, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
@@ -259,7 +281,6 @@ if result:
     col2.metric("Total Rent", f"${result.cost:,.2f}")
     if result.disc:
         st.success("Discount Applied!")
-
     st.dataframe(result.df, use_container_width=True, hide_index=True)
 
 # Static Gantt
@@ -268,6 +289,6 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
     else:
-        st.info("No season data")
+        st.info("No calendar data")
 
-st.caption("data_v2.json loaded • Daily cost = ceil() • Total = points × rate")
+st.caption("Loads mvc_owner_settings.json • Daily cost = ceil() • Total = points × rate")
