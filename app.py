@@ -1,5 +1,7 @@
 # app.py
-# FINAL – Resort card shows full resort_name + everything else perfect
+# MVC Rent Calculator – Mobile First
+# Last modified: 2025-04-05 20:30 UTC
+
 import streamlit as st
 import json
 import pandas as pd
@@ -53,11 +55,10 @@ def sort_resorts_west_to_east(resorts):
     return sorted(resorts, key=key)
 
 # =============================================
-# 3. Resort Card – Now shows FULL resort_name
+# 3. Resort Card – Only full resort_name
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
-    display_name = resort_data.get("display_name", "")
     timezone = resort_data.get("timezone", "Unknown")
     address = resort_data.get("address", "Address not available")
     
@@ -67,31 +68,27 @@ def render_resort_card(resort_data) -> None:
         f"""
         <div style="
             background: white;
-            border-radius: 14px;
-            padding: 1.4rem 1.6rem;
+            border-radius: 16px;
+            padding: 1.6rem 1.8rem;
             border: 1px solid #e2e8f0;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
-            margin: 1.2rem 0;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            margin: 1.4rem 0;
+            text-align: center;
         ">
           <h2 style="
-            margin: 0 0 0.4rem 0;
-            font-size: 1.8rem;
+            margin: 0 0 0.6rem 0;
+            font-size: 1.9rem;
             font-weight: 700;
             color: #1a202c;
+            line-height: 1.2;
           ">{full_name}</h2>
-          <p style="
-            margin: 0 0 0.8rem 0;
-            font-size: 1.05rem;
-            color: #4a5568;
-            font-weight: 500;
-          ">{display_name}</p>
           <div style="
-            font-size: 0.95rem;
-            color: #718096;
-            line-height: 1.6;
+            font-size: 1rem;
+            color: #4a5568;
+            line-height: 1.7;
           ">
-            <span>Time: {tz_display}</span>
-            <span style="margin-left: 1.5rem;">Location: {address}</span>
+            <div>Time: {tz_display}</div>
+            <div>Location: {address}</div>
           </div>
         </div>
         """,
@@ -284,17 +281,22 @@ if preferred_id:
             default_resort_index = i
             break
 
+# Default discount tier index (fixed!)
+saved_lower = saved_tier.lower()
+default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
+                   1 if "executive" in saved_lower else 0
+
 # =============================================
-# 7. UI – Full resort_name in card
+# 7. UI
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.title("MVC Rent Calculator")
-st.caption("Auto-calculate • Full resort name • West to East")
+st.caption("Auto-calculate • Full resort name • Mobile perfect")
 
 resort_display = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
 rdata = repo.get_resort_data(resort_display)
 
-# Resort Card – Now shows full resort_name
+# Resort Card – Only full name
 render_resort_card(rdata)
 
 # All rooms
@@ -319,10 +321,14 @@ def adjust_checkin(d, tz_str):
 
 checkin = adjust_checkin(checkin_input, tz)
 if checkin != checkin_input:
-    st.info(f"Adjusted → **{checkin.strftime('%a %b %d, %Y')}**")
+    st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
 
 rate = st.number_input("Rent Rate ($/pt)", 0.30, 1.50, default_rate, 0.05, format="%.2f")
-discount_display = st.selectbox("Discount Tier", ["No Discount", "Executive (25% off)", "Presidential (30% off)"], index=default_tier_idx)
+discount_display = st.selectbox(
+    "Discount Tier",
+    ["No Discount", "Executive (25% off)", "Presidential (30% off)"],
+    index=default_tier_idx
+)
 
 mul = 0.70 if "presidential" in discount_display.lower() else \
       0.75 if "executive" in discount_display.lower() else 1.0
@@ -351,4 +357,6 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
 
-st.caption("Shows full resort_name • data_v2.json + settings loaded • Mobile perfect")
+# Footer with date stamp
+st.markdown("---")
+st.caption("MVC Rent Calculator • Last updated: April 5, 2025")
