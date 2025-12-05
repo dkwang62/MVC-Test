@@ -1,6 +1,6 @@
 # app.py
-# Simple Mobile MVC Rent Calculator – loads data_v2.json automatically
-# Works perfectly on phones – no extra files, no saving/loading profiles
+# Simple Mobile MVC Rent Calculator – automatically loads data_v2.json
+# Fully self-contained, no extra files, perfect on phones
 
 import streamlit as st
 import json
@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 # --------------------------------------------------------------
-# 1. AUTO-LOAD data_v2.json
+# 1. Load data_v2.json automatically
 # --------------------------------------------------------------
 @st.cache_data
 def load_data():
@@ -21,14 +21,14 @@ def load_data():
     except FileNotFoundError:
         st.error("data_v2.json not found! Place it in the same folder as this app.")
         st.stop()
-    except json.JSONDecodeError:
-        st.error("data_v2.json is corrupted or invalid JSON.")
+    except json.JSONDecodeError as e:
+        st.error(f"Invalid JSON in data_v2.json: {e}")
         st.stop()
 
 raw_data = load_data()
 
 # --------------------------------------------------------------
-# 2. Minimal required classes (exact copies from your original code)
+# 2. Required classes (exact logic from your original code)
 # --------------------------------------------------------------
 class UserMode(Enum):
     RENTER = "Renter"
@@ -43,7 +43,7 @@ class HolidayObj:
 @dataclass
 class CalculationResult:
     breakdown_df: pd.DataFrame
- Rc   total_points: int
+    total_points: int
     financial_total: float
     discount_applied: bool
     m_cost: float = 0.0
@@ -139,8 +139,6 @@ class MVCCalculator:
                     "Cost": f"${math.ceil(eff * rate):,}"
                 })
                 total_pts += eff
-
-                # skip the whole block
                 i += (holiday.end - holiday.start).days + 1
             else:
                 raw = int(pts_map.get(room, 0))
@@ -158,11 +156,10 @@ class MVCCalculator:
 
         total_cost = round(total_pts * rate, 2)
         df = pd.DataFrame(rows)
-
         return CalculationResult(df, total_pts, total_cost, disc_applied)
 
 # --------------------------------------------------------------
-# 3. Initialise calculator
+# 3. Initialise everything
 # --------------------------------------------------------------
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
@@ -175,10 +172,9 @@ st.set_page_config(page_title="MVC Rent Calc", layout="centered")
 st.title("MVC Rent Calculator")
 st.caption("Mobile-friendly • Renter mode • Auto-loads data_v2.json")
 
-# Resort
-resort = st.selectbox("Resort", options=resorts, index=0)
+resort = st.selectbox("Resort", options=resorts)
 
-# Get available rooms for the selected resort (any year that has data)
+# Get all available room types for this resort
 r_data = repo.get_resort_data(resort)
 available_rooms = set()
 for year_data in r_data.get("years", {}).values():
@@ -195,11 +191,11 @@ room = st.selectbox("Room Type", rooms)
 
 col1, col2 = st.columns(2)
 checkin = col1.date_input("Check-in", date.today() + timedelta(days=7))
-nights  = col2.number_input("Nights", 1, 60, 7, step=1)
+nights = col2.number_input("Nights", 1, 60, 7, step=1)
 
 rate = st.number_input("Rent Rate ($ per point)", 0.30, 1.50, 0.55, 0.05, format="%.2f")
 
-discount = st.selectbox("Discount Tier", 
+discount = st.selectbox("Discount Tier",
     ["No Discount", "Executive (25% off)", "Presidential (30% off)"])
 mul = 1.0
 if "Executive" in discount:
@@ -209,23 +205,24 @@ elif "Presidential" in discount:
 
 if st.button("Calculate", type="primary", use_container_width=True):
     result = calc.calculate(resort, room, checkin, nights, rate, mul)
-    
+
     if result:
         c1, c2 = st.columns(2)
         c1.metric("Total Points", f"{result.total_points:,}")
         c2.metric("Total Rent", f"${result.financial_total:,.2f}")
-        
+
         if result.discount_applied:
             st.success("Discount Applied!")
-        
+
         st.dataframe(result.breakdown_df, use_container_width=True, hide_index=True)
-        
+
+        csv = result.breakdown_df.to_csv(index=False)
         st.download_button(
-            "Download Result",
-            data=result.breakdown_df.to_csv(index=False),
-            file_name=f"{resort.replace(' ', '_')}_{checkin}_{nights}nights.csv",
+            "Download Breakdown",
+            data=csv,
+            file_name=f"{resort}_{checkin}_{nights}nights.csv",
             mime="text/csv"
         )
 
 st.markdown("---")
-st.caption("Place data_v2.json in the same folder • Works on iPhone & Android")
+st.caption("Place data_v2.json in the same folder • Works perfectly on iPhone & Android")
