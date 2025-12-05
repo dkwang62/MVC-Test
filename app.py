@@ -55,7 +55,7 @@ def sort_resorts_west_to_east(resorts):
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
-    timezone = resort_data.get("timezone", "Unknown")
+#   timezone = resort_data.get("timezone", "Unknown")
     address = resort_data.get("address", "")
     
     tz_display = timezone.split("/")[-1].replace("_", " ") if "/" in timezone else timezone
