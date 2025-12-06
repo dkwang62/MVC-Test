@@ -297,7 +297,7 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
 
     rows = []
 
-    # ——— Seasons ———
+    # Seasons
     for season in yd.get("seasons", []):
         name = season.get("name", "").strip() or "Unnamed Season"
         weekly_totals = {}
@@ -308,10 +308,10 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
                 if dow in cat.get("day_pattern", []):
                     points_map = cat.get("room_points", {})
                     for room in room_types:
-                        pts = points_map.get(room, 0)
+                        pts = int(points_map.get(room, 0))
                         if pts:
                             has_data = True
-                        weekly_totals[room] = weekly_totals.get(room, 0) + int(pts)
+                        weekly_totals[room] = weekly_totals.get(room, 0) + pts
                     break
 
         if has_data:
@@ -323,7 +323,7 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
                 row[room] = f"${cost:,}"
             rows.append(row)
 
-    # ——— Holidays ———
+    # Holidays
     for holiday in yd.get("holidays", []):
         hname = holiday.get("name", "").strip() or "Unnamed Holiday"
         rp = holiday.get("room_points", {}) or {}
@@ -342,7 +342,7 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
     if not rows:
         return None
 
-    # Build proper HTML table manually (bypass pandas escaping issues)
+    # Build pure clean table
     header = "".join(f"<th>{room}</th>" for room in room_types)
     body = ""
     for row in rows:
@@ -350,58 +350,41 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
         cells = "".join(f"<td>{row.get(room, '—')}</td>" for room in room_types)
         body += f"<tr><td class='season-cell'>{season}</td>{cells}</tr>"
 
-
-    discount_note = ""
-    if discount_mul < 1:
-        discount_note = "<small style='color:#059669; font-weight:600;'> (Elite discount applied)</small>"
-
-    html = f"""
-    <div style="margin-top: 2rem;">
-        <div style="padding: 0.9rem 1rem; background: #f1f5f9; border-left: 4px solid #3b82f6; border-radius: 6px; margin-bottom: 1rem;">
-            <strong style="font-size: 1.15rem; color: #1e293b;">
-                7-Night Rental Costs ({year}) @ ${rate:.2f}/pt
-            </strong>
-            {discount_note}
-        </div>
-
-        <!-- This wrapper is the key for mobile scrolling -->
-        <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-            <table class="cost-table">
-                <thead>
-                    <tr>
-                        <th style="position: sticky; left: 0; background: #f8fafc; z-index: 10; text-align: left; min-width: 170px;">Season</th>
-                        {header}
-                    </tr>
-                </thead>
-                <tbody>
-                    {body}
-                </tbody>
-            </table>
-        </div>
+    return f"""
+    <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 1rem;">
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th style="position: sticky; left: 0; background: #f8fafc; z-index: 10; text-align: left; min-width: 170px;">Season</th>
+                    {header}
+                </tr>
+            </thead>
+            <tbody>
+                {body}
+            </tbody>
+        </table>
     </div>
 
     <style>
         .cost-table {{
             width: 100%;
-            min-width: 1200px;           /* Forces horizontal scroll on small screens */
+            min-width: 1200px;
             border-collapse: separate;
             border-spacing: 0;
             font-size: 0.94rem;
             background: white;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }}
         .cost-table th {{
             padding: 1rem 0.8rem;
             text-align: center;
-            background: #f8fafc;
+            background: #f1f5f9;
             font-weight: 600;
             color: #1e293b;
-            border-bottom: 2px solid #3b82f6;
+            border-bottom: 3px solid #3b82f6;
             white-space: nowrap;
-            top: 0;
-            z-index: 9;
         }}
         .cost-table td {{
             padding: 0.9rem 0.8rem;
@@ -417,7 +400,7 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
             text-align: left !important;
             min-width: 170px;
             z-index: 8;
-            box-shadow: 2px 0 6px -2px rgba(0,0,0,0.1);
+            box-shadow: 3px 0 8px -3px rgba(0,0,0,0.1);
         }}
         .cost-table tr:hover td {{
             background-color: #f8faff !important;
@@ -425,13 +408,9 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
         .cost-table tr:hover .season-cell {{
             background-color: #dbeafe !important;
         }}
-        /* Smooth scrolling on iOS */
-        .cost-table-wrapper {{
-            -webkit-overflow-scrolling: touch;
-        }}
     </style>
     """
-    return html    
+    
 # =============================================
 # 6. Init
 # =============================================
