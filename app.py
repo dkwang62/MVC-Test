@@ -351,33 +351,54 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
 
     df = pd.DataFrame(rows, columns=["Season"] + room_types)
 
-    # Generate clean, beautiful HTML
+    # CRITICAL FIX: escape=False + manual clean-up of column names
+    html_table = df.to_html(
+        index=False,
+        border=0,
+        classes="cost-table",
+        escape=False  # ← this stops < and > from being turned into < >
+    )
+
+    # Clean up any accidental &nbsp; or broken tags that sometimes sneak in
+    html_table = html_table.replace("&lt;", "<").replace("&gt;", ">")
+
     html = f"""
-    <div style="margin-top: 2rem;">
-        <h4 style="margin-bottom: 0.5rem; color: #1e293b;">7-Night Rental Costs ({year}) @ ${rate:.2f}/pt</h4>
-        {df.to_html(index=False, border=0, classes="cost-table")}
+    <div style="margin-top: 2rem; overflow-x: auto;">
+        <h4 style="margin-bottom: 0.5rem; color: #1e293b;">
+            7-Night Rental Costs ({year}) @ ${rate:.2f}/pt
+            {f" <small style='color:#64748b;'>(Presidential/Executive discount applied)</small>" if discount_mul < 1 else ""}
+        </h4>
+        {html_table}
     </div>
 
     <style>
-        .cost-table {{ border-collapse: collapse; width: 100%; margin-top: 0.5rem; }}
+        .cost-table {{ border-collapse: collapse; width: 100%; min-width: 900px; margin-top: 0.5rem; }}
         .cost-table th, .cost-table td {{
-            padding: 0.75rem 1rem;
+            padding: 0.75rem 0.9rem;
             text-align: center;
             border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+            font-size: 0.92rem;
         }}
         .cost-table th {{
             background-color: #f8fafc;
             font-weight: 600;
             color: #1e293b;
-            font-size: 0.95rem;
+            position: sticky;
+            top: 0;
+            z-index: 1;
         }}
         .cost-table td:first-child {{
             text-align: left;
             font-weight: 500;
             color: #1e293b;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 2;
         }}
-        .cost-table tr:hover {{ background-color: #f1f5f9; }}
-        .cost-table td {{ font-size: 0.95rem; }}
+        .cost-table tr:hover td {{ background-color: #f1f5f9 !important; }}
+        .cost-table tr:hover td:first-child {{ background-color: #e6f4ff !important; }}
     </style>
     """
     return html
