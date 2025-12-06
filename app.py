@@ -425,15 +425,10 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
 
-    # ——— NEW: Rental Cost Table in $ ———
-    cost_table_html = build_rental_cost_table(
-        resort_data=rdata,
-        year=checkin.year,
-        rate=rate,
-        discount_mul=mul  # applies Presidential/Executive discount correctly
-    )
-    if cost_table_html:
-        st.markdown(cost_table_html, unsafe_allow_html=True)
+    df = build_rental_cost_table(rdata, checkin.year, rate, mul)
+    if df is not None:
+        st.caption(f"7-Night Rental Costs @ ${rate:.2f}/pt{' — Elite discount applied' if mul < 1 else ''}")
+        st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("No season or holiday pricing data available for this year.")
         
