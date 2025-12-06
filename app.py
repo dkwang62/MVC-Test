@@ -286,11 +286,6 @@ def get_all_room_types_for_resort(resort_data: dict) -> List[str]:
 
 
 def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_mul: float = 1.0) -> Optional[str]:
-    """
-    Returns an HTML table (as string) showing $ rental cost for 7-night stays
-    in every season + holiday defined in the given year.
-    Matches the look of your screenshot.
-    """
     year_str = str(year)
     yd = resort_data.get("years", {}).get(year_str)
     if not yd:
@@ -308,7 +303,6 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
         weekly_totals = {}
         has_data = False
 
-        # Compute 7-night total from nightly rates
         for dow in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
             for cat in season.get("day_categories", {}).values():
                 if dow in cat.get("day_pattern", []):
@@ -317,8 +311,8 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
                         pts = points_map.get(room, 0)
                         if pts:
                             has_data = True
-                        weekly_totals[room] = weekly_totals.get(room, 0) + pts
-                    break  # only one category per weekday
+                        weekly_totals[room] = weekly_totals.get(room, 0) + int(pts)
+                    break
 
         if has_data:
             row = {"Season": name}
@@ -333,15 +327,14 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
     for holiday in yd.get("holidays", []):
         hname = holiday.get("name", "").strip() or "Unnamed Holiday"
         rp = holiday.get("room_points", {}) or {}
-
         row = {"Season": f"Holiday – {hname}"}
         any_value = False
         for room in room_types:
-            raw = rp.get(room, 0)
+            raw = int(rp.get(room, 0))
             if raw:
                 any_value = True
             eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-            cost = math.ceil(eff * rate)
+            cost = math.ceil(eff * rate) if raw else 0
             row[room] = f"${cost:,}" if raw else "—"
         if any_value:
             rows.append(row)
@@ -349,56 +342,76 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
     if not rows:
         return None
 
-    df = pd.DataFrame(rows, columns=["Season"] + room_types)
+    # Build proper HTML table manually (bypass pandas escaping issues)
+    header = "".join(f"<th>{room}</th>" for room in room_types)
+    body = ""
+    for row in rows:
+        season = row["Season"]
+        cells = "".join(f"<td>{row.get(room, '—')}</td>" for room in room_types)
+        body += f"<tr><td class='season-cell'>{season}</td>{cells}</tr>"
 
-    # CRITICAL FIX: escape=False + manual clean-up of column names
-    html_table = df.to_html(
-        index=False,
-        border=0,
-        classes="cost-table",
-        escape=False  # ← this stops < and > from being turned into < >
-    )
-
-    # Clean up any accidental &nbsp; or broken tags that sometimes sneak in
-    html_table = html_table.replace("&lt;", "<").replace("&gt;", ">")
+    discount_note = ""
+    if discount_mul < 1:
+        discount_note = "<small style='color:#059669; font-weight:500;'> (Elite discount applied)</small>"
 
     html = f"""
-    <div style="margin-top: 2rem; overflow-x: auto;">
-        <h4 style="margin-bottom: 0.5rem; color: #1e293b;">
-            7-Night Rental Costs ({year}) @ ${rate:.2f}/pt
-            {f" <small style='color:#64748b;'>(Presidential/Executive discount applied)</small>" if discount_mul < 1 else ""}
-        </h4>
-        {html_table}
+    <div style="margin-top: 2rem; overflow-x: auto; border-radius: 8px; border: 1px solid #e2e8f0;">
+        <div style="padding: 0.75rem 1rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <strong style="font-size: 1.1rem; color: #1e293b;">
+                7-Night Rental Costs ({year}) @ ${rate:.2f}/pt
+            </strong>
+            {discount_note}
+        </div>
+        <table class="cost-table">
+            <thead>
+                <tr>
+                    <th style="text-align: left; position: sticky; left: 0; background: #f8fafc; z-index: 10;">Season</th>
+                    {header}
+                </tr>
+            </thead>
+            <tbody>
+                {body}
+            </tbody>
+        </table>
     </div>
 
     <style>
-        .cost-table {{ border-collapse: collapse; width: 100%; min-width: 900px; margin-top: 0.5rem; }}
-        .cost-table th, .cost-table td {{
-            padding: 0.75rem 0.9rem;
-            text-align: center;
-            border-bottom: 1px solid #e2e8f0;
-            white-space: nowrap;
+        .cost-table {{
+            width: 100%;
+            min-width: 1000px;
+            border-collapse: collapse;
             font-size: 0.92rem;
+            background: white;
         }}
         .cost-table th {{
-            background-color: #f8fafc;
+            padding: 0.9rem 0.7rem;
+            text-align: center;
+            background: #f8fafc;
             font-weight: 600;
             color: #1e293b;
-            position: sticky;
-            top: 0;
-            z-index: 1;
+            border-bottom: 2px solid #cbd5e1;
+            white-space: nowrap;
         }}
-        .cost-table td:first-child {{
+        .cost-table td {{
+            padding: 0.8rem 0.7rem;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }}
+        .cost-table .season-cell {{
             text-align: left;
             font-weight: 500;
-            color: #1e293b;
+            background: white;
             position: sticky;
             left: 0;
-            background: white;
-            z-index: 2;
+            z-index: 5;
+            min-width: 160px;
         }}
-        .cost-table tr:hover td {{ background-color: #f1f5f9 !important; }}
-        .cost-table tr:hover td:first-child {{ background-color: #e6f4ff !important; }}
+        .cost-table tr:hover td {{
+            background-color: #f8fafc !important;
+        }}
+        .cost-table tr:hover .season-cell {{
+            background-color: #dbeafe !important;
+        }}
     </style>
     """
     return html
