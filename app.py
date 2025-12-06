@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: 2025-04-06 12:45 UTC
+# Last modified: Dec 7, 2025 @ 6:31 Singapore
 
 import streamlit as st
 import json
@@ -266,6 +266,121 @@ class MVCCalculator:
         total_cost = round(total_pts * rate, 2)
         return total_pts, total_cost
 
+def get_all_room_types_for_resort(resort_data: dict) -> List[str]:
+    """Extract every room type that appears in any season or holiday of the resort."""
+    rooms = set()
+    for year_obj in resort_data.get("years", {}).values():
+        # Seasons
+        for season in year_obj.get("seasons", []):
+            for cat in season.get("day_categories", {}).values():
+                rp = cat.get("room_points", {})
+                if isinstance(rp, dict):
+                    rooms.update(rp.keys())
+        # Holidays
+        for holiday in year_obj.get("holidays", []):
+            rp = holiday.get("room_points", {})
+            if isinstance(rp, dict):
+                rooms.update(rp.keys())
+    return sorted(rooms)
+
+
+def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_mul: float = 1.0) -> Optional[str]:
+    """
+    Returns an HTML table (as string) showing $ rental cost for 7-night stays
+    in every season + holiday defined in the given year.
+    Matches the look of your screenshot.
+    """
+    year_str = str(year)
+    yd = resort_data.get("years", {}).get(year_str)
+    if not yd:
+        return None
+
+    room_types = get_all_room_types_for_resort(resort_data)
+    if not room_types:
+        return None
+
+    rows = []
+
+    # ——— Seasons ———
+    for season in yd.get("seasons", []):
+        name = season.get("name", "").strip() or "Unnamed Season"
+        weekly_totals = {}
+        has_data = False
+
+        # Compute 7-night total from nightly rates
+        for dow in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
+            for cat in season.get("day_categories", {}).values():
+                if dow in cat.get("day_pattern", []):
+                    points_map = cat.get("room_points", {})
+                    for room in room_types:
+                        pts = points_map.get(room, 0)
+                        if pts:
+                            has_data = True
+                        weekly_totals[room] = weekly_totals.get(room, 0) + pts
+                    break  # only one category per weekday
+
+        if has_data:
+            row = {"Season": name}
+            for room in room_types:
+                raw_pts = weekly_totals.get(room, 0)
+                eff_pts = math.floor(raw_pts * discount_mul) if discount_mul < 1 else raw_pts
+                cost = math.ceil(eff_pts * rate)
+                row[room] = f"${cost:,}"
+            rows.append(row)
+
+    # ——— Holidays ———
+    for holiday in yd.get("holidays", []):
+        hname = holiday.get("name", "").strip() or "Unnamed Holiday"
+        rp = holiday.get("room_points", {}) or {}
+
+        row = {"Season": f"Holiday – {hname}"}
+        any_value = False
+        for room in room_types:
+            raw = rp.get(room, 0)
+            if raw:
+                any_value = True
+            eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
+            cost = math.ceil(eff * rate)
+            row[room] = f"${cost:,}" if raw else "—"
+        if any_value:
+            rows.append(row)
+
+    if not rows:
+        return None
+
+    df = pd.DataFrame(rows, columns=["Season"] + room_types)
+
+    # Generate clean, beautiful HTML
+    html = f"""
+    <div style="margin-top: 2rem;">
+        <h4 style="margin-bottom: 0.5rem; color: #1e293b;">7-Night Rental Costs ({year}) @ ${rate:.2f}/pt</h4>
+        {df.to_html(index=False, border=0, classes="cost-table")}
+    </div>
+
+    <style>
+        .cost-table {{ border-collapse: collapse; width: 100%; margin-top: 0.5rem; }}
+        .cost-table th, .cost-table td {{
+            padding: 0.75rem 1rem;
+            text-align: center;
+            border-bottom: 1px solid #e2e8f0;
+        }}
+        .cost-table th {{
+            background-color: #f8fafc;
+            font-weight: 600;
+            color: #1e293b;
+            font-size: 0.95rem;
+        }}
+        .cost-table td:first-child {{
+            text-align: left;
+            font-weight: 500;
+            color: #1e293b;
+        }}
+        .cost-table tr:hover {{ background-color: #f1f5f9; }}
+        .cost-table td {{ font-size: 0.95rem; }}
+    </style>
+    """
+    return html
+    
 # =============================================
 # 6. Init
 # =============================================
@@ -354,5 +469,18 @@ with st.expander("Season Calendar", expanded=False):
     if img:
         st.image(img, use_column_width=True)
 
+    # ——— NEW: Rental Cost Table in $ ———
+    cost_table_html = build_rental_cost_table(
+        resort_data=rdata,
+        year=checkin.year,
+        rate=rate,
+        discount_mul=mul  # applies Presidential/Executive discount correctly
+    )
+    if cost_table_html:
+        st.markdown(cost_table_html, unsafe_allow_html=True)
+    else:
+        st.info("No season or holiday pricing data available for this year.")
+        
+
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: April 6, 2025 @ 12:45 UTC")
+st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: Dec 7, 2025 @ 6:31 Singapore")
