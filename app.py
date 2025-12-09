@@ -90,6 +90,13 @@ def render_resort_card(resort_data) -> None:
 # =============================================
 # 4. Gantt – Fixed unpacking + Streamlit 1.40+ compatible
 # =============================================
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from matplotlib.patches import Patch
+import io
+from PIL import Image
+from datetime import datetime
+
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
 def season_bucket(name):
@@ -100,10 +107,13 @@ def season_bucket(name):
     if "low" in n: return "Low"
     return "Low"
 
+# 1. Add global_holidays to the signature so cache invalidates when data changes
 @st.cache_data(ttl=3600)
-def render_gantt_image(resort_data, year_str):
+def render_gantt_image(resort_data, year_str, global_holidays):
     rows = []
     yd = resort_data.get("years", {}).get(year_str, {})
+    
+    # --- Seasons ---
     for s in yd.get("seasons", []):
         name = s.get("name", "Season")
         bucket = season_bucket(name)
@@ -113,18 +123,27 @@ def render_gantt_image(resort_data, year_str):
                 end = datetime.strptime(p["end"], "%Y-%m-%d")
                 rows.append((name, start, end, bucket))
             except: continue
+
+    # --- Holidays ---
     for h in yd.get("holidays", []):
         ref = h.get("global_reference")
-        if ref and ref in raw_data.get("global_holidays", {}).get(year_str, {}):
-            info = raw_data["global_holidays"][year_str][ref]
-            start = datetime.strptime(info["start_date"], "%Y-%m-%d")
-            end = datetime.strptime(info["end_date"], "%Y-%m-%d")
-            rows.append((h.get("name", "Holiday"), start, end, "Holiday"))
+        # 2. Use the passed argument instead of the global raw_data
+        if ref and ref in global_holidays.get(year_str, {}):
+            info = global_holidays[year_str][ref]
+            try:
+                start = datetime.strptime(info["start_date"], "%Y-%m-%d")
+                end = datetime.strptime(info["end_date"], "%Y-%m-%d")
+                rows.append((h.get("name", "Holiday"), start, end, "Holiday"))
+            except: continue
+
     if not rows: return None
 
+    # 3. Height is calculated dynamically based on total rows (Seasons + Holidays)
     fig, ax = plt.subplots(figsize=(10, max(3, len(rows) * 0.5)))
+    
     for i, (label, start, end, typ) in enumerate(rows):
         ax.barh(i, end - start, left=start, height=0.6, color=COLORS.get(typ, "#999"), edgecolor="black")
+    
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels([label for label, _, _, _ in rows])
     ax.invert_yaxis()
@@ -132,15 +151,15 @@ def render_gantt_image(resort_data, year_str):
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
     ax.grid(True, axis='x', alpha=0.3)
     ax.set_title(f"{resort_data.get('resort_name')} – {year_str}", pad=12, size=12)
-    legend = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
-    ax.legend(handles=legend, loc='upper right', bbox_to_anchor=(1, 1))
+    
+    legend_elements = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
+    ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1, 1))
 
     buf = io.BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight', dpi=150)
     plt.close(fig)
     buf.seek(0)
     return Image.open(buf)
-
 # =============================================
 # 5. Calculator Core – Perfect Holiday Logic
 # =============================================
@@ -420,8 +439,13 @@ with st.expander("All Room Types – This Stay", expanded=False):
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
     st.dataframe(pd.DataFrame(comp_data), width='stretch', hide_index=True)
 
-with st.expander("Season Calendar", expanded=False):
-    img = render_gantt_image(rdata, str(checkin.year))
+ith st.expander("Season Calendar", expanded=False):
+    # 1. Get the global holidays from your data store
+    global_holidays = st.session_state.data.get("global_holidays", {})
+
+    # 2. Pass them as the 3rd argument to your updated function
+    img = render_gantt_image(rdata, str(checkin.year), global_holidays)
+    
     if img:
         st.image(img, use_column_width=True)
 
