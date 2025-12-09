@@ -439,7 +439,7 @@ with st.expander("All Room Types – This Stay", expanded=False):
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
     st.dataframe(pd.DataFrame(comp_data), width='stretch', hide_index=True)
 
-ith st.expander("Season Calendar", expanded=False):
+with st.expander("Season Calendar", expanded=False):
     # 1. Get the global holidays from your data store
     global_holidays = st.session_state.data.get("global_holidays", {})
 
