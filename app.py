@@ -440,8 +440,8 @@ with st.expander("All Room Types – This Stay", expanded=False):
     st.dataframe(pd.DataFrame(comp_data), width='stretch', hide_index=True)
 
 with st.expander("Season Calendar", expanded=False):
-    # 1. Get the global holidays from your data store
-    global_holidays = st.session_state.data.get("global_holidays", {})
+    # --- FIX: Use 'raw_data' instead of 'st.session_state.data' ---
+    global_holidays = raw_data.get("global_holidays", {}) 
 
     # 2. Pass them as the 3rd argument to your updated function
     img = render_gantt_image(rdata, str(checkin.year), global_holidays)
