@@ -39,10 +39,26 @@ preferred_id = user_settings.get("preferred_resort_id")
 # 2. West to East Sorting
 # =============================================
 COMMON_TZ_ORDER = [
-    "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles", "America/Denver",
-    "America/Chicago", "America/New_York", "America/Aruba", "America/St_Thomas",
-    "Asia/Denpasar", "Europe/Paris", "Asia/Bangkok"
+    "Pacific/Honolulu",      # Hawaii (farthest west)
+    "America/Los_Angeles",   # US West Coast
+    "America/Denver",        # Mountain US
+    "America/Chicago",       # Central US
+    "America/New_York",      # US East Coast
+    "America/Puerto_Rico",   # Caribbean / Aruba / Bahamas / USVI
+
+    # Europe (Eastward from Americas)
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Madrid",
+
+    # Asia-Pacific (moving eastward)
+    "Asia/Bangkok",
+    "Asia/Singapore",
+
+    # Far East / Oceania
+    "Australia/Sydney"
 ]
+
 
 def sort_resorts_west_to_east(resorts):
     def key(r):
