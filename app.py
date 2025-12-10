@@ -405,7 +405,8 @@ def adjust_checkin(d, tz_str):
         return utc.astimezone(pytz.timezone(tz_str)).date()
     except: return d
 
-checkin = adjust_checkin(checkin_input, tz)
+#checkin = adjust_checkin(checkin_input, tz)
+checkin = checkin_input
 if checkin != checkin_input:
     st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
 
