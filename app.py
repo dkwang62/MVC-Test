@@ -71,8 +71,8 @@ COMMON_TZ_ORDER = [
 
     # Asia / Australia
     "Asia/Bangkok",
-    "Asia/Singapore",
-    "Asia/Makassar",         # Bali region (Denpasar alias)
+    "Asia/Singapore",        # incl. Bali currently in data
+    "Asia/Makassar",         # Bali region (Denpasar alias, if used later)
     "Asia/Tokyo",
     "Australia/Brisbane",    # Surfers Paradise
     "Australia/Sydney",
@@ -141,33 +141,51 @@ def get_timezone_offset_minutes(tz_name: str) -> int:
 
 
 def get_timezone_offset(tz_name: str) -> float:
-    """UTC offset in HOURS (for completeness, not used by sorter directly)."""
+    """UTC offset in HOURS (provided for completeness)."""
     minutes = get_timezone_offset_minutes(tz_name)
     return minutes / 60.0
 
 
-def _region_from_code(code: str) -> int:
-    """Internal helper: region strictly from resort.code."""
+def _extract_country_or_region_code(resort: Dict[str, Any]) -> str:
+    """
+    Try to pull a 2-letter ISO-style country / state code from the resort.
+
+    For your data_v2.json, 'code' is the relevant field (e.g. 'ID', 'BS', 'VI').
+    """
+    for key in ("country_code", "country", "code", "region_code"):
+        val = resort.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip().upper()
+    return ""
+
+
+def _region_from_code_or_country(resort: Dict[str, Any]) -> int:
+    """Internal helper: region inferred from any country/region code field."""
+    code = _extract_country_or_region_code(resort)
     if not code:
         return REGION_FALLBACK
 
-    code = code.upper()
-
+    # USA states / DC
     if code in US_STATE_CODES:
         return REGION_US_CARIBBEAN
 
+    # Canada
     if code in CA_PROVINCES or code == "CA":
         return REGION_US_CARIBBEAN
 
+    # Caribbean
     if code in CARIBBEAN_CODES:
         return REGION_US_CARIBBEAN
 
+    # Mexico / Costa Rica
     if code in MEX_CENTRAL_CODES:
         return REGION_MEX_CENTRAL
 
+    # Europe
     if code in EUROPE_CODES:
         return REGION_EUROPE
 
+    # Asia / Australia
     if code in ASIA_AU_CODES:
         return REGION_ASIA_AU
 
@@ -179,15 +197,18 @@ def _region_from_timezone(tz: str) -> int:
     if not tz:
         return REGION_FALLBACK
 
+    # Americas, including Pacific/Honolulu
     if tz.startswith("America/") or tz.startswith("Pacific/"):
         # Explicitly treat Cancun and Mazatlan as Mexico/Central bucket
         if tz in ("America/Cancun", "America/Mazatlan"):
             return REGION_MEX_CENTRAL
         return REGION_US_CARIBBEAN
 
+    # Europe
     if tz.startswith("Europe/"):
         return REGION_EUROPE
 
+    # Asia / Australia
     if tz.startswith("Asia/") or tz.startswith("Australia/"):
         return REGION_ASIA_AU
 
@@ -206,22 +227,21 @@ def get_region_priority(resort: Dict[str, Any]) -> int:
 
     IMPORTANT:
     - For Europe and Asia/Australia, we TRUST the timezone.
-    - For Americas, we use country/state codes where available.
+    - For Americas, we use codes where available.
     """
     tz = resort.get("timezone") or ""
 
-    # 1) Region suggested purely by timezone
+    # Region suggested purely by timezone
     tz_region = _region_from_timezone(tz)
 
-    # 2) Region suggested by any country / state / code field
+    # Region suggested by any country / state / code field
     code_region = _region_from_code_or_country(resort)
 
     # If timezone clearly says "Europe" or "Asia/Australia", trust it.
     if tz_region in (REGION_EUROPE, REGION_ASIA_AU):
         return tz_region
 
-    # Otherwise we're likely in the Americas or unknown.
-    # Use the code-based region if it looks valid.
+    # Otherwise likely in the Americas or unknown: use code if helpful.
     if code_region != REGION_FALLBACK:
         return code_region
 
@@ -265,6 +285,7 @@ def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, A
         return (region_prio, tz_index, offset_minutes, name)
 
     return sorted(resorts, key=sort_key)
+
 
 # =============================================
 # 3. Resort Card – No timezone
