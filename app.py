@@ -197,24 +197,40 @@ def _region_from_timezone(tz: str) -> int:
 def get_region_priority(resort: Dict[str, Any]) -> int:
     """Map a resort into a logical region bucket.
 
-    Region order (top→bottom in dropdown):
+    Final order (top→bottom in dropdown):
         0: USA + Canada + Caribbean
         1: Mexico + Costa Rica
         2: Europe
         3: Asia + Australia
         99: fallback / unknown
+
+    IMPORTANT:
+    - For Europe and Asia/Australia, we TRUST the timezone.
+    - For Americas, we use country/state codes where available.
     """
-    code = (resort.get("code") or "").upper()
     tz = resort.get("timezone") or ""
 
-    # 1) Try code-based mapping first
-    region = _region_from_code(code)
-    if region != REGION_FALLBACK:
-        return region
+    # 1) Region suggested purely by timezone
+    tz_region = _region_from_timezone(tz)
 
-    # 2) Fallback: use timezone to infer region
-    return _region_from_timezone(tz)
+    # 2) Region suggested by any country / state / code field
+    code_region = _region_from_code_or_country(resort)
 
+    # If timezone clearly says "Europe" or "Asia/Australia", trust it.
+    if tz_region in (REGION_EUROPE, REGION_ASIA_AU):
+        return tz_region
+
+    # Otherwise we're likely in the Americas or unknown.
+    # Use the code-based region if it looks valid.
+    if code_region != REGION_FALLBACK:
+        return code_region
+
+    # If code didn't help but timezone did, use timezone.
+    if tz_region != REGION_FALLBACK:
+        return tz_region
+
+    # Complete fallback.
+    return REGION_FALLBACK
 
 def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
