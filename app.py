@@ -232,6 +232,7 @@ def get_region_priority(resort: Dict[str, Any]) -> int:
     # Complete fallback.
     return REGION_FALLBACK
 
+
 def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Sort resorts so the Streamlit dropdown flows TOP→BOTTOM as:
