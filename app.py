@@ -36,8 +36,9 @@ saved_tier = user_settings.get("renter_discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
-# 2. West to East Sorting (inline former utils.py logic)
+# 2. West to East Sorting – Regional groups, then West→East within region
 # =============================================
+from typing import Dict, Any
 
 # Logical West → East ordering for common MVC timezones.
 # This list is the PRIMARY source of truth for "west to east"
@@ -117,6 +118,7 @@ ASIA_AU_CODES = {"TH", "ID", "SG", "JP", "CN", "MY", "PH", "VN", "AU"}
 # Fixed reference date to avoid DST variability in offset calculations
 _REF_DT = datetime(2025, 1, 15, 12, 0, 0)
 
+
 def get_timezone_offset_minutes(tz_name: str) -> int:
     """Return offset from UTC in minutes for a given timezone.
 
@@ -137,10 +139,12 @@ def get_timezone_offset_minutes(tz_name: str) -> int:
     except Exception:
         return 0
 
+
 def get_timezone_offset(tz_name: str) -> float:
-    """Backwards-compatible helper: UTC offset in HOURS."""
+    """UTC offset in HOURS (for completeness, not used by sorter directly)."""
     minutes = get_timezone_offset_minutes(tz_name)
     return minutes / 60.0
+
 
 def _region_from_code(code: str) -> int:
     """Internal helper: region strictly from resort.code."""
@@ -169,12 +173,13 @@ def _region_from_code(code: str) -> int:
 
     return REGION_FALLBACK
 
+
 def _region_from_timezone(tz: str) -> int:
     """Fallback region inference based only on timezone."""
     if not tz:
         return REGION_FALLBACK
 
-    if tz.startswith("America/"):
+    if tz.startswith("America/") or tz.startswith("Pacific/"):
         # Explicitly treat Cancun and Mazatlan as Mexico/Central bucket
         if tz in ("America/Cancun", "America/Mazatlan"):
             return REGION_MEX_CENTRAL
@@ -188,65 +193,44 @@ def _region_from_timezone(tz: str) -> int:
 
     return REGION_FALLBACK
 
+
 def get_region_priority(resort: Dict[str, Any]) -> int:
-    """Map a resort into a logical region bucket."""
+    """Map a resort into a logical region bucket.
+
+    Region order (top→bottom in dropdown):
+        0: USA + Canada + Caribbean
+        1: Mexico + Costa Rica
+        2: Europe
+        3: Asia + Australia
+        99: fallback / unknown
+    """
     code = (resort.get("code") or "").upper()
     tz = resort.get("timezone") or ""
 
+    # 1) Try code-based mapping first
     region = _region_from_code(code)
     if region != REGION_FALLBACK:
         return region
 
+    # 2) Fallback: use timezone to infer region
     return _region_from_timezone(tz)
 
-# Legacy-style human-friendly labels keyed by timezone.
-TZ_TO_REGION = {
-    # Hawaii / Alaska / West Coast
-    "Pacific/Honolulu": "Hawaii",
-    "America/Anchorage": "Alaska",
-    "America/Los_Angeles": "US West Coast",
 
-    # Mexico / Mountain / Central
-    "America/Mazatlan": "Mexico (Pacific)",
-    "America/Denver": "US Mountain",
-    "America/Edmonton": "Canada Mountain",
-    "America/Chicago": "US Central",
-    "America/Winnipeg": "Canada Central",
-    "America/Cancun": "Mexico (Caribbean)",
-
-    # Eastern / Atlantic / Caribbean
-    "America/New_York": "US East Coast",
-    "America/Toronto": "Canada East",
-    "America/Halifax": "Atlantic Canada",
-    "America/Puerto_Rico": "Caribbean",
-    "America/St_Johns": "Newfoundland",
-
-    # Europe
-    "Europe/London": "UK / Ireland",
-    "Europe/Paris": "Western Europe",
-    "Europe/Madrid": "Western Europe",
-
-    # Asia / Australia
-    "Asia/Bangkok": "SE Asia",
-    "Asia/Singapore": "SE Asia",
-    "Asia/Makassar": "Indonesia",
-    "Asia/Tokyo": "Japan",
-    "Australia/Brisbane": "Australia (QLD)",
-    "Australia/Sydney": "Australia",
-}
-
-def get_region_label(tz: str) -> str:
-    """Timezone → region label helper.
-
-    If the timezone is not in TZ_TO_REGION, fall back to last component
-    of the tz name (e.g. 'Europe/Paris' → 'Paris').
+def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    if not tz:
-        return "Unknown"
-    return TZ_TO_REGION.get(tz, tz.split("/")[-1] if "/" in tz else tz)
+    Sort resorts so the Streamlit dropdown flows TOP→BOTTOM as:
 
-def sort_resorts_by_timezone(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Sort resorts first by REGION, then West → East within each region."""
+      [Region 0] USA + Canada + Caribbean (west→east)
+      [Region 1] Mexico + Costa Rica (west→east)
+      [Region 2] Europe (west→east)
+      [Region 3] Asia + Australia (west→east)
+      [Region 99] Unknown / fallback
+
+    Within each region:
+      1. By COMMON_TZ_ORDER index (explicit west→east list)
+      2. Then by UTC offset in minutes (for timezones not in COMMON_TZ_ORDER)
+      3. Then by display_name / resort_name alphabetically
+    """
     def sort_key(r: Dict[str, Any]):
         region_prio = get_region_priority(r)
 
@@ -254,6 +238,8 @@ def sort_resorts_by_timezone(resorts: List[Dict[str, Any]]) -> List[Dict[str, An
         if tz in COMMON_TZ_ORDER:
             tz_index = COMMON_TZ_ORDER.index(tz)
         else:
+            # Unknown timezones come after known ones within the region,
+            # ordered by UTC offset as a rough west→east indicator.
             tz_index = len(COMMON_TZ_ORDER)
 
         offset_minutes = get_timezone_offset_minutes(tz)
@@ -262,10 +248,6 @@ def sort_resorts_by_timezone(resorts: List[Dict[str, Any]]) -> List[Dict[str, An
         return (region_prio, tz_index, offset_minutes, name)
 
     return sorted(resorts, key=sort_key)
-
-def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Public API used by the app – resorts West → East with region grouping."""
-    return sort_resorts_by_timezone(resorts)
 
 # =============================================
 # 3. Resort Card – No timezone
