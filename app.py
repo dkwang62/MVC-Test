@@ -1,6 +1,6 @@
-# app.py
+Python# app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: Dec 7, 2025 @ 6:31 Singapore
+# Last modified: Dec 14, 2025 (modified for region-grouped resort selection grid)
 
 import streamlit as st
 import json
@@ -12,7 +12,7 @@ import pytz
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.patches import Patch
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any, Optional
 import io
 from PIL import Image
 
@@ -36,259 +36,205 @@ saved_tier = user_settings.get("renter_discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
-# 2. West to East Sorting – Regional groups, then West→East within region
+# 2. Region-aware sorting & helpers (integrated from provided utils)
 # =============================================
-from typing import Dict, Any
-
-# Logical West → East ordering for common MVC timezones.
-# This list is the PRIMARY source of truth for "west to east"
-# ordering within each region.
 COMMON_TZ_ORDER = [
-    # Hawaii / Alaska / West Coast
-    "Pacific/Honolulu",      # Hawaii
-    "America/Anchorage",     # Alaska
-    "America/Los_Angeles",   # US / Canada West Coast
-
-    # Mexico / Mountain / Central
-    "America/Mazatlan",      # Baja California Sur (Los Cabos)
-    "America/Denver",        # US Mountain
-    "America/Edmonton",      # Canada Mountain
-    "America/Chicago",       # US Central
-    "America/Winnipeg",      # Canada Central
-    "America/Cancun",        # Quintana Roo (Cancún)
-
-    # Eastern / Atlantic / Caribbean
-    "America/New_York",      # US East
-    "America/Toronto",       # Canada East
-    "America/Halifax",       # Atlantic Canada
-    "America/Puerto_Rico",   # Caribbean (AW, BS, VI, PR, etc.)
-    "America/St_Johns",      # Newfoundland
-
-    # Europe
+    "Pacific/Honolulu",
+    "America/Anchorage",
+    "America/Los_Angeles",
+    "America/Mazatlan",
+    "America/Denver",
+    "America/Edmonton",
+    "America/Chicago",
+    "America/Winnipeg",
+    "America/Cancun",
+    "America/New_York",
+    "America/Toronto",
+    "America/Halifax",
+    "America/Puerto_Rico",
+    "America/St_Johns",
     "Europe/London",
     "Europe/Paris",
     "Europe/Madrid",
-
-    # Asia / Australia
     "Asia/Bangkok",
-    "Asia/Singapore",        # incl. Bali currently in data
-    "Asia/Makassar",         # Bali region (Denpasar alias, if used later)
+    "Asia/Singapore",
+    "Asia/Makassar",
     "Asia/Tokyo",
-    "Australia/Brisbane",    # Surfers Paradise
+    "Australia/Brisbane",
     "Australia/Sydney",
 ]
 
-# Region priority:
-#   0 = USA + Canada + Caribbean
-#   1 = Mexico + Costa Rica
-#   2 = Europe
-#   3 = Asia + Australia
-#   99 = Everything else / fallback
 REGION_US_CARIBBEAN = 0
 REGION_MEX_CENTRAL = 1
 REGION_EUROPE = 2
 REGION_ASIA_AU = 3
 REGION_FALLBACK = 99
 
-# US state and DC we treat as "USA" region
-US_STATE_CODES = {
-    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
-    "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
-    "VA", "WA", "WV", "WI", "WY", "DC",
-}
-
-# Canadian provinces (kept in same region bucket as USA for navigation)
-CA_PROVINCES = {
-    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
-}
-
-# Caribbean / Atlantic codes we group with USA region
-CARIBBEAN_CODES = {"AW", "BS", "VI", "PR"}  # Aruba, Bahamas, USVI, Puerto Rico
-
-# Mexico + Central America grouping
-MEX_CENTRAL_CODES = {"MX", "CR"}  # Mexico, Costa Rica
-
-# Europe country codes we currently support
+US_STATE_CODES = {"AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "IL", "IN", "IA",
+                  "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+                  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
+                  "VA", "WA", "WV", "WI", "WY", "DC"}
+CA_PROVINCES = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
+CARIBBEAN_CODES = {"AW", "BS", "VI", "PR"}
+MEX_CENTRAL_CODES = {"MX", "CR"}
 EUROPE_CODES = {"ES", "FR", "GB", "UK", "PT", "IT", "DE", "NL", "IE"}
-
-# Asia + Australia country codes we currently support
 ASIA_AU_CODES = {"TH", "ID", "SG", "JP", "CN", "MY", "PH", "VN", "AU"}
 
-# Fixed reference date to avoid DST variability in offset calculations
 _REF_DT = datetime(2025, 1, 15, 12, 0, 0)
 
-
 def get_timezone_offset_minutes(tz_name: str) -> int:
-    """Return offset from UTC in minutes for a given timezone.
-
-    Used only as a tie-breaker within the same COMMON_TZ_ORDER bucket.
-    We use a fixed reference date to avoid DST-vs-standard-time issues.
-    """
     try:
         tz = pytz.timezone(tz_name)
-    except Exception:
-        return 0
-
-    try:
         aware = tz.localize(_REF_DT)
         offset = aware.utcoffset()
-        if offset is None:
-            return 0
-        return int(offset.total_seconds() // 60)
-    except Exception:
+        return int(offset.total_seconds() // 60) if offset else 0
+    except:
         return 0
 
-
-def get_timezone_offset(tz_name: str) -> float:
-    """UTC offset in HOURS (provided for completeness)."""
-    minutes = get_timezone_offset_minutes(tz_name)
-    return minutes / 60.0
-
-
-def _extract_country_or_region_code(resort: Dict[str, Any]) -> str:
-    """
-    Try to pull a 2-letter ISO-style country / state code from the resort.
-
-    For your data_v2.json, 'code' is the relevant field (e.g. 'ID', 'BS', 'VI').
-    """
-    for key in ("country_code", "country", "code", "region_code"):
-        val = resort.get(key)
-        if isinstance(val, str) and val.strip():
-            return val.strip().upper()
-    return ""
-
-
-def _region_from_code_or_country(resort: Dict[str, Any]) -> int:
-    """Internal helper: region inferred from any country/region code field."""
-    code = _extract_country_or_region_code(resort)
-    if not code:
-        return REGION_FALLBACK
-
-    # USA states / DC
-    if code in US_STATE_CODES:
+def _region_from_code(code: str) -> int:
+    code = code.upper()
+    if code in US_STATE_CODES or code in CA_PROVINCES or code == "CA" or code in CARIBBEAN_CODES:
         return REGION_US_CARIBBEAN
-
-    # Canada
-    if code in CA_PROVINCES or code == "CA":
-        return REGION_US_CARIBBEAN
-
-    # Caribbean
-    if code in CARIBBEAN_CODES:
-        return REGION_US_CARIBBEAN
-
-    # Mexico / Costa Rica
     if code in MEX_CENTRAL_CODES:
         return REGION_MEX_CENTRAL
-
-    # Europe
     if code in EUROPE_CODES:
         return REGION_EUROPE
-
-    # Asia / Australia
     if code in ASIA_AU_CODES:
         return REGION_ASIA_AU
-
     return REGION_FALLBACK
-
 
 def _region_from_timezone(tz: str) -> int:
-    """Fallback region inference based only on timezone."""
-    if not tz:
-        return REGION_FALLBACK
-
-    # Americas, including Pacific/Honolulu
-    if tz.startswith("America/") or tz.startswith("Pacific/"):
-        # Explicitly treat Cancun and Mazatlan as Mexico/Central bucket
-        if tz in ("America/Cancun", "America/Mazatlan"):
-            return REGION_MEX_CENTRAL
+    if tz in ("America/Cancun", "America/Mazatlan"):
+        return REGION_MEX_CENTRAL
+    if tz.startswith("America/"):
         return REGION_US_CARIBBEAN
-
-    # Europe
     if tz.startswith("Europe/"):
         return REGION_EUROPE
-
-    # Asia / Australia
     if tz.startswith("Asia/") or tz.startswith("Australia/"):
         return REGION_ASIA_AU
-
     return REGION_FALLBACK
-
 
 def get_region_priority(resort: Dict[str, Any]) -> int:
-    """Map a resort into a logical region bucket.
+    code = (resort.get("code") or "").upper()
+    if code:
+        pri = _region_from_code(code)
+        if pri != REGION_FALLBACK:
+            return pri
+    return _region_from_timezone(resort.get("timezone", ""))
 
-    Final order (top→bottom in dropdown):
-        0: USA + Canada + Caribbean
-        1: Mexico + Costa Rica
-        2: Europe
-        3: Asia + Australia
-        99: fallback / unknown
+TZ_TO_REGION = {
+    "Pacific/Honolulu": "Hawaii",
+    "America/Anchorage": "Alaska",
+    "America/Los_Angeles": "US West Coast",
+    "America/Mazatlan": "Mexico (Pacific)",
+    "America/Denver": "US Mountain",
+    "America/Edmonton": "Canada Mountain",
+    "America/Chicago": "US Central",
+    "America/Winnipeg": "Canada Central",
+    "America/Cancun": "Mexico (Caribbean)",
+    "America/New_York": "US East Coast",
+    "America/Toronto": "Canada East",
+    "America/Halifax": "Atlantic Canada",
+    "America/Puerto_Rico": "Caribbean",
+    "America/St_Johns": "Newfoundland",
+    "Europe/London": "UK / Ireland",
+    "Europe/Paris": "Western Europe",
+    "Europe/Madrid": "Western Europe",
+    "Asia/Bangkok": "SE Asia",
+    "Asia/Singapore": "SE Asia",
+    "Asia/Makassar": "Indonesia",
+    "Asia/Tokyo": "Japan",
+    "Australia/Brisbane": "Australia (QLD)",
+    "Australia/Sydney": "Australia",
+}
 
-    IMPORTANT:
-    - For Europe and Asia/Australia, we TRUST the timezone.
-    - For Americas, we use codes where available.
-    """
-    tz = resort.get("timezone") or ""
+def get_region_label(tz: str) -> str:
+    if not tz:
+        return "Unknown"
+    return TZ_TO_REGION.get(tz, tz.split("/")[-1] if "/" in tz else tz)
 
-    # Region suggested purely by timezone
-    tz_region = _region_from_timezone(tz)
-
-    # Region suggested by any country / state / code field
-    code_region = _region_from_code_or_country(resort)
-
-    # If timezone clearly says "Europe" or "Asia/Australia", trust it.
-    if tz_region in (REGION_EUROPE, REGION_ASIA_AU):
-        return tz_region
-
-    # Otherwise likely in the Americas or unknown: use code if helpful.
-    if code_region != REGION_FALLBACK:
-        return code_region
-
-    # If code didn't help but timezone did, use timezone.
-    if tz_region != REGION_FALLBACK:
-        return tz_region
-
-    # Complete fallback.
-    return REGION_FALLBACK
-
-
-def sort_resorts_west_to_east(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Sort resorts so the Streamlit dropdown flows TOP→BOTTOM as:
-
-      [Region 0] USA + Canada + Caribbean (west→east)
-      [Region 1] Mexico + Costa Rica (west→east)
-      [Region 2] Europe (west→east)
-      [Region 3] Asia + Australia (west→east)
-      [Region 99] Unknown / fallback
-
-    Within each region:
-      1. By COMMON_TZ_ORDER index (explicit west→east list)
-      2. Then by UTC offset in minutes (for timezones not in COMMON_TZ_ORDER)
-      3. Then by display_name / resort_name alphabetically
-    """
+def sort_resorts_by_timezone(resorts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     def sort_key(r: Dict[str, Any]):
         region_prio = get_region_priority(r)
-
         tz = r.get("timezone") or "UTC"
-        if tz in COMMON_TZ_ORDER:
-            tz_index = COMMON_TZ_ORDER.index(tz)
-        else:
-            # Unknown timezones come after known ones within the region,
-            # ordered by UTC offset as a rough west→east indicator.
-            tz_index = len(COMMON_TZ_ORDER)
-
+        tz_index = COMMON_TZ_ORDER.index(tz) if tz in COMMON_TZ_ORDER else len(COMMON_TZ_ORDER)
         offset_minutes = get_timezone_offset_minutes(tz)
         name = r.get("display_name") or r.get("resort_name") or ""
-
         return (region_prio, tz_index, offset_minutes, name)
-
     return sorted(resorts, key=sort_key)
 
+# Keep original name for compatibility
+def sort_resorts_west_to_east(resorts):
+    return sort_resorts_by_timezone(resorts)
 
 # =============================================
-# 3. Resort Card – No timezone
+# 3. New resort selection grid
+# =============================================
+def render_resort_grid(
+    resorts: List[Dict[str, Any]],
+    current_resort_key: Optional[str] = None,
+    *,
+    title: str = "🏨 Select a Resort",
+) -> None:
+    with st.expander(title, expanded=True):  # expanded=True for better mobile UX
+        if not resorts:
+            st.info("No resorts available.")
+            return
+
+        sorted_resorts = sort_resorts_by_timezone(resorts)
+
+        # Group by region with custom consolidations
+        region_groups = {}
+        for resort in sorted_resorts:
+            tz = resort.get("timezone", "UTC")
+            region_label = get_region_label(tz)
+
+            # Custom groupings
+            if region_label in ["Mexico (Pacific)", "Mexico (Caribbean)", "Costa_Rica"]:
+                region_label = "Central America & Mexico"
+            if region_label in ["SE Asia", "Indonesia", "Japan", "Australia (QLD)", "Australia"]:
+                region_label = "Asia Pacific"
+
+            region_groups.setdefault(region_label, []).append(resort)
+
+        # Order regions logically (override dict order)
+        desired_region_order = [
+            "Hawaii", "Alaska", "US West Coast", "US Mountain", "US Central", "US East Coast",
+            "Canada Mountain", "Canada Central", "Canada East", "Atlantic Canada", "Newfoundland",
+            "Caribbean", "Central America & Mexico", "UK / Ireland", "Western Europe",
+            "Asia Pacific", "Unknown"
+        ]
+        for region in desired_region_order:
+            if region not in region_groups:
+                continue
+            region_resorts = region_groups[region]
+            st.markdown(f"**{region}**")
+
+            num_cols = min(6, len(region_resorts))
+            cols = st.columns(num_cols)
+
+            for idx, resort in enumerate(region_resorts):
+                col = cols[idx % num_cols]
+                with col:
+                    rid = resort.get("id")
+                    name = resort.get("display_name", rid or "Unknown")
+                    is_current = (current_resort_key is not None) and (current_resort_key in (rid, name))
+                    btn_type = "primary" if is_current else "secondary"
+
+                    if st.button(
+                        name,
+                        key=f"resort_btn_{rid or name}_{idx}",
+                        type=btn_type,
+                        use_container_width=True,
+                    ):
+                        st.session_state.current_resort_id = rid
+                        st.session_state.current_resort_name = name
+                        st.rerun()
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+# =============================================
+# 4. Resort Card (unchanged)
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
@@ -322,7 +268,6 @@ def render_resort_card(resort_data) -> None:
         """,
         unsafe_allow_html=True,
     )
-
 # =============================================
 # 4. Gantt – Fixed unpacking + Streamlit 1.40+ compatible
 # =============================================
@@ -609,35 +554,44 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
 all_resorts = repo._raw.get("resorts", [])
-sorted_resorts = sort_resorts_west_to_east(all_resorts)
-resort_options = [r["display_name"] for r in sorted_resorts]
 
-default_resort_index = 0
-if preferred_id:
-    for i, r in enumerate(sorted_resorts):
-        if r.get("id") == preferred_id:
-            default_resort_index = i
-            break
+# Session state initialization
+if "current_resort_id" not in st.session_state:
+    st.session_state.current_resort_id = preferred_id
+if "current_resort_name" not in st.session_state:
+    if preferred_id:
+        preferred_resort = next((r for r in all_resorts if r.get("id") == preferred_id), None)
+        st.session_state.current_resort_name = preferred_resort["display_name"] if preferred_resort else None
+    else:
+        st.session_state.current_resort_name = None
 
-saved_lower = saved_tier.lower()
-default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
-                   1 if "executive" in saved_lower else 0
+current_resort_name = st.session_state.current_resort_name
+rdata = repo.get_resort_data(current_resort_name) if current_resort_name else None
 
 # =============================================
-# 7. UI – Streamlit 1.40+ Ready
+# 8. UI – New resort selection + rest unchanged
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
 
-resort_display = st.selectbox("Resort (West to East)", resort_options, index=default_resort_index)
-rdata = repo.get_resort_data(resort_display)
+# New grid selector
+render_resort_grid(
+    resorts=all_resorts,
+    current_resort_key=st.session_state.get("current_resort_id") or st.session_state.get("current_resort_name"),
+    title="🏨 Select a Resort (grouped by region)",
+)
+
+if not rdata:
+    st.warning("Please select a resort to continue.")
+    st.stop()
+
 render_resort_card(rdata)
 
-all_rooms = set()
-for y in rdata.get("years", {}).values():
-    for s in y.get("seasons", []):
-        for c in s.get("day_categories", {}).values():
-            all_rooms.update(c.get("room_points", {}).keys())
+# Room selection
+all_rooms = get_all_room_types_for_resort(rdata)
+if not all_rooms:
+    st.error("No room types found for this resort.")
+    st.stop()
 all_rooms = sorted(all_rooms)
 room = st.selectbox("Room Type", all_rooms)
 
@@ -645,18 +599,9 @@ c1, c2 = st.columns(2)
 checkin_input = c1.date_input("Check-in", date.today() + timedelta(days=7))
 nights = c2.number_input("Nights", 1, 60, 7)
 
+# Timezone adjustment (commented out as before, but kept for potential future use)
 tz = rdata.get("timezone", "America/New_York")
-def adjust_checkin(d, tz_str):
-    try:
-        utc = datetime.combine(d, datetime.min.time()).replace(tzinfo=pytz.UTC)
-        return utc.astimezone(pytz.timezone(tz_str)).date()
-    except:
-        return d
-
-#checkin = adjust_checkin(checkin_input, tz)
-checkin = checkin_input
-if checkin != checkin_input:
-    st.info(f"Adjusted to resort time: **{checkin.strftime('%a %b %d, %Y')}**")
+checkin = checkin_input  # keeping original behavior
 
 rate = st.number_input(
     "MVC Abound Maintenance Rate ($/pt)",
@@ -666,32 +611,33 @@ rate = st.number_input(
 membership_display = st.selectbox(
     "MVC Membership Tier",
     ["Ordinary Level", "Executive Level", "Presidential Level"],
-    index=default_tier_idx
+    index=2 if "presidential" in saved_tier.lower() or "chairman" in saved_tier.lower else
+          1 if "executive" in saved_tier.lower() else 0
 )
 
 mul = 0.70 if "Presidential" in membership_display else \
       0.75 if "Executive" in membership_display else 1.0
 
-result = calc.calculate(resort_display, room, checkin, nights, rate, mul)
+# Calculation
+result = calc.calculate(current_resort_name, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
     col1.metric("Total Points", f"{result.points:,}")
     col2.metric("Total Rent", f"${result.cost:,.2f}")
     if result.disc:
         st.success("Membership benefits applied")
-    st.dataframe(result.df, width='stretch', hide_index=True)
+    st.dataframe(result.df, use_container_width=True, hide_index=True)
 
 with st.expander("All Room Types – This Stay", expanded=False):
     comp_data = []
     for rm in all_rooms:
-        pts, cost = calc.calculate_total_only(resort_display, rm, checkin, nights, rate, mul)
+        pts, cost = calc.calculate_total_only(current_resort_name, rm, checkin, nights, rate, mul)
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
-    st.dataframe(pd.DataFrame(comp_data), width='stretch', hide_index=True)
+    st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
 
 with st.expander("Season Calendar", expanded=False):
-    global_holidays = raw_data.get("global_holidays", {}) 
+    global_holidays = raw_data.get("global_holidays", {})
     img = render_gantt_image(rdata, str(checkin.year), global_holidays)
-    
     if img:
         st.image(img, use_column_width=True)
 
@@ -701,6 +647,6 @@ with st.expander("Season Calendar", expanded=False):
         st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("No season or holiday pricing data available for this year.")
-        
+
 st.markdown("---")
-st.caption("Auto-calculate • Full resort name • Holiday logic fixed • Last updated: Dec 7, 2025 @ 6:31 Singapore")
+st.caption("Region-grouped resort selector • Mobile-friendly grid • Last updated: Dec 14, 2025")
