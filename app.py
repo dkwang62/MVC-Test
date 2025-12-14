@@ -568,6 +568,13 @@ if "current_resort_name" not in st.session_state:
 current_resort_name = st.session_state.current_resort_name
 rdata = repo.get_resort_data(current_resort_name) if current_resort_name else None
 
+# Fix: Properly compute default tier index from saved_tier string
+saved_tier_str = saved_tier or "No Discount"  # Ensure it's a string
+saved_lower = saved_tier_str.lower()
+
+default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
+                   1 if "executive" in saved_lower else 0
+
 # =============================================
 # 8. UI – New resort selection + rest unchanged
 # =============================================
@@ -599,7 +606,6 @@ c1, c2 = st.columns(2)
 checkin_input = c1.date_input("Check-in", date.today() + timedelta(days=7))
 nights = c2.number_input("Nights", 1, 60, 7)
 
-# Timezone adjustment (commented out as before, but kept for potential future use)
 tz = rdata.get("timezone", "America/New_York")
 checkin = checkin_input  # keeping original behavior
 
@@ -611,8 +617,7 @@ rate = st.number_input(
 membership_display = st.selectbox(
     "MVC Membership Tier",
     ["Ordinary Level", "Executive Level", "Presidential Level"],
-    index=2 if "presidential" in saved_tier.lower() or "chairman" in saved_tier.lower else
-          1 if "executive" in saved_tier.lower() else 0
+    index=default_tier_idx
 )
 
 mul = 0.70 if "Presidential" in membership_display else \
@@ -649,4 +654,4 @@ with st.expander("Season Calendar", expanded=False):
         st.info("No season or holiday pricing data available for this year.")
 
 st.markdown("---")
-st.caption("Region-grouped resort selector • Mobile-friendly grid • Last updated: Dec 14, 2025")
+st.caption("Region-grouped resort selector • Mobile-friendly grid • Membership tier bug fixed • Last updated: Dec 14, 2025")
