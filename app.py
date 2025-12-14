@@ -1,4 +1,4 @@
-Python# app.py
+# app.py
 # MVC Rent Calculator – Mobile First
 # Last modified: Dec 14, 2025 (modified for region-grouped resort selection grid)
 
