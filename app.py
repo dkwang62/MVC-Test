@@ -167,18 +167,25 @@ def render_resort_grid(
         region_groups = {}
         for resort in sorted_resorts:
             tz = resort.get("timezone", "UTC")
+            code = (resort.get("code") or "").upper()
+
             region_label = get_region_label(tz)
 
-            if region_label in ["Mexico (Pacific)", "Mexico (Caribbean)"]:
-                region_label = "Central America & Mexico"
-            if region_label in ["SE Asia", "Indonesia", "Japan", "Australia (QLD)", "Australia"]:
+            # Consolidate Mexico and Costa Rica into a single "Central America" group
+            if code in ["MX", "CR"] or region_label in ["Mexico (Pacific)", "Mexico (Caribbean)"]:
+                region_label = "Central America"
+
+            # Consolidate Asia Pacific
+            elif region_label in ["SE Asia", "Indonesia", "Japan", "Australia (QLD)", "Australia"]:
                 region_label = "Asia Pacific"
 
             region_groups.setdefault(region_label, []).append(resort)
 
+        # Updated region order with unified Central America
         desired_region_order = [
             "Hawaii", "Alaska", "US West Coast", "US Mountain", "US Central", "US East Coast",
-            "Caribbean", "Central America & Mexico", "UK / Ireland", "Western Europe",
+            "Caribbean", "Central America",  # Mexico + Costa Rica together
+            "UK / Ireland", "Western Europe",
             "Asia Pacific", "Unknown"
         ]
 
@@ -589,4 +596,4 @@ with st.expander("Season Calendar", expanded=False):
         st.info("No season or holiday pricing data available for this year.")
 
 st.markdown("---")
-st.caption("Region-grouped resort grid • Clean legacy removal • Last updated: Dec 14, 2025")
+st.caption("Region-grouped resort grid • Central America now includes Mexico + Costa Rica • Last updated: Dec 14, 2025")
