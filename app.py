@@ -1,6 +1,6 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: Dec 14, 2025 (modified for region-grouped resort selection grid)
+# Last modified: Dec 14, 2025 (cleaned: removed all legacy selectbox resort code)
 
 import streamlit as st
 import json
@@ -36,32 +36,17 @@ saved_tier = user_settings.get("renter_discount_tier", "No Discount")
 preferred_id = user_settings.get("preferred_resort_id")
 
 # =============================================
-# 2. Region-aware sorting & helpers (integrated from provided utils)
+# 2. Region-aware sorting & helpers
 # =============================================
 COMMON_TZ_ORDER = [
-    "Pacific/Honolulu",
-    "America/Anchorage",
-    "America/Los_Angeles",
-    "America/Mazatlan",
-    "America/Denver",
-    "America/Edmonton",
-    "America/Chicago",
-    "America/Winnipeg",
-    "America/Cancun",
-    "America/New_York",
-    "America/Toronto",
-    "America/Halifax",
-    "America/Puerto_Rico",
-    "America/St_Johns",
-    "Europe/London",
-    "Europe/Paris",
-    "Europe/Madrid",
-    "Asia/Bangkok",
-    "Asia/Singapore",
-    "Asia/Makassar",
-    "Asia/Tokyo",
-    "Australia/Brisbane",
-    "Australia/Sydney",
+    "Pacific/Honolulu", "America/Anchorage", "America/Los_Angeles",
+    "America/Mazatlan", "America/Denver", "America/Edmonton",
+    "America/Chicago", "America/Winnipeg", "America/Cancun",
+    "America/New_York", "America/Toronto", "America/Halifax",
+    "America/Puerto_Rico", "America/St_Johns",
+    "Europe/London", "Europe/Paris", "Europe/Madrid",
+    "Asia/Bangkok", "Asia/Singapore", "Asia/Makassar",
+    "Asia/Tokyo", "Australia/Brisbane", "Australia/Sydney",
 ]
 
 REGION_US_CARIBBEAN = 0
@@ -70,15 +55,15 @@ REGION_EUROPE = 2
 REGION_ASIA_AU = 3
 REGION_FALLBACK = 99
 
-US_STATE_CODES = {"AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "IL", "IN", "IA",
-                  "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
-                  "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT",
-                  "VA", "WA", "WV", "WI", "WY", "DC"}
-CA_PROVINCES = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"}
-CARIBBEAN_CODES = {"AW", "BS", "VI", "PR"}
-MEX_CENTRAL_CODES = {"MX", "CR"}
-EUROPE_CODES = {"ES", "FR", "GB", "UK", "PT", "IT", "DE", "NL", "IE"}
-ASIA_AU_CODES = {"TH", "ID", "SG", "JP", "CN", "MY", "PH", "VN", "AU"}
+US_STATE_CODES = {"AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","IL","IN","IA",
+                  "KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ",
+                  "NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT",
+                  "VA","WA","WV","WI","WY","DC"}
+CA_PROVINCES = {"AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"}
+CARIBBEAN_CODES = {"AW","BS","VI","PR"}
+MEX_CENTRAL_CODES = {"MX","CR"}
+EUROPE_CODES = {"ES","FR","GB","UK","PT","IT","DE","NL","IE"}
+ASIA_AU_CODES = {"TH","ID","SG","JP","CN","MY","PH","VN","AU"}
 
 _REF_DT = datetime(2025, 1, 15, 12, 0, 0)
 
@@ -163,47 +148,40 @@ def sort_resorts_by_timezone(resorts: List[Dict[str, Any]]) -> List[Dict[str, An
         return (region_prio, tz_index, offset_minutes, name)
     return sorted(resorts, key=sort_key)
 
-# Keep original name for compatibility
-def sort_resorts_west_to_east(resorts):
-    return sort_resorts_by_timezone(resorts)
-
 # =============================================
-# 3. New resort selection grid
+# 3. Resort selection grid
 # =============================================
 def render_resort_grid(
     resorts: List[Dict[str, Any]],
     current_resort_key: Optional[str] = None,
     *,
-    title: str = "🏨 Select a Resort",
+    title: str = "🏨 Select a Resort (grouped by region)",
 ) -> None:
-    with st.expander(title, expanded=True):  # expanded=True for better mobile UX
+    with st.expander(title, expanded=True):
         if not resorts:
             st.info("No resorts available.")
             return
 
         sorted_resorts = sort_resorts_by_timezone(resorts)
 
-        # Group by region with custom consolidations
         region_groups = {}
         for resort in sorted_resorts:
             tz = resort.get("timezone", "UTC")
             region_label = get_region_label(tz)
 
-            # Custom groupings
-            if region_label in ["Mexico (Pacific)", "Mexico (Caribbean)", "Costa_Rica"]:
+            if region_label in ["Mexico (Pacific)", "Mexico (Caribbean)"]:
                 region_label = "Central America & Mexico"
             if region_label in ["SE Asia", "Indonesia", "Japan", "Australia (QLD)", "Australia"]:
                 region_label = "Asia Pacific"
 
             region_groups.setdefault(region_label, []).append(resort)
 
-        # Order regions logically (override dict order)
         desired_region_order = [
             "Hawaii", "Alaska", "US West Coast", "US Mountain", "US Central", "US East Coast",
-            "Canada Mountain", "Canada Central", "Canada East", "Atlantic Canada", "Newfoundland",
             "Caribbean", "Central America & Mexico", "UK / Ireland", "Western Europe",
             "Asia Pacific", "Unknown"
         ]
+
         for region in desired_region_order:
             if region not in region_groups:
                 continue
@@ -234,7 +212,7 @@ def render_resort_grid(
             st.markdown("<br>", unsafe_allow_html=True)
 
 # =============================================
-# 4. Resort Card (unchanged)
+# 4. Resort Card
 # =============================================
 def render_resort_card(resort_data) -> None:
     full_name = resort_data.get("resort_name", "Unknown Resort")
@@ -251,33 +229,18 @@ def render_resort_card(resort_data) -> None:
             margin: 0.8rem 0;
             text-align: center;
         ">
-          <h3 style="
-            margin: 0 0 0.6rem 0;
-            font-size: 1.45rem;
-            font-weight: 700;
-            color: #1a202c;
-            line-height: 1.2;
-          ">{full_name}</h3>
-          <div style="
-            font-size: 0.9rem;
-            color: #718096;
-          ">
+          <h3 style="margin: 0 0 0.6rem 0; font-size: 1.45rem; font-weight: 700; color: #1a202c;">{full_name}</h3>
+          <div style="font-size: 0.9rem; color: #718096;">
             {f"<div>{address}</div>" if address else ""}
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-# =============================================
-# 4. Gantt – Fixed unpacking + Streamlit 1.40+ compatible
-# =============================================
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.patches import Patch
-import io
-from PIL import Image
-from datetime import datetime
 
+# =============================================
+# 5. Gantt Chart (unchanged)
+# =============================================
 COLORS = {"Peak": "#D73027", "High": "#FC8D59", "Mid": "#FEE08B", "Low": "#91BFDB", "Holiday": "#9C27B0"}
 
 def season_bucket(name):
@@ -293,7 +256,6 @@ def render_gantt_image(resort_data, year_str, global_holidays):
     rows = []
     yd = resort_data.get("years", {}).get(year_str, {})
     
-    # --- Seasons ---
     for s in yd.get("seasons", []):
         name = s.get("name", "Season")
         bucket = season_bucket(name)
@@ -302,10 +264,8 @@ def render_gantt_image(resort_data, year_str, global_holidays):
                 start = datetime.strptime(p["start"], "%Y-%m-%d")
                 end = datetime.strptime(p["end"], "%Y-%m-%d")
                 rows.append((name, start, end, bucket))
-            except:
-                continue
+            except: continue
 
-    # --- Holidays ---
     for h in yd.get("holidays", []):
         ref = h.get("global_reference")
         if ref and ref in global_holidays.get(year_str, {}):
@@ -314,11 +274,9 @@ def render_gantt_image(resort_data, year_str, global_holidays):
                 start = datetime.strptime(info["start_date"], "%Y-%m-%d")
                 end = datetime.strptime(info["end_date"], "%Y-%m-%d")
                 rows.append((h.get("name", "Holiday"), start, end, "Holiday"))
-            except:
-                continue
+            except: continue
 
-    if not rows:
-        return None
+    if not rows: return None
 
     fig, ax = plt.subplots(figsize=(10, max(3, len(rows) * 0.5)))
     
@@ -333,7 +291,7 @@ def render_gantt_image(resort_data, year_str, global_holidays):
     ax.grid(True, axis='x', alpha=0.3)
     ax.set_title(f"{resort_data.get('resort_name')} – {year_str}", pad=12, size=12)
     
-    legend_elements = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t == k for _, _, _, t in rows)]
+    legend_elements = [Patch(facecolor=COLORS[k], label=k) for k in COLORS if any(t==k for _,_,_,t in rows)]
     ax.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1, 1))
 
     buf = io.BytesIO()
@@ -343,13 +301,11 @@ def render_gantt_image(resort_data, year_str, global_holidays):
     return Image.open(buf)
 
 # =============================================
-# 5. Calculator Core – Perfect Holiday Logic
+# 6. Calculator Core (unchanged)
 # =============================================
 @dataclass
 class HolidayObj:
-    name: str
-    start: date
-    end: date
+    name: str; start: date; end: date
 
 class MVCRepository:
     def __init__(self, raw):
@@ -362,26 +318,23 @@ class MVCRepository:
                     datetime.strptime(d["start_date"], "%Y-%m-%d").date(),
                     datetime.strptime(d["end_date"], "%Y-%m-%d").date()
                 )
-
     def get_resort_data(self, name):
         return next((r for r in self._raw.get("resorts", []) if r["display_name"] == name), None)
 
 class MVCCalculator:
-    def __init__(self, repo):
-        self.repo = repo
+    def __init__(self, repo): self.repo = repo
 
     def get_points(self, rdata, day):
         y = str(day.year)
-        if y not in rdata.get("years", {}):
-            return {}, None
+        if y not in rdata.get("years", {}): return {}, None
         yd = rdata["years"][y]
         for h in yd.get("holidays", []):
             ref = h.get("global_reference")
             if ref and ref in self.repo._gh.get(y, {}):
-                s, e = self.repo._gh[y][ref]
+                s,e = self.repo._gh[y][ref]
                 if s <= day <= e:
                     return h.get("room_points", {}), HolidayObj(h.get("name"), s, e)
-        dow = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][day.weekday()]
+        dow = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"][day.weekday()]
         for s in yd.get("seasons", []):
             for p in s.get("periods", []):
                 try:
@@ -391,14 +344,12 @@ class MVCCalculator:
                         for cat in s.get("day_categories", {}).values():
                             if dow in cat.get("day_pattern", []):
                                 return cat.get("room_points", {}), None
-                except:
-                    continue
+                except: continue
         return {}, None
 
     def calculate(self, resort_name, room, checkin, nights, rate, discount_mul):
         r = self.repo.get_resort_data(resort_name)
-        if not r:
-            return None
+        if not r: return None
         rate = round(float(rate), 2)
         rows = []
         total_pts = 0
@@ -417,8 +368,7 @@ class MVCCalculator:
 
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw:
-                    disc_applied = True
+                if eff < raw: disc_applied = True
                 cost = math.ceil(eff * rate)
 
                 rows.append({
@@ -428,13 +378,11 @@ class MVCCalculator:
                 })
                 total_pts += eff
                 processed_holidays.add(holiday.name)
-                # skip to after holiday
                 current_date = holiday_end + timedelta(days=1)
             else:
                 raw = int(pts_map.get(room, 0))
                 eff = math.floor(raw * discount_mul) if discount_mul < 1 else raw
-                if eff < raw:
-                    disc_applied = True
+                if eff < raw: disc_applied = True
                 cost = math.ceil(eff * rate)
 
                 rows.append({
@@ -455,8 +403,7 @@ class MVCCalculator:
 
     def calculate_total_only(self, resort_name, room, checkin, nights, rate, discount_mul):
         r = self.repo.get_resort_data(resort_name)
-        if not r:
-            return 0, 0.0
+        if not r: return 0, 0.0
         rate = round(float(rate), 2)
         total_pts = 0
         processed_holidays = set()
@@ -479,16 +426,13 @@ class MVCCalculator:
         return total_pts, total_cost
 
 def get_all_room_types_for_resort(resort_data: dict) -> List[str]:
-    """Extract every room type that appears in any season or holiday of the resort."""
     rooms = set()
     for year_obj in resort_data.get("years", {}).values():
-        # Seasons
         for season in year_obj.get("seasons", []):
             for cat in season.get("day_categories", {}).values():
                 rp = cat.get("room_points", {})
                 if isinstance(rp, dict):
                     rooms.update(rp.keys())
-        # Holidays
         for holiday in year_obj.get("holidays", []):
             rp = holiday.get("room_points", {})
             if isinstance(rp, dict):
@@ -507,20 +451,18 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
 
     rows = []
 
-    # Seasons
     for season in yd.get("seasons", []):
         name = season.get("name", "").strip() or "Unnamed Season"
         weekly_totals = {}
         has_data = False
 
-        for dow in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
+        for dow in ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]:
             for cat in season.get("day_categories", {}).values():
                 if dow in cat.get("day_pattern", []):
                     points_map = cat.get("room_points", {})
                     for room in room_types:
                         pts = int(points_map.get(room, 0))
-                        if pts:
-                            has_data = True
+                        if pts: has_data = True
                         weekly_totals[room] = weekly_totals.get(room, 0) + pts
                     break
 
@@ -532,7 +474,6 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
                 row[room] = f"${math.ceil(eff * rate):,}"
             rows.append(row)
 
-    # Holidays
     for holiday in yd.get("holidays", []):
         hname = holiday.get("name", "").strip() or "Unnamed Holiday"
         rp = holiday.get("room_points", {}) or {}
@@ -547,17 +488,18 @@ def build_rental_cost_table(resort_data: dict, year: int, rate: float, discount_
         return None
 
     return pd.DataFrame(rows, columns=["Season"] + room_types)
-    
+
 # =============================================
-# 6. Init
+# 7. Init
 # =============================================
 repo = MVCRepository(raw_data)
 calc = MVCCalculator(repo)
 all_resorts = repo._raw.get("resorts", [])
 
-# Session state initialization
+# Session state for selected resort (preserves preferred resort)
 if "current_resort_id" not in st.session_state:
     st.session_state.current_resort_id = preferred_id
+
 if "current_resort_name" not in st.session_state:
     if preferred_id:
         preferred_resort = next((r for r in all_resorts if r.get("id") == preferred_id), None)
@@ -568,24 +510,21 @@ if "current_resort_name" not in st.session_state:
 current_resort_name = st.session_state.current_resort_name
 rdata = repo.get_resort_data(current_resort_name) if current_resort_name else None
 
-# Fix: Properly compute default tier index from saved_tier string
-saved_tier_str = saved_tier or "No Discount"  # Ensure it's a string
+# Safe membership tier default
+saved_tier_str = saved_tier or "No Discount"
 saved_lower = saved_tier_str.lower()
-
 default_tier_idx = 2 if "presidential" in saved_lower or "chairman" in saved_lower else \
                    1 if "executive" in saved_lower else 0
 
 # =============================================
-# 8. UI – New resort selection + rest unchanged
+# 8. UI
 # =============================================
 st.set_page_config(page_title="MVC Rent", layout="centered")
 st.markdown("<h1 style='font-size: 1.9rem; margin: 0.5rem 0;'>MVC Rent Calculator</h1>", unsafe_allow_html=True)
 
-# New grid selector
 render_resort_grid(
     resorts=all_resorts,
     current_resort_key=st.session_state.get("current_resort_id") or st.session_state.get("current_resort_name"),
-    title="🏨 Select a Resort (grouped by region)",
 )
 
 if not rdata:
@@ -594,20 +533,17 @@ if not rdata:
 
 render_resort_card(rdata)
 
-# Room selection
 all_rooms = get_all_room_types_for_resort(rdata)
 if not all_rooms:
     st.error("No room types found for this resort.")
     st.stop()
-all_rooms = sorted(all_rooms)
-room = st.selectbox("Room Type", all_rooms)
+room = st.selectbox("Room Type", sorted(all_rooms))
 
 c1, c2 = st.columns(2)
 checkin_input = c1.date_input("Check-in", date.today() + timedelta(days=7))
 nights = c2.number_input("Nights", 1, 60, 7)
 
-tz = rdata.get("timezone", "America/New_York")
-checkin = checkin_input  # keeping original behavior
+checkin = checkin_input
 
 rate = st.number_input(
     "MVC Abound Maintenance Rate ($/pt)",
@@ -623,7 +559,6 @@ membership_display = st.selectbox(
 mul = 0.70 if "Presidential" in membership_display else \
       0.75 if "Executive" in membership_display else 1.0
 
-# Calculation
 result = calc.calculate(current_resort_name, room, checkin, nights, rate, mul)
 if result:
     col1, col2 = st.columns(2)
@@ -654,4 +589,4 @@ with st.expander("Season Calendar", expanded=False):
         st.info("No season or holiday pricing data available for this year.")
 
 st.markdown("---")
-st.caption("Region-grouped resort selector • Mobile-friendly grid • Membership tier bug fixed • Last updated: Dec 14, 2025")
+st.caption("Region-grouped resort grid • Clean legacy removal • Last updated: Dec 14, 2025")
