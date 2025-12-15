@@ -1,13 +1,15 @@
 # app.py
 # MVC Rent Calculator – Mobile First
-# Last modified: Dec 15, 2025 (cleaned: removed unused timezone sorting code)
+# Last modified: Dec 15, 2025 (fixed: re-added missing math import)
 
 import streamlit as st
 import json
 import pandas as pd
+import math  # Required for math.ceil() and math.floor()
 from datetime import date, timedelta, datetime
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates  # Required for Gantt chart
 from typing import List, Dict, Any, Optional
 import io
 from PIL import Image
