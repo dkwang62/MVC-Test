@@ -163,7 +163,7 @@ def render_resort_grid(
     if not st.session_state.get("show_resort_picker", True):
         with slot.container():
             current_name = st.session_state.get("current_resort_name") or "Selected resort"
-            st.caption(f"Current resort: {current_name}")
+            # st.caption(f"Current resort: {current_name}")
             if st.button("Change resort", key="btn_change_resort"):
                 st.session_state.show_resort_picker = True
                 st.rerun()
