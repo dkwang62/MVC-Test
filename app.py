@@ -443,7 +443,7 @@ checkin = checkin_input
 
 rate = st.number_input(
     "MVC Abound Maintenance Rate ($/pt)",
-    0.30, 1.50, default_rate, 0.05, format="%.2f"
+    0.30, 1.50, default_rate, 0.01, format="%.2f"
 )
 
 membership_display = st.selectbox(
