@@ -157,7 +157,20 @@ def render_resort_grid(
     *,
     title: str = "🏨 Select a Resort (grouped by region)",
 ) -> None:
-    with st.expander(title, expanded=True):
+    slot = st.empty()
+
+    # If hidden, show a "Change resort" button and exit.
+    if not st.session_state.get("show_resort_picker", True):
+        with slot.container():
+            current_name = st.session_state.get("current_resort_name") or "Selected resort"
+            st.caption(f"Current resort: {current_name}")
+            if st.button("Change resort", key="btn_change_resort"):
+                st.session_state.show_resort_picker = True
+                st.rerun()
+        return
+
+    # Otherwise render picker UI inside expander (opened by default)
+    with slot.expander(title, expanded=True):
         if not resorts:
             st.info("No resorts available.")
             return
@@ -181,10 +194,9 @@ def render_resort_grid(
 
             region_groups.setdefault(region_label, []).append(resort)
 
-        # Updated region order with unified Central America
         desired_region_order = [
             "Hawaii", "Alaska", "US West Coast", "US Mountain", "US Central", "US East Coast",
-            "Caribbean", "Central America",  # Mexico + Costa Rica together
+            "Caribbean", "Central America",
             "UK / Ireland", "Western Europe",
             "Asia Pacific", "Unknown"
         ]
@@ -192,6 +204,7 @@ def render_resort_grid(
         for region in desired_region_order:
             if region not in region_groups:
                 continue
+
             region_resorts = region_groups[region]
             st.markdown(f"**{region}**")
 
@@ -214,9 +227,13 @@ def render_resort_grid(
                     ):
                         st.session_state.current_resort_id = rid
                         st.session_state.current_resort_name = name
+
+                        # Hide picker immediately after selection
+                        st.session_state.show_resort_picker = False
                         st.rerun()
 
             st.markdown("<br>", unsafe_allow_html=True)
+
 
 # =============================================
 # 4. Resort Card
