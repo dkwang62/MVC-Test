@@ -114,7 +114,7 @@ def render_resort_grid(
                         name,
                         key=f"resort_btn_{rid or name}_{idx}",
                         type=btn_type,
-                        use_container_width=True,
+                        width="stretch",
                     ):
                         st.session_state.current_resort_id = rid
                         st.session_state.current_resort_name = name
@@ -463,14 +463,14 @@ if result:
     col2.metric("Total Rent", f"${result.cost:,.2f}")
     if result.disc:
         st.success("Membership benefits applied")
-    st.dataframe(result.df, use_container_width=True, hide_index=True)
+    st.dataframe(result.df, width="stretch", hide_index=True)
 
 with st.expander("All Room Types – This Stay", expanded=False):
     comp_data = []
     for rm in all_rooms:
         pts, cost = calc.calculate_total_only(current_resort_name, rm, checkin, nights, rate, mul)
         comp_data.append({"Room Type": rm, "Points": f"{pts:,}", "Rent": f"${cost:,.2f}"})
-    st.dataframe(pd.DataFrame(comp_data), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(comp_data), width="stretch", hide_index=True)
 
 with st.expander("Season Calendar", expanded=False):
     global_holidays = raw_data.get("global_holidays", {})
@@ -480,7 +480,7 @@ with st.expander("Season Calendar", expanded=False):
     df = build_rental_cost_table(rdata, checkin.year, rate, mul)
     if df is not None:
         st.caption(f"7-Night Rental Costs @ ${rate:.2f}/pt{' — Elite discount applied' if mul < 1 else ''}")
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.dataframe(df, width="stretch", hide_index=True)
     else:
         st.info("No season or holiday pricing data available for this year.")
 
