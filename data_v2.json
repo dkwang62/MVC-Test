@@ -34569,7 +34569,7 @@
         "2025": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2025-01-03",
@@ -34613,7 +34613,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2025-01-31",
@@ -34657,7 +34657,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2025-05-02",
@@ -34705,7 +34705,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2025-09-05",
@@ -34795,7 +34795,7 @@
         "2026": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2026-01-02",
@@ -34839,7 +34839,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2026-01-30",
@@ -34883,7 +34883,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2026-05-01",
@@ -34931,7 +34931,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2026-09-04",
@@ -35021,7 +35021,7 @@
         "2027": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2027-01-03",
@@ -35065,7 +35065,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2027-01-29",
@@ -35109,7 +35109,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2027-04-30",
@@ -35157,7 +35157,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2027-09-03",
@@ -35257,7 +35257,7 @@
         "2025": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2025-01-03",
@@ -35305,7 +35305,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2025-01-31",
@@ -35345,7 +35345,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2025-05-02",
@@ -35389,7 +35389,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2025-09-12",
@@ -35467,7 +35467,7 @@
         "2026": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2026-01-02",
@@ -35511,7 +35511,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2026-01-30",
@@ -35551,7 +35551,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2026-05-01",
@@ -35595,7 +35595,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2026-09-11",
@@ -35673,7 +35673,7 @@
         "2027": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2027-01-03",
@@ -35717,7 +35717,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2027-01-29",
@@ -35757,7 +35757,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2027-04-30",
@@ -35801,7 +35801,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2027-09-10",
@@ -35889,7 +35889,7 @@
         "2025": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2025-01-03",
@@ -35935,7 +35935,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2025-01-31",
@@ -35977,7 +35977,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2025-04-25",
@@ -36023,7 +36023,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2025-08-29",
@@ -36107,7 +36107,7 @@
         "2026": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2026-01-02",
@@ -36153,7 +36153,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2026-01-30",
@@ -36195,7 +36195,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2026-04-24",
@@ -36241,7 +36241,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2026-08-28",
@@ -36325,7 +36325,7 @@
         "2027": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2027-01-03",
@@ -36371,7 +36371,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2027-01-29",
@@ -36413,7 +36413,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2027-04-23",
@@ -36459,7 +36459,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2027-08-27",
@@ -36553,7 +36553,7 @@
         "2025": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2025-01-03",
@@ -36603,7 +36603,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2025-01-31",
@@ -36649,7 +36649,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2025-04-25",
@@ -36699,7 +36699,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2025-08-29",
@@ -36795,7 +36795,7 @@
         "2026": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2026-01-02",
@@ -36845,7 +36845,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2026-01-30",
@@ -36891,7 +36891,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2026-04-24",
@@ -36941,7 +36941,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2026-08-28",
@@ -37037,7 +37037,7 @@
         "2027": {
           "seasons": [
             {
-              "name": "Low Season",
+              "name": "High Season",
               "periods": [
                 {
                   "start": "2027-01-03",
@@ -37087,7 +37087,7 @@
               }
             },
             {
-              "name": "Mid Season",
+              "name": "Peak Season",
               "periods": [
                 {
                   "start": "2027-01-29",
@@ -37133,7 +37133,7 @@
               }
             },
             {
-              "name": "High Season",
+              "name": "Mid Season",
               "periods": [
                 {
                   "start": "2027-04-23",
@@ -37183,7 +37183,7 @@
               }
             },
             {
-              "name": "Peak Season",
+              "name": "Low Season",
               "periods": [
                 {
                   "start": "2027-08-27",
